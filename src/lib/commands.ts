@@ -50,7 +50,7 @@ import {
 } from "./actions";
 import { api, isSystemId, kindLabel, type Item, type ItemKind } from "./api";
 import { fontApi } from "../features/fonts/api";
-import { checkForUpdate } from "./update";
+import { checkForUpdate, openReleaseNotes } from "./update";
 import { currentFolderId, listKinds, MODES, shownModes, useStore } from "../store";
 import { modeLabel } from "./modes";
 import { rowIds } from "./grouping";
@@ -120,9 +120,13 @@ export const COMMANDS: Command[] = [
     title: "設定…",
     keys: ["Mod+,"],
     keyBy: "global",
-    run: (s) => s.openSettings("general"),
+    run: (s) => s.openSettings("last"),
   },
   { id: "app.checkUpdate", title: "アップデートを確認…", run: () => checkForUpdate(true) },
+  // Windows' ヘルプ menu (macOS has the system's about panel in the app menu):
+  // the settings' アップデート section shows the app, its version and updates.
+  { id: "help.about", title: "Stockroom について", run: (s) => s.openSettings("general") },
+  { id: "help.releaseNotes", title: "このバージョンの更新内容", run: () => openReleaseNotes() },
   {
     id: "help.shortcuts",
     title: "キーボードショートカット",

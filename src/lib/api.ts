@@ -574,6 +574,10 @@ export const api = {
   copyImage: (data: Uint8Array) => invoke<void>("copy_image", data),
   revealPath: (path: string) => invoke<void>("reveal_path", { path }),
   revealLog: () => invoke<void>("reveal_log"),
+  /** The proxy the OS uses for `url` (PAC included); null = direct. For the updater. */
+  systemProxy: (url: string) => invoke<string | null>("system_proxy", { url }),
+  /** The GitHub release page of `version` (what changed), in the browser. */
+  openReleasePage: (version: string) => invoke<void>("open_release_page", { version }),
 
   importPaths: (paths: string[], folderId: string | null) =>
     invoke<ImportSummary>("import_paths", { paths, folderId }),

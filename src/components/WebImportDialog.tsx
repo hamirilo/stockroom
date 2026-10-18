@@ -3,10 +3,11 @@
 // through loading the extension. Also the dialog an extension's connection
 // request opens.
 import { ask } from "@tauri-apps/plugin-dialog";
-import { Check, ChevronRight, Copy, FolderOpen, Link2, Puzzle } from "lucide-react";
+import { Check, ChevronRight, Copy, FolderOpen, Link2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, type WebImportStatus } from "../lib/api";
 import { useStore } from "../store";
+import { SwitchRow } from "./SettingsFrame";
 
 async function copy(text: string) {
   try {
@@ -58,12 +59,9 @@ export function WebImportSettings() {
 
   return (
     <div>
+      {/* The frame's header (SettingsFrame) names the page. */}
       <div className="mb-4">
-        <div className="flex items-center gap-2 font-semibold">
-          <Puzzle size={16} className="text-accent" />
-          ブラウザ拡張と連携
-        </div>
-        <p className="mt-1 text-xs text-dim">
+        <p className="text-xs text-dim">
           Chrome（Microsoft Edge でも可）の拡張機能から、Web
           ページの画像やスクリーンショットをこのライブラリに保存できます。 保存した画像には元のページの URL
           が記録されます。
@@ -71,28 +69,25 @@ export function WebImportSettings() {
       </div>
 
       <div>
-        <label className="flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            className="mt-0.5 size-4 accent-[var(--color-accent)]"
+        <div className="rounded-lg border border-line bg-bg/40">
+          <SwitchRow
+            label={<span className="font-medium">ブラウザ拡張からの保存を受け付ける</span>}
             checked={on}
             disabled={!status || busy}
-            onChange={(e) => act(() => api.setWebImport(e.target.checked))}
+            onChange={(v) => act(() => api.setWebImport(v))}
+            hint={
+              !status ? (
+                "確認中…"
+              ) : status.error ? (
+                <span className="text-danger">{status.error}</span>
+              ) : status.running ? (
+                `受付中（127.0.0.1:${status.port}）。このパソコンの中の、接続を許可した拡張機能からだけ受け付けます。`
+              ) : (
+                "オフ。アプリの起動中だけ受け付けます。"
+              )
+            }
           />
-          <span className="min-w-0 flex-1">
-            <span className="font-medium">ブラウザ拡張からの保存を受け付ける</span>
-            <span className="mt-0.5 block text-xs text-dim">
-              {!status
-                ? "確認中…"
-                : status.error
-                  ? null
-                  : status.running
-                    ? `受付中（127.0.0.1:${status.port}）。このパソコンの中の、接続を許可した拡張機能からだけ受け付けます。`
-                    : "オフ。アプリの起動中だけ受け付けます。"}
-            </span>
-            {status?.error && <span className="mt-0.5 block text-xs text-danger">{status.error}</span>}
-          </span>
-        </label>
+        </div>
 
         {on && ready && (
           // Set up already: the steps fold away behind the state.
