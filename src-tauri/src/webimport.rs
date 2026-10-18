@@ -16,6 +16,10 @@
 //!   POST /pair?code=1234   (no token) asks the user to connect this extension;
 //!                  answers { token } once approved. The code is shown in
 //!                  both places so the user can tell it's the same request.
+//!                  Another app on this machine (Feedability) asks the same
+//!                  way with no `Origin` and `X-Stockroom-Client: <its name>`
+//!                  (docs/FROM_APPS.md); a browser always sends `Origin` with
+//!                  a POST, so a page can't pass for one.
 //!   GET  /info     app version and the open library's name
 //!   GET  /folders  [{ id, name, parentId }] in sidebar order
 //!   GET  /tags     tag names
@@ -42,9 +46,36 @@ pub trait Host: Send + Sync + 'static {
     fn library(&self) -> &Mutex<Option<Library>>;
     /// Called after every import that went through, to refresh the UI.
     fn imported(&self, summary: &ImportSummary);
-    /// Asks the user whether to connect the extension `extension` (its id)
-    /// showing `code`. Blocks until they answer (false if they don't in time).
-    fn approve_pairing(&self, code: &str, extension: &str) -> bool;
+    /// Asks the user whether to connect `peer` showing `code`. Blocks until
+    /// they answer (false if they don't in time).
+    fn approve_pairing(&self, code: &str, peer: &Peer) -> bool;
+}
+
+/// Who asks to connect.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Peer {
+    /// A browser extension, by its id (chrome://extensions shows it).
+    Extension(String),
+    /// Another app on this machine, by the name it gives itself.
+    App(String),
+}
+
+impl Peer {
+    /// The key a refusal is remembered by.
+    fn key(&self) -> String {
+        match self {
+            Peer::Extension(id) => format!("extension:{id}"),
+            Peer::App(name) => format!("app:{name}"),
+        }
+    }
+}
+
+/// An app's name as it is shown: control characters dropped, at most 40
+/// characters. It is what the app calls itself, nothing more.
+fn app_name(header: &str) -> Option<String> {
+    let name: String = header.chars().filter(|c| !c.is_control()).take(40).collect();
+    let name = name.trim();
+    (!name.is_empty()).then(|| name.to_string())
 }
 
 /// What the request threads share.
@@ -52,7 +83,7 @@ struct Shared {
     token: String,
     /// A pairing question is open in the app (one at a time).
     pairing: AtomicBool,
-    /// Extension id -> when it may ask again after being refused: asking
+    /// Who asked (`Peer::key`) -> when it may ask again after being refused: asking
     /// brings the app to the front, so it mustn't be repeated at will.
     refused: Mutex<HashMap<String, Instant>>,
     /// One import body read at a time: each can be 300 MB, and imports run
@@ -60,7 +91,7 @@ struct Shared {
     importing: Mutex<()>,
 }
 
-/// How long a refused extension waits before it may ask again.
+/// How long a refused extension or app waits before it may ask again.
 const REFUSED_WAIT: Duration = Duration::from_secs(30);
 
 pub struct Server {
@@ -91,6 +122,7 @@ fn serve(mut req: tiny_http::Request, port: u16, shared: &Shared, host: &dyn Hos
         url: req.url().to_string(),
         host: loopback::header(&req, "Host"),
         origin: loopback::header(&req, "Origin"),
+        client: loopback::header(&req, "X-Stockroom-Client"),
         auth: loopback::header(&req, "Authorization"),
         length: req.body_length().map(|n| n as u64),
     };
@@ -107,6 +139,8 @@ struct Head {
     url: String,
     host: Option<String>,
     origin: Option<String>,
+    /// `X-Stockroom-Client`: the name another app asks to connect under.
+    client: Option<String>,
     auth: Option<String>,
     length: Option<u64>,
 }
@@ -133,26 +167,37 @@ fn handle(head: &Head, body: &mut dyn Read, port: u16, shared: &Shared, host: &d
         if head.method != "POST" {
             return error(405, "このメソッドは使えません");
         }
-        // Only an extension may ask (a page or another program sends no extension Origin).
-        let Some(extension) = head.origin.as_deref().and_then(|o| o.strip_prefix("chrome-extension://")) else {
-            return error(403, "ブラウザ拡張以外からの接続は受け付けません");
+        // An extension (by its Origin), or an app that names itself and sends
+        // no Origin. A page always sends one, and it isn't an extension's
+        // (refused above).
+        let peer = match (head.origin.as_deref(), head.client.as_deref()) {
+            (Some(o), _) => match o.strip_prefix("chrome-extension://") {
+                Some(id) => Peer::Extension(id.to_string()),
+                None => return error(403, "ブラウザ拡張以外からの接続は受け付けません"),
+            },
+            (None, Some(c)) => match app_name(c) {
+                Some(name) => Peer::App(name),
+                None => return error(400, "アプリの名前がありません"),
+            },
+            (None, None) => return error(403, "ブラウザ拡張以外からの接続は受け付けません"),
         };
+        let key = peer.key();
         let code = params.iter().find(|(k, _)| k == "code").map(|(_, v)| v.as_str()).unwrap_or("");
         if code.len() != 4 || !code.bytes().all(|b| b.is_ascii_digit()) {
             return error(400, "確認用の番号がありません");
         }
-        if shared.refused.lock().unwrap().get(extension).is_some_and(|until| Instant::now() < *until) {
+        if shared.refused.lock().unwrap().get(&key).is_some_and(|until| Instant::now() < *until) {
             return error(429, "アプリで接続が許可されませんでした。しばらく待ってから、もう一度試してください");
         }
         if shared.pairing.swap(true, Ordering::SeqCst) {
             return error(409, "アプリで別の接続を確認中です。そちらに答えてから、もう一度試してください");
         }
-        let approved = host.approve_pairing(code, extension);
+        let approved = host.approve_pairing(code, &peer);
         shared.pairing.store(false, Ordering::SeqCst);
         if !approved {
             let mut refused = shared.refused.lock().unwrap();
             refused.retain(|_, until| Instant::now() < *until);
-            refused.insert(extension.to_string(), Instant::now() + REFUSED_WAIT);
+            refused.insert(key, Instant::now() + REFUSED_WAIT);
         }
         return if approved {
             (200, json!({ "token": token }))
@@ -315,7 +360,7 @@ mod tests {
         fn imported(&self, _: &ImportSummary) {
             self.imports.fetch_add(1, Ordering::Relaxed);
         }
-        fn approve_pairing(&self, code: &str, _extension: &str) -> bool {
+        fn approve_pairing(&self, code: &str, _peer: &Peer) -> bool {
             self.asked.lock().unwrap().push(code.to_string());
             std::thread::sleep(std::time::Duration::from_millis(200)); // the user thinking
             code != "0000"
@@ -468,8 +513,9 @@ mod tests {
         let (status, res) = call(p, "POST", "/pair?code=0000", &ext, b"");
         assert_eq!((status, res.get("token")), (403, None));
         assert_eq!(call(p, "POST", "/pair?code=4821", &ext, b"").0, 429);
-        // Only extensions may ask, with a 4-digit code, by POST; nobody is bothered otherwise.
-        assert_eq!(call(p, "POST", "/pair?code=1234", &[ext[0]], b"").0, 403, "no Origin (another program)");
+        // Only extensions and apps that name themselves may ask, with a 4-digit
+        // code, by POST; nobody is bothered otherwise.
+        assert_eq!(call(p, "POST", "/pair?code=1234", &[ext[0]], b"").0, 403, "no Origin, no name");
         assert_eq!(call(p, "POST", "/pair?code=1234", &[ext[0], ("Origin", "https://evil.example")], b"").0, 403);
         assert_eq!(call(p, "POST", "/pair?code=12", &ext, b"").0, 400);
         assert_eq!(call(p, "GET", "/pair?code=1234", &ext, b"").0, 405);
@@ -484,6 +530,40 @@ mod tests {
         let other = [ext[0], ("Origin", "chrome-extension://qrstuvwxyzabcdef")];
         assert_eq!(call(p, "POST", "/pair?code=1111", &other, b"").0, 200);
         assert_eq!(second.join().unwrap(), 409);
+    }
+
+    #[test]
+    fn apps_ask_by_name_and_pages_cannot_pass_for_one() {
+        let (_tmp, host, server) = setup();
+        let p = server.port();
+        let h = format!("127.0.0.1:{p}");
+        let app = [("Host", h.as_str()), ("X-Stockroom-Client", "Feedability")];
+
+        let (status, res) = call(p, "POST", "/pair?code=4821", &app, b"");
+        assert_eq!((status, res["token"].as_str()), (200, Some(TOKEN)));
+        // The same token as the extension's; an app needs no Origin for the rest.
+        let auth = format!("Bearer {TOKEN}");
+        assert_eq!(call(p, "GET", "/folders", &[app[0], ("Authorization", &auth)], b"").0, 200);
+
+        // A page naming itself an app still sends its Origin.
+        let page = [app[0], app[1], ("Origin", "https://evil.example")];
+        assert_eq!(call(p, "POST", "/pair?code=1234", &page, b"").0, 403);
+        // A name of nothing but control characters is no name.
+        assert_eq!(call(p, "POST", "/pair?code=1234", &[app[0], ("X-Stockroom-Client", "\u{7}")], b"").0, 400);
+        // A refused app waits, by its name.
+        assert_eq!(call(p, "POST", "/pair?code=0000", &app, b"").0, 403);
+        assert_eq!(call(p, "POST", "/pair?code=4821", &app, b"").0, 429);
+        let other = [app[0], ("X-Stockroom-Client", "Other")];
+        assert_eq!(call(p, "POST", "/pair?code=1111", &other, b"").0, 200);
+        assert_eq!(*host.asked.lock().unwrap(), ["4821", "0000", "1111"]);
+    }
+
+    #[test]
+    fn app_names_are_cleaned() {
+        assert_eq!(app_name(" Feedability "), Some("Feedability".into()));
+        assert_eq!(app_name("a\nb\u{1b}c"), Some("abc".into()));
+        assert_eq!(app_name(&"x".repeat(60)).map(|n| n.len()), Some(40));
+        assert_eq!(app_name("  "), None);
     }
 
     #[test]

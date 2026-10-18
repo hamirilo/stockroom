@@ -1,6 +1,6 @@
 # ほかのアプリから受け取る（Feedability ほか）
 
-**状態**：計画（未実装。方針は決定済み）。相手側の計画は Feedability の `docs/STOCKROOM.md` と ADR-0004（採用）。
+**状態**：受け口は対応済み（2026-10-18。`webimport.rs` の `Peer`）。相手側の計画は Feedability の `docs/STOCKROOM.md` と ADR-0004（採用）。
 
 困っていること：Feedability（同じ作りのフィードリーダー）で読んだ記事のうち、取っておきたいものを stockroom に入れる手段が無い。
 フィードの記事は流れていくもので、Feedability は古い記事を消すし、元のページも書き換わったり消えたりする。

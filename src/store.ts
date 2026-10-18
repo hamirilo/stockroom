@@ -239,7 +239,8 @@ interface State {
   settingsTab: SettingsTab | null;
   /** A browser extension asks to connect; `code` is also shown in the extension. */
   /** `extension`: the asking extension's id (chrome://extensions shows it). */
-  pairRequest: { id: string; code: string; extension: string } | null;
+  /** An extension (its id) or another app (the name it gives itself) asks to connect. */
+  pairRequest: { id: string; code: string; extension: string | null; app: string | null } | null;
   /** Similar view: how alike images must be. */
   similarLevel: SimilarLevel;
   /** Similar view: copies the user chose to keep (at most one per group). */
