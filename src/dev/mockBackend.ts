@@ -987,6 +987,9 @@ function handle(cmd: string, a: any): unknown {
     case "reveal_path":
     case "reveal_log":
       return;
+    case "open_release_page":
+      console.info(`[mock] ${cmd}`, a.version);
+      return;
     case "copy_items":
     case "export_items":
       return a.ids.length;

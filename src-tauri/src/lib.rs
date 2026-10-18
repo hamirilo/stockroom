@@ -155,6 +155,7 @@ pub fn run() {
             set_pinned,
             orient_items,
             system_proxy,
+            open_release_page,
             fonts::commands::font_info,
             fonts::commands::font_faces,
             fonts::commands::font_list_preview,

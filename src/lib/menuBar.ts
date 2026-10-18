@@ -89,6 +89,8 @@ const APP_WIDE = new Set([
   "help.webImport",
   "help.claude",
   "help.log",
+  "help.about",
+  "help.releaseNotes",
 ]);
 
 async function live(
@@ -324,8 +326,9 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     cmd("help.webImport"),
     cmd("help.claude"),
     sep(),
+    cmd("help.releaseNotes"),
     cmd("help.log"),
-    ...(isMac ? [] : [sep(), cmd("app.checkUpdate"), PredefinedMenuItem.new({ item: { About: null }, text: "バージョン情報" })]),
+    ...(isMac ? [] : [sep(), cmd("app.checkUpdate"), cmd("help.about")]),
   ]);
 
   return Menu.new({ items: await Promise.all([...appMenu, file, edit, item, view, ...windowMenu, help]) });

@@ -265,12 +265,9 @@ export function ShareSettings() {
 
   return (
     <div>
+      {/* The frame's header (SettingsFrame) names the page. */}
       <div className="mb-4">
-        <div className="flex items-center gap-2 font-semibold">
-          <Share2 size={16} className="text-accent" />
-          フォルダの共有
-        </div>
-        <p className="mt-1 text-xs text-dim">
+        <p className="text-xs text-dim">
           同じ Wi-Fi・社内 LAN にいる人や自分のスマホに、フォルダを見るだけで共有できます。共有するには、サイドバーのフォルダを右クリック →「共有…」を選びます。
           共有は、このライブラリを開いている間だけ見られます。
         </p>
