@@ -66,6 +66,10 @@ export function WebImportSettings() {
           ページの画像やスクリーンショットをこのライブラリに保存できます。 保存した画像には元のページの URL
           が記録されます。
         </p>
+        {/* Other apps use this same receiver (docs/FROM_APPS.md): without this line nobody looks for them here. */}
+        <p className="mt-1.5 text-xs text-dim">
+          Feedability など、このパソコンのほかのアプリからの保存も、この受付で受け付けます（初めてのときに接続の確認が出ます）。
+        </p>
       </div>
 
       <div>
@@ -83,7 +87,7 @@ export function WebImportSettings() {
               ) : status.running ? (
                 `受付中（127.0.0.1:${status.port}）。このパソコンの中の、接続を許可した拡張機能とアプリ（Feedability など）からだけ受け付けます。`
               ) : (
-                "オフ。アプリの起動中だけ受け付けます。"
+                "オフ。アプリの起動中だけ受け付けます。ほかのアプリ（Feedability など）から保存するときもオンにします。"
               )
             }
           />
