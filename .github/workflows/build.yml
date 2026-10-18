@@ -94,6 +94,8 @@ jobs:
           # Manual runs (no tag) only produce the Actions artifacts below.
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: ${{ github.ref_name }}
+          # Only the installer line: the change notes are written by hand before
+          # publishing (docs/DEVELOPMENT.md, "リリースノート").
           releaseBody: "インストーラ：macOS（Apple Silicon）は .dmg、Windows は -setup.exe"
           releaseDraft: true
       - uses: actions/upload-artifact@v7
