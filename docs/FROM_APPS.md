@@ -67,7 +67,7 @@ URL（ブックマーク）の種類（docs/ARCHITECTURE.md「今後」）を作
 - `src-tauri/src/webimport.rs`：`Head` に `X-Stockroom-Client` を足し、`handle` の Origin の検査と `/pair` を上のとおりに。テスト（アプリからの接続の許可、Origin 付きでアプリ名を名乗る要求の拒否）
 - `Host::approve_pairing` の引数を「拡張の ID」から「相手」（拡張 / アプリ名）へ
 - `src/components/WebImportDialog.tsx` の接続の確認、`App.tsx` の `web-pair` の受け取り
-- 設定の「連携」の「ブラウザ拡張」のページに、受付をオンにするとほかのアプリ（Feedability）からも保存できることを 1 行足す（名前を変えるかは画面を作るときに決める。docs/SETTINGS.md）
+- 設定の「ブラウザ拡張」のページに、受付をオンにするとほかのアプリ（Feedability）からも保存できることを書く（説明の段落と、オフのときの一言。2026-10-18。ページの名前は「ブラウザ拡張」のまま）
 - docs/FEATURES.md に使い方を足す
 - モック（`src/dev/mockBackend.ts`）：接続の確認のイベントにアプリ名の形を足す
 
