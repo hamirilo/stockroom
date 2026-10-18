@@ -3,6 +3,7 @@
 // disables it on Windows.
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { addToTray, moveToFolder, reorder, reorderShelf } from "../lib/actions";
 import { api, isSystemId, libraryIds, type Folder } from "../lib/api";
@@ -189,7 +190,10 @@ export function DragLayer() {
 
   useEffect(() => {
     if (!active) return;
-    document.body.style.cursor = "grabbing";
+    // The cursor over everything while dragging (index.css): a "+" (copy)
+    // where the drop adds, the shelf, and a grabbing hand elsewhere.
+    const root = document.documentElement;
+    root.dataset.dragging = "move";
     let landing = false; // ignore input while the drop animation plays
     const move = (e: PointerEvent) => {
       const s = useStore.getState();
@@ -208,7 +212,9 @@ export function DragLayer() {
         return;
       }
       s.setDrag({ ...s.drag, x: e.clientX, y: e.clientY });
-      s.setDropTarget(targetAt(e.clientX, e.clientY, s.drag));
+      const target = targetAt(e.clientX, e.clientY, s.drag);
+      s.setDropTarget(target);
+      root.dataset.dragging = target === "tray" ? "copy" : "move";
     };
     const finish = async (commit: boolean, e?: PointerEvent) => {
       const s = useStore.getState();
@@ -247,7 +253,7 @@ export function DragLayer() {
     window.addEventListener("pointerup", up);
     window.addEventListener("keydown", key);
     return () => {
-      document.body.style.cursor = "";
+      delete root.dataset.dragging;
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("keydown", key);
@@ -264,7 +270,7 @@ export function DragLayer() {
       style={{ left: drag.x + 12, top: drag.y + 12, transformOrigin: "0 0" }}
     >
       {drag.kind === "items" ? (
-        <ItemsGhost ids={drag.ids} items={drag.from === "shelf" ? shelf : items} />
+        <ItemsGhost ids={drag.ids} items={drag.from === "shelf" ? shelf : items} adding={dropTarget === "tray"} />
       ) : (
         <div className="rounded-md bg-raised px-3 py-1.5 shadow-xl ring-1 ring-accent">
           📁 {folders.find((f) => f.id === drag.ids[0])?.name}
@@ -272,10 +278,11 @@ export function DragLayer() {
         </div>
       )}
       <div
-        className={`mt-2 w-max rounded-md px-2 py-0.5 text-xs shadow-lg transition-colors ${
+        className={`mt-2 flex w-max items-center gap-1 rounded-md px-2 py-0.5 text-xs shadow-lg transition-colors ${
           label ? "bg-accent text-white" : "bg-black/70 text-white/70"
         }`}
       >
+        {dropTarget === "tray" && <Plus size={12} strokeWidth={3} />}
         {label ??
           (drag.kind === "items"
             ? drag.ids.some(isSystemId)
@@ -287,7 +294,16 @@ export function DragLayer() {
   );
 }
 
-function ItemsGhost({ ids, items }: { ids: string[]; items: { id: string; thumbPath: string }[] }) {
+/** `adding`: over the shelf, where the drop adds rather than moves (a "+" badge, as the OS does for a copy). */
+function ItemsGhost({
+  ids,
+  items,
+  adding,
+}: {
+  ids: string[];
+  items: { id: string; thumbPath: string }[];
+  adding: boolean;
+}) {
   const thumbs = ids
     .slice(0, 3)
     .map((id) => items.find((i) => i.id === id)?.thumbPath)
@@ -309,6 +325,11 @@ function ItemsGhost({ ids, items }: { ids: string[]; items: { id: string; thumbP
       {ids.length > 1 && (
         <span className="absolute -top-2 -right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-danger px-1.5 text-xs font-bold text-white shadow">
           {ids.length}
+        </span>
+      )}
+      {adding && (
+        <span className="absolute -top-2 -left-2 flex h-6 w-6 animate-pop items-center justify-center rounded-full bg-success text-white shadow ring-2 ring-white/80">
+          <Plus size={15} strokeWidth={3} />
         </span>
       )}
     </div>

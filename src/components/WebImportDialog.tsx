@@ -3,20 +3,12 @@
 // through loading the extension. Also the dialog an extension's connection
 // request opens.
 import { ask } from "@tauri-apps/plugin-dialog";
-import { Check, ChevronRight, Copy, FolderOpen, Link2 } from "lucide-react";
+import { Check, ChevronRight, FolderOpen, Link2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, type WebImportStatus } from "../lib/api";
 import { useStore } from "../store";
+import { CopyCode, CopyLabel, useCopy } from "./Copy";
 import { SwitchRow } from "./SettingsFrame";
-
-async function copy(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    useStore.getState().toast("コピーしました");
-  } catch (e) {
-    useStore.getState().toast(String(e), true);
-  }
-}
 
 export function WebImportSettings() {
   const [status, setStatus] = useState<WebImportStatus | null>(null);
@@ -255,17 +247,7 @@ export function PairDialog() {
   );
 }
 
-function Code({ text }: { text: string }) {
-  return (
-    <button
-      onClick={() => copy(text)}
-      title="クリックでコピー"
-      className="rounded bg-bg px-1 font-mono text-fg hover:text-accent"
-    >
-      {text}
-    </button>
-  );
-}
+const Code = CopyCode;
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
@@ -282,6 +264,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 }
 
 function PathRow({ path }: { path: string }) {
+  const [copied, copy] = useCopy();
   return (
     <div className="mt-2">
       <div className="flex items-center gap-1 rounded-md border border-line bg-bg pl-2">
@@ -293,7 +276,7 @@ function PathRow({ path }: { path: string }) {
           className="flex h-7 items-center gap-1 px-2 text-xs text-dim hover:text-fg"
           title="コピー"
         >
-          <Copy size={13} /> コピー
+          <CopyLabel copied={copied} />
         </button>
       </div>
     </div>

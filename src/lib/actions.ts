@@ -160,7 +160,7 @@ let busy = false;
 
 async function guarded(fn: () => Promise<void>) {
   if (busy) {
-    st().toast("インポート中です。完了までお待ちください。", true);
+    st().toast("インポート中です。完了までお待ちください。");
     return;
   }
   busy = true;
@@ -571,6 +571,17 @@ export function onShelf(ids: string[]): boolean {
   return want.length > 0 && want.every((id) => shelf.has(id));
 }
 
+/**
+ * What dropping (or B on) `ids` would do to the shelf: how many are not on it
+ * yet, and whether that goes past the font shelf's limit. The shelf shows it
+ * while they are dragged over it.
+ */
+export function shelfAdding(ids: string[]): { fresh: number; full: boolean } {
+  const there = new Set(st().shelf.map((i) => i.id));
+  const fresh = shelfIds(ids).filter((id) => !there.has(id)).length;
+  return { fresh, full: st().mode === "font" && there.size + fresh > FONT_SHELF_MAX };
+}
+
 /** The toast's "シェルフを開く" while the shelf is folded. */
 const openShelfAction = (): ToastAction | undefined =>
   st().shelfOpen ? undefined : { label: "シェルフを開く", onClick: () => st().toggleShelf() };
@@ -592,17 +603,14 @@ function trayAdd(ids: string[]): Promise<number> {
 export async function addToTray(ids: string[]) {
   if (!ids.length) return;
   const want = shelfIds(ids);
-  if (st().mode === "font") {
-    const there = new Set(st().shelf.map((i) => i.id));
-    const fresh = want.filter((id) => !there.has(id));
-    if (there.size + fresh.length > FONT_SHELF_MAX) {
-      st().notify({
-        title: `シェルフは ${FONT_SHELF_MAX} 件までです。外してから追加してください`,
-        detail: `今 ${there.size} 件・追加しようとしたのは ${fresh.length} 件`,
-        kind: "error",
-      });
-      return;
-    }
+  const { fresh, full } = shelfAdding(ids);
+  if (full) {
+    st().notify({
+      title: `シェルフは ${FONT_SHELF_MAX} 件までです。外してから追加してください`,
+      detail: `今 ${st().shelf.length} 件・追加しようとしたのは ${fresh} 件`,
+      kind: "error",
+    });
+    return;
   }
   let added = 0;
   const ok = await st().run(async () => {
@@ -610,7 +618,10 @@ export async function addToTray(ids: string[]) {
   });
   if (!ok) return;
   st().flashTarget("tray");
-  st().toast(added ? `${added} 件をシェルフに追加しました` : "すでにシェルフにあります", false, openShelfAction());
+  // The open shelf shows it (the new chips, the count, the flash), so no toast
+  // then; folded, only the count would change (docs/NOTIFICATIONS.md).
+  if (!added) st().toast("すでにシェルフにあります");
+  else if (!st().shelfOpen) st().toast(`${added} 件をシェルフに追加しました`, false, openShelfAction());
 }
 
 /** B: puts items on the shelf, or takes them off when all are already there. */

@@ -10,21 +10,20 @@ const KIND: Record<ToastKind, { icon: typeof Info; color: string }> = {
   error: { icon: XCircle, color: "var(--color-danger)" },
 };
 
-/** Toasts wait while the app is in the background, so a result isn't missed. */
-function useWindowActive() {
-  const [active, setActive] = useState(() => document.hasFocus() && !document.hidden);
+/**
+ * Toasts wait while the window can't be seen (minimised, hidden, covered), so
+ * a result isn't missed. Not while it is only out of focus: it is still in
+ * sight (a drop from Finder / Explorer leaves that in front, a second display),
+ * and a toast that never went away there was in the way (docs/NOTIFICATIONS.md).
+ */
+function useWindowVisible() {
+  const [visible, setVisible] = useState(() => !document.hidden);
   useEffect(() => {
-    const update = () => setActive(document.hasFocus() && !document.hidden);
-    window.addEventListener("focus", update);
-    window.addEventListener("blur", update);
+    const update = () => setVisible(!document.hidden);
     document.addEventListener("visibilitychange", update);
-    return () => {
-      window.removeEventListener("focus", update);
-      window.removeEventListener("blur", update);
-      document.removeEventListener("visibilitychange", update);
-    };
+    return () => document.removeEventListener("visibilitychange", update);
   }, []);
-  return active;
+  return visible;
 }
 
 const card = "pointer-events-auto overflow-hidden rounded-xl border bg-raised shadow-2xl shadow-black/50";
@@ -65,22 +64,25 @@ function ToastCard({ t, paused }: { t: Toast; paused: boolean }) {
             </button>
           )}
         </div>
-        <button onClick={() => dismiss(t.id)} className="shrink-0 rounded p-1 text-dim hover:bg-white/10 hover:text-fg">
+        <button onClick={() => dismiss(t.id)} title="閉じる" className="shrink-0 rounded p-1 text-dim hover:bg-white/10 hover:text-fg">
           <X size={14} />
         </button>
       </div>
-      {/* Time left; it ends the toast, and stops while hovered or in the background. */}
-      <div
-        key={`countdown${t.rev}`}
-        className="h-0.5 origin-left animate-countdown group-hover:[animation-play-state:paused]"
-        style={{
-          background: color,
-          opacity: 0.7,
-          animationDuration: `${t.duration}ms`,
-          animationPlayState: paused || t.leaving ? "paused" : undefined,
-        }}
-        onAnimationEnd={() => dismiss(t.id)}
-      />
+      {/* Time left; it ends the toast, and stops while hovered, focused or out of sight.
+          Errors have none: they stay until closed, to be read. */}
+      {t.duration > 0 && (
+        <div
+          key={`countdown${t.rev}`}
+          className="h-0.5 origin-left animate-countdown group-focus-within:[animation-play-state:paused] group-hover:[animation-play-state:paused]"
+          style={{
+            background: color,
+            opacity: 0.7,
+            animationDuration: `${t.duration}ms`,
+            animationPlayState: paused || t.leaving ? "paused" : undefined,
+          }}
+          onAnimationEnd={() => dismiss(t.id)}
+        />
+      )}
     </div>
   );
 }
@@ -129,7 +131,7 @@ export function Toasts() {
   const toasts = useStore((s) => s.toasts);
   const importing = useStore((s) => s.importing);
   const updating = useStore((s) => s.updating);
-  const active = useWindowActive();
+  const visible = useWindowVisible();
   const pct = (r: number) => `${Math.floor(r * 100)}%`;
   return (
     <div
@@ -159,7 +161,7 @@ export function Toasts() {
         />
       )}
       {toasts.map((t) => (
-        <ToastCard key={t.id} t={t} paused={!active} />
+        <ToastCard key={t.id} t={t} paused={!visible} />
       ))}
     </div>
   );

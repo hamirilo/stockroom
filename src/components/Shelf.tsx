@@ -2,22 +2,27 @@
 // (the `tray` table), one per mode. Fonts are put there to be compared, at
 // most FONT_SHELF_MAX; images and files to be exported or put on one sheet.
 // Folded, it is one line; it opens and closes only when the user says so
-// (docs/FONT_UI.md, docs/UI.md).
+// (docs/FONT_UI.md, docs/UI.md). Its top edge sets the open height; from two
+// rows up the chips wrap, so a long shelf can be seen at a glance.
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ArrowRight, ChevronDown, Layers, X } from "lucide-react";
-import { useLayoutEffect, useRef } from "react";
+import { ArrowRight, Ban, ChevronDown, Layers, Plus, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   clearTray,
   exportTray,
   removeFromShelf,
+  shelfAdding,
   sheetFromTray,
   transferList,
 } from "../lib/actions";
 import type { Item } from "../lib/api";
 import { FontShelfLabel } from "../features/fonts/ShelfChip";
-import { FONT_SHELF_MAX, useStore } from "../store";
+import { FONT_SHELF_MAX, SHELF_HEIGHT, useStore } from "../store";
 import { useMenu } from "./ContextMenu";
 import { startPointerDrag } from "./DragLayer";
+
+/** Chip height + gap + bottom padding: from this height two rows fit and the chips wrap. */
+const TWO_ROWS = 2 * 36 + 6 + 8;
 
 const button =
   "flex h-6 shrink-0 items-center gap-1 rounded-md border border-line px-2 whitespace-nowrap enabled:hover:bg-white/5 disabled:opacity-40";
@@ -29,9 +34,19 @@ export function Shelf() {
   const fonts = useStore((s) => s.mode === "font");
   const comparing = useStore((s) => s.comparing);
   const setComparing = useStore((s) => s.setComparing);
+  const height = useStore((s) => s.shelfHeight);
+  // Items dragged from the list: the whole shelf takes them.
+  const adding = useStore((s) => (s.drag?.kind === "items" && s.drag.from !== "shelf" ? s.drag.ids : null));
   const over = useStore((s) => s.drag?.kind === "items" && s.drag.from !== "shelf" && s.dropTarget === "tray");
   const flash = useStore((s) => (s.flash?.target === "tray" ? s.flash.n : null));
   const empty = shelf.length === 0;
+  const wrap = height >= TWO_ROWS;
+  // What was just added is at the end: bring it into view.
+  const chips = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = chips.current;
+    if (flash !== null && el) el.scrollTo({ left: el.scrollWidth, top: el.scrollHeight, behavior: "smooth" });
+  }, [flash]);
   // Toasts sit above the shelf, not over its buttons (Toasts.tsx reads --shelf-height).
   const ref = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -68,9 +83,11 @@ export function Shelf() {
         over ? "border-accent bg-accent/10" : "border-line"
       }`}
     >
+      {open && <HeightHandle />}
       {flash !== null && (
         <span key={flash} className="pointer-events-none absolute inset-0 animate-drop-pulse bg-accent/20" />
       )}
+      {adding && <DropHint ids={adding} over={over} />}
       <div className="flex h-9 items-center gap-2 px-3" onContextMenu={menu}>
         <button
           onClick={toggle}
@@ -114,7 +131,13 @@ export function Shelf() {
         )}
       </div>
       {open && (
-        <div className="flex h-12 items-center gap-1.5 overflow-x-auto px-3 pb-2">
+        <div
+          ref={chips}
+          className={`flex gap-1.5 px-3 pb-2 ${
+            wrap ? "max-h-[45vh] flex-wrap content-start overflow-y-auto" : "items-center overflow-x-auto"
+          }`}
+          style={{ height }}
+        >
           {shelf.map((item) => (
             <Chip key={item.id} item={item} />
           ))}
@@ -133,6 +156,76 @@ export function Shelf() {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Over the shelf while things are dragged from the list: a "+" and what the
+ * drop will do, so it reads as "add here" rather than "move here". Elsewhere
+ * in the drag a dashed edge shows that the shelf takes them (docs/UI.md).
+ */
+function DropHint({ ids, over }: { ids: string[]; over: boolean }) {
+  if (!over)
+    return <div className="pointer-events-none absolute inset-1 z-10 rounded-md border-2 border-dashed border-accent/40" />;
+  const { fresh, full } = shelfAdding(ids);
+  const ok = fresh > 0 && !full;
+  return (
+    <div
+      className={`pointer-events-none absolute inset-1 z-10 flex animate-fade-in items-center gap-2 rounded-md px-3 border-2 border-dashed bg-panel/95 font-medium ${
+        ok ? "border-accent text-fg" : "border-line text-dim"
+      }`}
+    >
+      <span
+        className={`flex h-6 w-6 items-center justify-center rounded-full ${ok ? "bg-accent text-white" : "bg-raised"}`}
+      >
+        {ok ? <Plus size={15} strokeWidth={2.5} /> : <Ban size={13} />}
+      </span>
+      {full
+        ? `シェルフは ${FONT_SHELF_MAX} 件までです`
+        : fresh
+          ? `${fresh} 件をシェルフに追加`
+          : "すでにシェルフにあります"}
+    </div>
+  );
+}
+
+/**
+ * The open shelf's top edge: drag to make it taller (double-click: one row
+ * again). The list above gives up the room.
+ */
+function HeightHandle() {
+  const [active, setActive] = useState(false);
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const start = useStore.getState().shelfHeight;
+    const y0 = e.clientY;
+    setActive(true);
+    document.body.style.cursor = "row-resize";
+    const move = (ev: PointerEvent) => useStore.getState().setShelfHeight(start + (y0 - ev.clientY));
+    const up = () => {
+      setActive(false);
+      document.body.style.cursor = "";
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  return (
+    <div
+      role="separator"
+      aria-orientation="horizontal"
+      title="ドラッグで高さを変更（ダブルクリックで元に戻す）"
+      onPointerDown={onPointerDown}
+      onDoubleClick={() => useStore.getState().setShelfHeight(SHELF_HEIGHT.initial)}
+      className="group absolute inset-x-0 -top-1 z-20 h-2 cursor-row-resize"
+    >
+      <div
+        className={`my-auto mt-[3px] h-0.5 w-full transition-colors ${active ? "bg-accent" : "bg-transparent group-hover:bg-accent/60"}`}
+      />
+    </div>
   );
 }
 
