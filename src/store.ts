@@ -67,7 +67,8 @@ type DragPos = { x: number; y: number; sx: number; sy: number };
 export type Drag =
   /** `from`: picked up on the shelf (reordered there, not added again). */
   | ({ kind: "items"; ids: string[]; from?: "shelf" } & DragPos)
-  | ({ kind: "folder"; id: string } & DragPos);
+  /** `ids`: the folders picked in the sidebar, in its order. */
+  | ({ kind: "folder"; ids: string[] } & DragPos);
 
 export interface ToastAction {
   label: string;

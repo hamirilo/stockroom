@@ -15,6 +15,7 @@ import {
   type ListSource,
   type ToastAction,
 } from "../store";
+import { rowIds } from "./grouping";
 import { openGuarded } from "./libraryLock";
 import { showHud } from "../components/ActionHud";
 import { warn } from "./log";
@@ -230,6 +231,7 @@ export function importClipboardFiles(files: File[]) {
 export async function deleteSelection(ids: string[]) {
   ids = libraryIds(ids);
   if (!ids.length) return;
+  const before = st().items;
   if (st().view.kind === "trash") {
     const ok = await ask(`${ids.length} 件の画像を完全に削除します。元に戻せません。`, {
       title: "完全に削除",
@@ -237,7 +239,8 @@ export async function deleteSelection(ids: string[]) {
       okLabel: "削除",
       cancelLabel: "キャンセル",
     });
-    if (ok) await st().run(() => api.deleteItems(ids));
+    if (!ok) return;
+    await st().run(() => api.deleteItems(ids));
   } else {
     if (!(await st().run(() => api.trashItems(ids)))) return;
     st().toast(`${ids.length} 件をゴミ箱へ移動しました`, false, {
@@ -245,6 +248,30 @@ export async function deleteSelection(ids: string[]) {
       onClick: () => st().run(() => api.restoreItems(ids)),
     });
   }
+  selectSuccessor(before, ids);
+}
+
+/**
+ * After items left the list, selects the one that came after them (else the
+ * one before), so ⌫ can go on and the viewer keeps a selection to act on.
+ */
+function selectSuccessor(before: Item[], gone: string[]) {
+  const s = st();
+  if (s.selected.size) return; // something of the selection is still there
+  const removed = new Set(gone);
+  const present = new Set(s.items.map((i) => i.id));
+  let last = -1;
+  before.forEach((row, n) => {
+    if (removed.has(row.id) || rowIds([row]).some((id) => removed.has(id))) last = n;
+  });
+  if (last < 0) return;
+  const next =
+    before.slice(last + 1).find((i) => present.has(i.id)) ??
+    before.slice(0, last).reverse().find((i) => present.has(i.id));
+  if (!next) return;
+  const at = s.items.findIndex((i) => i.id === next.id);
+  s.select(next.id, "only", at);
+  if (s.viewer !== null) s.openViewer(at);
 }
 
 /** Splits the similar view's list into its groups (best copy first in each). */
