@@ -294,3 +294,15 @@ textarea {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* An in-app drag (DragLayer.tsx) sets the cursor everywhere, over the
+   elements' own: "+" where the drop adds (the shelf), else a grabbing hand. */
+:root[data-dragging] * {
+  cursor: inherit !important;
+}
+:root[data-dragging="move"] {
+  cursor: grabbing;
+}
+:root[data-dragging="copy"] {
+  cursor: copy;
+}

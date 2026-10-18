@@ -3,19 +3,11 @@
 // the settings screen's page listing the open library's shared folders.
 import { ask } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ChevronRight, Copy, ExternalLink, Share2 } from "lucide-react";
+import { ChevronRight, ExternalLink, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, type ShareInfo, type ShareStatus } from "../lib/api";
 import { useStore } from "../store";
-
-async function copy(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    useStore.getState().toast("コピーしました");
-  } catch (e) {
-    useStore.getState().toast(String(e), true);
-  }
-}
+import { CopyLabel, useCopy } from "./Copy";
 
 /** The open library's shares, and changing them (the sidebar's marks follow). */
 function useShares() {
@@ -142,6 +134,7 @@ function Dialog({ folderId }: { folderId: string }) {
 /** A share's URL (at the chosen address of this PC), with copy, open and, optionally, its QR code. */
 function ShareLink({ share, qr }: { share: ShareInfo; qr?: boolean }) {
   const [pick, setPick] = useState(0);
+  const [copied, copy] = useCopy();
   const url = share.urls[Math.min(pick, share.urls.length - 1)] ?? null;
   const [svg, setSvg] = useState<string | null>(null);
 
@@ -183,7 +176,7 @@ function ShareLink({ share, qr }: { share: ShareInfo; qr?: boolean }) {
             title="URL をコピー"
             className="flex h-7 shrink-0 items-center gap-1 border-l border-line px-2 text-xs text-dim hover:text-fg"
           >
-            <Copy size={13} /> コピー
+            <CopyLabel copied={copied} />
           </button>
           <button
             onClick={() => openUrl(url).catch((e) => useStore.getState().toast(String(e), true))}

@@ -2,21 +2,13 @@
 // what to paste into Claude Code / Claude Desktop, and lists the changes made
 // from Claude so they can be undone (src-tauri/src/changes.rs).
 import { ask } from "@tauri-apps/plugin-dialog";
-import { Copy, Undo2 } from "lucide-react";
+import { Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { undoChanges } from "../lib/actions";
 import { api, type Change, type McpStatus } from "../lib/api";
 import { useStore } from "../store";
+import { CopyCode, CopyLabel, useCopy } from "./Copy";
 import { SwitchRow } from "./SettingsFrame";
-
-async function copy(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    useStore.getState().toast("コピーしました");
-  } catch (e) {
-    useStore.getState().toast(String(e), true);
-  }
-}
 
 export function ClaudeSettings() {
   const [status, setStatus] = useState<McpStatus | null>(null);
@@ -184,19 +176,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Code({ text }: { text: string }) {
-  return (
-    <button
-      onClick={() => copy(text)}
-      title="クリックでコピー"
-      className="rounded bg-bg px-1 font-mono text-fg hover:text-accent"
-    >
-      {text}
-    </button>
-  );
-}
+const Code = CopyCode;
 
 function CopyBlock({ text }: { text: string }) {
+  const [copied, copy] = useCopy();
   return (
     <div className="relative mt-2 rounded-md border border-line bg-bg">
       <pre className="max-h-40 overflow-auto py-2 pr-20 pl-2 font-mono text-xs break-all whitespace-pre-wrap">
@@ -207,7 +190,7 @@ function CopyBlock({ text }: { text: string }) {
         className="absolute top-1 right-1 flex h-7 items-center gap-1 rounded px-2 text-xs text-dim hover:bg-white/5 hover:text-fg"
         title="コピー"
       >
-        <Copy size={13} /> コピー
+        <CopyLabel copied={copied} />
       </button>
     </div>
   );

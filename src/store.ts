@@ -115,7 +115,10 @@ export interface ToastOptions {
   detail?: string;
   kind?: ToastKind;
   action?: ToastAction;
-  /** ms before it goes away; paused while hovered or while the window is in the background. */
+  /**
+   * ms before it goes away, 0 = until closed; paused while hovered or focused
+   * and while the window can't be seen. Left out: by kind and length (`toastDuration`).
+   */
   duration?: number;
   /** Rewrite this toast in place (a result following its "…しています"), if it is still showing. */
   replace?: number;
@@ -269,6 +272,8 @@ interface State {
   shelf: Item[];
   /** The shelf under the list shows its contents (else one line); changed only by the user. */
   shelfOpen: boolean;
+  /** Height of the open shelf's contents (px), dragged at its top edge; two rows or more wrap. */
+  shelfHeight: number;
   /** Font mode: the comparison of the shelf's fonts is shown in place of the list. */
   comparing: boolean;
   /** Bands of `items`: similar-view groups, or the `groupBy` sections. */
@@ -337,6 +342,8 @@ interface State {
   setSpecimenFallback: (on: boolean) => void;
   toggleInspector: () => void;
   toggleShelf: () => void;
+  /** Sets the open shelf's height (kept within SHELF_HEIGHT). */
+  setShelfHeight: (px: number) => void;
   setComparing: (on: boolean) => void;
   toggleSidebar: () => void;
   /** Sets a panel's width (kept within its limits, see PANEL_WIDTH). */
@@ -433,6 +440,11 @@ export const PANEL_WIDTH = {
 const clampWidth = (panel: keyof typeof PANEL_WIDTH, px: number) =>
   Math.round(Math.min(PANEL_WIDTH[panel].max, Math.max(PANEL_WIDTH[panel].min, px)));
 
+/** Default (one row of chips), smallest and largest height of the open shelf's contents. */
+export const SHELF_HEIGHT = { initial: 48, min: 48, max: 420 } as const;
+
+const clampShelf = (px: number) => Math.round(Math.min(SHELF_HEIGHT.max, Math.max(SHELF_HEIGHT.min, px)));
+
 const loadJson = (key: string): object => {
   try {
     const v = JSON.parse(load(key) ?? "{}");
@@ -507,6 +519,17 @@ const loadRecentTags = (root: string): number[] => {
 let pendingRecentTags: string[] = [];
 
 let refreshSeq = 0;
+/**
+ * How long a toast stays when not told: long enough to read it (a little more
+ * for each character), longer with a button to press, and errors until closed
+ * (docs/NOTIFICATIONS.md).
+ */
+export function toastDuration(kind: ToastKind, text: string, action: boolean): number {
+  if (kind === "error") return 0;
+  const read = 4000 + 80 * text.length;
+  return Math.round(Math.min(12_000, Math.max(action ? 8000 : 5000, read)));
+}
+
 let toastSeq = 0;
 let flashSeq = 0;
 /** Display index of `anchor` when known (see `select`). */
@@ -785,6 +808,7 @@ export const useStore = create<State>((set, get) => ({
   rawItems: [],
   shelf: [],
   shelfOpen: load("shelfOpen") !== "false",
+  shelfHeight: clampShelf(loadNumber("shelfHeight", SHELF_HEIGHT.initial)),
   comparing: false,
   sections: [],
   folders: [],
@@ -1086,6 +1110,11 @@ export const useStore = create<State>((set, get) => ({
     set({ shelfOpen });
     persist("shelfOpen", String(shelfOpen));
   },
+  setShelfHeight: (px) => {
+    const shelfHeight = clampShelf(px);
+    set({ shelfHeight });
+    persist("shelfHeight", String(shelfHeight));
+  },
   setComparing: (comparing) => set({ comparing: comparing && get().mode === "font" }),
   toggleSidebar: () => {
     const sidebarOpen = !get().sidebarOpen;
@@ -1371,7 +1400,14 @@ export const useStore = create<State>((set, get) => ({
   toast: (message, error, action) => get().notify({ title: message, kind: error ? "error" : "info", action }),
   notify: ({ title, detail, kind = "info", action, duration, replace }) => {
     const rev = ++toastSeq;
-    const fields = { title, detail, kind, action, rev, duration: duration ?? (kind === "error" || action ? 8000 : 5000) };
+    const fields = {
+      title,
+      detail,
+      kind,
+      action,
+      rev,
+      duration: duration ?? toastDuration(kind, title + (detail ?? ""), !!action),
+    };
     if (replace !== undefined && get().toasts.some((x) => x.id === replace && !x.leaving)) {
       set({ toasts: get().toasts.map((x) => (x.id === replace ? { ...fields, id: replace } : x)) });
       return replace;
