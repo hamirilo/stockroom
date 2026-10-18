@@ -704,6 +704,14 @@ function menuText(rid: number, depth = 0): string[] {
   const kids = (o.items ?? []).flatMap((i: [number, string]) => menuText(i[0], m.kind === "Menu" ? depth : depth + 1));
   return [...head, ...kids];
 }
+// A connection request as webimport.rs sends it, to see the question in the
+// browser: `window.__MOCK_PAIR__("Feedability")` for an app, no argument for
+// an extension.
+(window as unknown as { __MOCK_PAIR__: (app?: string) => void }).__MOCK_PAIR__ = (app) =>
+  void import("@tauri-apps/api/event").then(({ emit }) =>
+    emit("web-pair", { id: `mock${Date.now()}`, code: "4821", extension: app ? null : "abcdefghijklmnop", app: app ?? null }),
+  );
+
 (window as unknown as { __MOCK_MENU__: () => string }).__MOCK_MENU__ = () =>
   appMenu === null ? "(no menu)" : menuText(appMenu).join("\n");
 

@@ -929,19 +929,26 @@ impl webimport::Host for TauriHost {
 
     /// Brings the window up with the question ("web-pair") and waits for
     /// `answer_web_pair`; gives up after two minutes ("web-pair-end" closes it).
-    fn approve_pairing(&self, code: &str, extension: &str) -> bool {
+    fn approve_pairing(&self, code: &str, peer: &webimport::Peer) -> bool {
         #[derive(Clone, Serialize)]
         struct Ask<'a> {
             id: &'a str,
             code: &'a str,
-            extension: &'a str,
+            /// The extension's id, or None for an app.
+            extension: Option<&'a str>,
+            /// The name an app gave itself (docs/FROM_APPS.md).
+            app: Option<&'a str>,
         }
+        let (extension, app) = match peer {
+            webimport::Peer::Extension(id) => (Some(id.as_str()), None),
+            webimport::Peer::App(name) => (None, Some(name.as_str())),
+        };
         let state = self.0.state::<AppState>();
         let id = uuid::Uuid::new_v4().simple().to_string();
         let (tx, rx) = std::sync::mpsc::channel();
         state.pairing.lock().unwrap().insert(id.clone(), tx);
         show_main_window(&self.0);
-        let _ = self.0.emit("web-pair", Ask { id: &id, code, extension });
+        let _ = self.0.emit("web-pair", Ask { id: &id, code, extension, app });
         let approved = rx.recv_timeout(std::time::Duration::from_secs(120)).unwrap_or(false);
         state.pairing.lock().unwrap().remove(&id);
         let _ = self.0.emit("web-pair-end", &id);
