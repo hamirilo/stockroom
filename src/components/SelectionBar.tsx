@@ -8,7 +8,7 @@ import { useStore } from "../store";
 import { showItemMenu } from "./Grid";
 
 /**
- * Operations on the selection, a bar floating at the bottom of the list (docs/MENUS.md §7).
+ * Operations on a selection of two or more, a bar floating at the bottom of the list (docs/MENUS.md §7).
  * Left to right: what is selected, the everyday operations (favorite, tray, rotate,
  * move, export), "…" for the full right-click menu, and — apart behind a divider, in
  * red with its name — the trash, so it isn't hit by mistake while reaching for the rest.
@@ -18,7 +18,9 @@ export function SelectionBar() {
   const total = useStore((s) => s.rawItems.length);
   const isTrash = useStore((s) => s.view.kind === "trash");
   const state = useStore();
-  if (count === 0 || isTrash) return null;
+  // One item is just "what I'm looking at" — its operations are in the details panel and
+  // the right-click menu. The bar is for acting on several at once.
+  if (count < 2 || isTrash) return null;
   const ids = [...state.selected];
   const rotatable = appliesTo(command("item.rotateCw"), state);
   // Installed fonts are only looked at (docs/SYSTEM_FONTS.md).

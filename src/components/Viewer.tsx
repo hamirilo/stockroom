@@ -3,7 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  EyeOff,
+  Focus,
   Folder as FolderIcon,
   GalleryHorizontal,
   Info,
@@ -34,6 +34,9 @@ const STEP = 1.25;
 /** How long the image-only view's "H to show" note stays. */
 const HINT_MS = 2200;
 
+/** How long the image-only view's restore button stays after the pointer stops. */
+const PEEK_MS = 1500;
+
 /** Filmstrip thumbnail size and pitch (size + gap). */
 const STRIP = 64;
 const PITCH = STRIP + 6;
@@ -50,6 +53,10 @@ export function Viewer() {
   const toggleBare = useStore((s) => s.toggleViewerBare);
   // A note of how to get the controls back, shortly after the image-only view starts.
   const [hint, setHint] = useState(0);
+  // In the image-only view, moving the pointer brings up a button to get the controls back.
+  const [peek, setPeek] = useState(false);
+  const peekTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const hoverPeek = useRef(false);
   const item = index !== null ? items[index] : undefined;
   const boxRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
@@ -66,6 +73,24 @@ export function Viewer() {
     setHint((n) => n + 1);
     const t = setTimeout(() => setHint(0), HINT_MS);
     return () => clearTimeout(t);
+  }, [open, bare]);
+  useEffect(() => {
+    if (!open || !bare) {
+      clearTimeout(peekTimer.current);
+      return setPeek(false);
+    }
+    const onMove = () => {
+      setPeek(true);
+      clearTimeout(peekTimer.current);
+      peekTimer.current = setTimeout(() => {
+        if (!hoverPeek.current) setPeek(false);
+      }, PEEK_MS);
+    };
+    window.addEventListener("pointermove", onMove);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      clearTimeout(peekTimer.current);
+    };
   }, [open, bare]);
 
   useLayoutEffect(() => {
@@ -295,7 +320,7 @@ export function Viewer() {
               <Info size={16} />
             </button>
             <button className={tool} title="画像のみ表示（H）" onClick={toggleBare}>
-              <EyeOff size={16} />
+              <Focus size={16} />
             </button>
           </div>
           <button className="rounded p-1 hover:bg-white/10" onClick={() => openViewer(null)}>
@@ -371,12 +396,36 @@ export function Viewer() {
               className="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 animate-hud rounded-full border border-white/10 bg-black/80 px-4 py-2 text-sm whitespace-nowrap text-white/90 shadow-2xl shadow-black/50 backdrop-blur"
               style={{ animationDuration: `${HINT_MS}ms` }}
             >
-              H で操作と情報を表示
+              H か右上のボタンで操作と情報を表示
             </div>
           )}
         </div>
         {showInfo && !bare && <Details item={item} items={items} />}
       </div>
+      {bare && (
+        // Same row and corner as the toolbar's button; shows on pointer move and fades when it stops.
+        // Still clickable while faded, so a pointer resting there can bring it back.
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-end px-4 py-2 text-sm"
+          style={{ minHeight: "calc(var(--titlebar) + 8px)" }}
+        >
+          <button
+            className={`pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/10 bg-black/70 px-3 py-1 text-xs text-white/85 shadow-2xl shadow-black/50 backdrop-blur transition-opacity duration-300 hover:bg-black/90 hover:text-white ${
+              peek || hint > 0 ? "opacity-100" : "opacity-0 hover:opacity-100"
+            }`}
+            title="操作と情報を表示（H）"
+            onPointerEnter={() => (hoverPeek.current = true)}
+            onPointerLeave={() => (hoverPeek.current = false)}
+            onClick={() => {
+              hoverPeek.current = false;
+              toggleBare();
+            }}
+          >
+            <Focus size={14} className="text-accent" />
+            操作を表示
+          </button>
+        </div>
+      )}
       {showStrip && !bare && items.length > 1 && <Strip items={items} index={index} onPick={show} />}
     </div>
   );
