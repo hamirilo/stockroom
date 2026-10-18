@@ -1380,6 +1380,25 @@ pub async fn system_proxy(url: String) -> Option<String> {
     tauri::async_runtime::spawn_blocking(move || crate::proxy::for_url(&url)).await.ok().flatten()
 }
 
+/// Opens the GitHub release page of `version` in the browser. The update
+/// dialog and the settings' about page link there for what changed, instead
+/// of showing the release notes in the app.
+#[tauri::command]
+pub fn open_release_page(version: String) -> CmdResult<()> {
+    tauri_plugin_opener::open_url(release_page(&version)?, None::<&str>).map_err(err)
+}
+
+/// Same repository as `plugins.updater.endpoints` in tauri.conf.json. Only a
+/// version goes into the URL, so the page can't be sent anywhere else.
+fn release_page(version: &str) -> CmdResult<String> {
+    let version = version.strip_prefix('v').unwrap_or(version);
+    let ok = !version.is_empty() && version.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'));
+    if !ok {
+        return Err(format!("not a version: {version}"));
+    }
+    Ok(format!("https://github.com/2204601/stockroom/releases/tag/v{version}"))
+}
+
 #[tauri::command]
 pub fn supported_exts() -> Vec<&'static str> {
     import::SUPPORTED_EXTS.to_vec()
@@ -1558,5 +1577,16 @@ mod tests {
         assert_eq!(super::percent_decode("%E7%94%BB%E5%83%8F.png"), "画像.png");
         assert_eq!(super::percent_decode("a%2"), "a%2");
         assert_eq!(super::percent_decode("%aあ"), "%aあ");
+    }
+
+    #[test]
+    fn release_page_takes_only_a_version() {
+        let page = "https://github.com/2204601/stockroom/releases/tag/v0.28.0";
+        assert_eq!(super::release_page("0.28.0").unwrap(), page);
+        assert_eq!(super::release_page("v0.28.0").unwrap(), page);
+        assert!(super::release_page("1.0.0-beta.1").is_ok());
+        assert!(super::release_page("").is_err());
+        assert!(super::release_page("0.28.0/../../evil").is_err());
+        assert!(super::release_page("0.28.0?x=1").is_err());
     }
 }

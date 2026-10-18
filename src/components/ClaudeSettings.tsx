@@ -2,11 +2,12 @@
 // what to paste into Claude Code / Claude Desktop, and lists the changes made
 // from Claude so they can be undone (src-tauri/src/changes.rs).
 import { ask } from "@tauri-apps/plugin-dialog";
-import { Bot, Copy, Undo2 } from "lucide-react";
+import { Copy, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { undoChanges } from "../lib/actions";
 import { api, type Change, type McpStatus } from "../lib/api";
 import { useStore } from "../store";
+import { SwitchRow } from "./SettingsFrame";
 
 async function copy(text: string) {
   try {
@@ -55,12 +56,9 @@ export function ClaudeSettings() {
 
   return (
     <div>
+      {/* The frame's header (SettingsFrame) names the page. */}
       <div className="mb-4">
-        <div className="flex items-center gap-2 font-semibold">
-          <Bot size={16} className="text-accent" />
-          Claude と連携
-        </div>
-        <p className="mt-1 text-xs text-dim">
+        <p className="text-xs text-dim">
           Claude（Claude Code / Claude
           Desktop）から、いま開いているライブラリのタグ付け・フォルダ分け・表示名の変更・メモを頼めます。
           削除はできず、Claude がした変更はあとから元に戻せます。
@@ -68,28 +66,25 @@ export function ClaudeSettings() {
       </div>
 
       <div>
-        <label className="flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            className="mt-0.5 size-4 accent-[var(--color-accent)]"
+        <div className="rounded-lg border border-line bg-bg/40">
+          <SwitchRow
+            label={<span className="font-medium">Claude からの整理を許可する</span>}
             checked={on}
             disabled={!status || busy}
-            onChange={(e) => act(() => api.setMcp(e.target.checked))}
+            onChange={(v) => act(() => api.setMcp(v))}
+            hint={
+              !status ? (
+                "確認中…"
+              ) : status.error ? (
+                <span className="text-danger">{status.error}</span>
+              ) : status.running ? (
+                `待ち受け中（127.0.0.1:${status.port}）。このパソコンの中の、トークンを知っている Claude からだけ受け付けます。`
+              ) : (
+                "オフ。アプリの起動中だけ受け付けます。"
+              )
+            }
           />
-          <span className="min-w-0 flex-1">
-            <span className="font-medium">Claude からの整理を許可する</span>
-            <span className="mt-0.5 block text-xs text-dim">
-              {!status
-                ? "確認中…"
-                : status.error
-                  ? null
-                  : status.running
-                    ? `待ち受け中（127.0.0.1:${status.port}）。このパソコンの中の、トークンを知っている Claude からだけ受け付けます。`
-                    : "オフ。アプリの起動中だけ受け付けます。"}
-            </span>
-            {status?.error && <span className="mt-0.5 block text-xs text-danger">{status.error}</span>}
-          </span>
-        </label>
+        </div>
 
         {on && status && (
           <div className="mt-5 space-y-4 text-[13px]">

@@ -8,7 +8,7 @@
 //! closed). The extension finds the port in the config.json written here.
 use stockroom_lib::import::ImportSummary;
 use stockroom_lib::library::Library;
-use stockroom_lib::webimport::{Host, Server, PORT};
+use stockroom_lib::webimport::{Host, Peer, Server, PORT};
 
 /// Next to the app's ports (PORT for the extension, PORT + 1 for Claude).
 const DEV_PORT: u16 = PORT + 10;
@@ -24,9 +24,9 @@ impl Host for Print {
     fn imported(&self, s: &ImportSummary) {
         println!("imported {} / duplicates {} / failed {:?}", s.imported, s.duplicates, s.failed);
     }
-    /// No one to ask here: connects every extension that asks.
-    fn approve_pairing(&self, code: &str, extension: &str) -> bool {
-        println!("pairing approved (code {code}, extension {extension})");
+    /// No one to ask here: connects every extension or app that asks.
+    fn approve_pairing(&self, code: &str, peer: &Peer) -> bool {
+        println!("pairing approved (code {code}, {peer:?})");
         true
     }
 }

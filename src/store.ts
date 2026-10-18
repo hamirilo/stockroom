@@ -237,6 +237,8 @@ interface State {
   picker: "move" | "goto" | null;
   /** The settings screen (⌘,) is open, on this page. */
   settingsTab: SettingsTab | null;
+  /** The page the settings showed last; "last" opens it again (UI §9). */
+  lastSettingsTab: SettingsTab;
   /** A browser extension asks to connect; `code` is also shown in the extension. */
   /** `extension`: the asking extension's id (chrome://extensions shows it). */
   /** An extension (its id) or another app (the name it gives itself) asks to connect. */
@@ -360,7 +362,8 @@ interface State {
   setRenamingFolder: (id: string | null) => void;
   requestItemRename: () => void;
   setPicker: (p: State["picker"]) => void;
-  openSettings: (tab: SettingsTab | null) => void;
+  /** "last": the page shown last (一般 if it was the library's and none is open). */
+  openSettings: (tab: SettingsTab | "last" | null) => void;
   setPairRequest: (r: State["pairRequest"]) => void;
   setSimilarLevel: (l: SimilarLevel) => void;
   /** Marks `id` as the copy to keep in its group. */
@@ -766,6 +769,7 @@ export const useStore = create<State>((set, get) => ({
   renameItemSeq: 0,
   picker: null,
   settingsTab: null,
+  lastSettingsTab: "general",
   pairRequest: null,
   similarLevel: (["strict", "standard", "loose"] as const).find((l) => l === load("similarLevel")) ?? "standard",
   keepPick: new Set(),
@@ -1185,7 +1189,13 @@ export const useStore = create<State>((set, get) => ({
   setRenamingFolder: (renamingFolder) => set({ renamingFolder }),
   requestItemRename: () => set({ renameItemSeq: get().renameItemSeq + 1, inspectorOpen: true }),
   setPicker: (picker) => set({ picker }),
-  openSettings: (settingsTab) => set({ settingsTab }),
+  openSettings: (tab) =>
+    set((s) => {
+      if (tab === null) return { settingsTab: null };
+      if (tab !== "last") return { settingsTab: tab, lastSettingsTab: tab };
+      const last = s.lastSettingsTab;
+      return { settingsTab: last.startsWith("library") && !s.library ? "general" : last };
+    }),
   setPairRequest: (pairRequest) => set({ pairRequest }),
   setSimilarLevel: (similarLevel) => {
     set({ similarLevel, keepPick: new Set(), selected: new Set(), anchor: null, focus: null });
