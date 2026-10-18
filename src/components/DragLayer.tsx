@@ -17,7 +17,7 @@ const THRESHOLD = 5;
  */
 export function startPointerDrag(
   e: React.PointerEvent,
-  makeDrag: () => { kind: "items"; ids: string[]; from?: "shelf" } | { kind: "folder"; id: string },
+  makeDrag: () => { kind: "items"; ids: string[]; from?: "shelf" } | { kind: "folder"; ids: string[] },
   onClick?: () => void,
 ) {
   if (e.button !== 0) return;
@@ -37,6 +37,11 @@ export function startPointerDrag(
   };
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
+}
+
+/** `ids` without those inside another of them (they go along with it). */
+function topmost(folders: Folder[], ids: string[]): string[] {
+  return ids.filter((id) => !ids.some((a) => a !== id && isDescendant(folders, id, a)));
 }
 
 function isDescendant(folders: Folder[], id: string, ancestor: string): boolean {
@@ -78,13 +83,14 @@ function targetAt(x: number, y: number, drag: Drag): string | null {
     return null;
   }
   if (t !== "root" && !t.startsWith("folder:")) return null;
+  const folders = useStore.getState().folders;
   if (t === "root") {
-    const f = useStore.getState().folders.find((x) => x.id === drag.id);
-    return f?.parentId ? t : null; // already top-level
+    const top = drag.ids.every((id) => !folders.find((x) => x.id === id)?.parentId);
+    return top ? null : t; // already top-level
   }
   const fid = t.slice(7);
   // A folder can't go into itself or its own subfolders.
-  if (isDescendant(useStore.getState().folders, fid, drag.id)) return null;
+  if (drag.ids.some((id) => isDescendant(folders, fid, id))) return null;
   // Top / bottom quarter of a row: place next to it; middle: put inside it.
   const r = el.getBoundingClientRect();
   const rel = (y - r.top) / r.height;
@@ -124,12 +130,22 @@ async function drop(drag: Drag, target: string) {
     const [, , id, side] = target.split(":");
     const ref = s.folders.find((f) => f.id === id);
     if (!ref) return;
-    const siblings = s.folders.filter((f) => f.parentId === ref.parentId && f.id !== drag.id);
+    const ids = topmost(s.folders, drag.ids);
+    const siblings = s.folders.filter((f) => f.parentId === ref.parentId && !ids.includes(f.id));
     const before =
       side === "before" ? id : (siblings[siblings.findIndex((f) => f.id === id) + 1]?.id ?? null);
-    if (await s.run(() => api.placeFolder(drag.id, ref.parentId, before))) s.flashTarget(`folder:${drag.id}`);
+    // Each goes in front of the same one, so they keep their order.
+    const ok = await s.run(async () => {
+      for (const f of ids) await api.placeFolder(f, ref.parentId, before);
+    });
+    if (ok) s.flashTarget(`folder:${ids[0]}`);
   } else {
-    if (await s.run(() => api.moveFolder(drag.id, target === "root" ? null : target.slice(7)))) s.flashTarget(target);
+    const parent = target === "root" ? null : target.slice(7);
+    const ids = topmost(s.folders, drag.ids).filter((f) => s.folders.find((x) => x.id === f)?.parentId !== parent);
+    const ok = await s.run(async () => {
+      for (const f of ids) await api.moveFolder(f, parent);
+    });
+    if (ok) s.flashTarget(target);
   }
 }
 
@@ -251,7 +267,8 @@ export function DragLayer() {
         <ItemsGhost ids={drag.ids} items={drag.from === "shelf" ? shelf : items} />
       ) : (
         <div className="rounded-md bg-raised px-3 py-1.5 shadow-xl ring-1 ring-accent">
-          📁 {folders.find((f) => f.id === drag.id)?.name}
+          📁 {folders.find((f) => f.id === drag.ids[0])?.name}
+          {drag.ids.length > 1 && <span className="ml-1.5 text-xs text-dim">ほか {drag.ids.length - 1} 件</span>}
         </div>
       )}
       <div

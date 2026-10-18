@@ -255,6 +255,16 @@ function FolderTree() {
 
   useEffect(() => setCollapsedRaw(loadCollapsed(root)), [root]);
 
+  // ⇧ / ⌘ + click picks several folders to drag together. The open folder
+  // counts as picked; opening another one (a plain click) starts over.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const anchor = useRef<string | null>(null);
+  const openFolder = view.kind === "folder" ? view.id : null;
+  useEffect(() => {
+    setPicked(new Set());
+    anchor.current = openFolder;
+  }, [openFolder, view.kind]);
+
   const children = useMemo(() => {
     const m = new Map<string | null, Folder[]>();
     for (const f of folders) {
@@ -266,6 +276,37 @@ function FolderTree() {
   }, [folders]);
 
   const create = (parentId: string | null) => createFolder(parentId);
+
+  /** The folders as the sidebar shows them (inside closed ones left out). */
+  const shown = (): string[] => {
+    const out: string[] = [];
+    const walk = (parent: string | null) =>
+      (children.get(parent) ?? []).forEach((f) => {
+        out.push(f.id);
+        if (!collapsed.has(f.id)) walk(f.id);
+      });
+    walk(null);
+    return out;
+  };
+  const pick = (id: string, range: boolean) => {
+    const order = shown();
+    const base = new Set([...picked, ...(openFolder ? [openFolder] : [])]);
+    const a = anchor.current ? order.indexOf(anchor.current) : -1;
+    const b = order.indexOf(id);
+    if (range && a >= 0 && b >= 0) {
+      setPicked(new Set(order.slice(Math.min(a, b), Math.max(a, b) + 1)));
+      return;
+    }
+    if (base.has(id)) base.delete(id);
+    else base.add(id);
+    anchor.current = id;
+    setPicked(base);
+  };
+  /** What a drag from `id` carries: all picked ones if it is among them. */
+  const dragIds = (id: string): string[] => {
+    if (!picked.has(id)) return [id];
+    return shown().filter((f) => picked.has(f));
+  };
 
   // A folder being renamed (e.g. just created via ⌘⇧N) must be visible.
   useEffect(() => {
@@ -309,7 +350,7 @@ function FolderTree() {
           <Row
             depth={depth}
             dropId={`folder:${f.id}`}
-            active={sameView(view, { kind: "folder", id: f.id })}
+            active={picked.size ? picked.has(f.id) : sameView(view, { kind: "folder", id: f.id })}
             icon={<FolderIcon size={15} style={{ color: colorHex(f.color) }} fill={colorHex(f.color) ?? "none"} fillOpacity={0.3} />}
             label={
               editing === f.id ? (
@@ -330,13 +371,22 @@ function FolderTree() {
               )
             }
             count={f.count}
-            onPointerDown={(e) =>
+            onPointerDown={(e) => {
+              if (e.button === 0 && (e.shiftKey || e.metaKey || e.ctrlKey)) {
+                e.preventDefault(); // no text selection
+                pick(f.id, e.shiftKey);
+                return;
+              }
               startPointerDrag(
                 e,
-                () => ({ kind: "folder", id: f.id }),
-                () => setView({ kind: "folder", id: f.id }),
-              )
-            }
+                () => ({ kind: "folder", ids: dragIds(f.id) }),
+                () => {
+                  setPicked(new Set());
+                  anchor.current = f.id;
+                  setView({ kind: "folder", id: f.id });
+                },
+              );
+            }}
             onDoubleClick={() => setEditing(f.id)}
             onContextMenu={(e) =>
               showMenu(e, [
@@ -390,7 +440,7 @@ function FolderTree() {
     });
 
   const draggingNested =
-    drag?.kind === "folder" && folders.find((f) => f.id === drag.id)?.parentId != null;
+    drag?.kind === "folder" && drag.ids.some((id) => folders.find((f) => f.id === id)?.parentId != null);
 
   return (
     <Section
