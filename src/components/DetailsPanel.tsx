@@ -1,9 +1,10 @@
 // The details panel on the right: two tabs, the selection's information
 // (Inspector.tsx) and the shelf (Shelf.tsx). The tab changes only when the
-// user picks one, except while things are dragged from the list: then the
-// shelf is shown where the drop goes, and the panel goes back as it was
-// (docs/UI.md). A closed panel shows the shelf over the list for that time,
-// so the list under the pointer doesn't move.
+// user picks one, or drops things on the shelf: while things are dragged from
+// the list the shelf is shown where the drop goes; added there, it stays the
+// tab (addToTray), else the panel goes back as it was (docs/UI.md). A closed
+// panel shows the shelf over the list for the drag, so the list under the
+// pointer doesn't move.
 import { Info, Layers } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { dragRegion } from "../lib/titleBar";
@@ -11,7 +12,7 @@ import { FONT_SHELF_MAX, useStore, type PanelTab } from "../store";
 import { Inspector } from "./Inspector";
 import { Shelf } from "./Shelf";
 
-/** How long the shelf stays after a drop on it, so the new rows can be seen arriving. */
+/** How long the shelf stays after a drop on it that added nothing (already there, full), so the reason can be read. */
 const LINGER_MS = 900;
 
 /** The shelf is shown for a drag: from the list while it lasts, a moment longer after a drop on it. */

@@ -124,7 +124,7 @@ async function drop(drag: Drag, target: string) {
     const before = side === "before" ? id : (rest[rest.findIndex((i) => i.id === id) + 1]?.id ?? null);
     await reorderShelf(drag.ids, before);
   } else if (drag.kind === "items" && target === "tray") {
-    await addToTray(drag.ids);
+    await addToTray(drag.ids, { show: true });
   } else if (drag.kind === "items") {
     await moveToFolder(drag.ids, target.slice(7));
   } else if (target.startsWith("pos:")) {

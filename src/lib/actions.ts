@@ -600,8 +600,12 @@ function trayAdd(ids: string[]): Promise<number> {
   ]).then(([a, b]) => a + b);
 }
 
-/** Puts items (and installed fonts) on the shelf, after the ones already there. */
-export async function addToTray(ids: string[]) {
+/**
+ * Puts items (and installed fonts) on the shelf, after the ones already there.
+ * `show`: dropped there from the list, so the shelf stays the panel's tab once
+ * something was added (docs/UI.md).
+ */
+export async function addToTray(ids: string[], { show = false } = {}) {
   if (!ids.length) return;
   const want = shelfIds(ids);
   const { fresh, full } = shelfAdding(ids);
@@ -618,6 +622,7 @@ export async function addToTray(ids: string[]) {
     added = await trayAdd(want);
   });
   if (!ok) return;
+  if (added && show) st().setPanelTab("shelf");
   st().flashTarget("tray");
   // The shelf in view shows it (the new chips, the count, the flash), so no
   // toast then; out of view, only the tab's count would change (docs/NOTIFICATIONS.md).
