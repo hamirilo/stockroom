@@ -51,6 +51,7 @@
 - **シェルフ**（`components/Shelf.tsx`、`store.shelf`）：一覧の下のトレイ。中身は `tray` テーブルを、モードの種類で問い合わせる
   （`refresh` で一覧と一緒に取る）ので、モードごとに別のシェルフになる。一覧として開く表示ではなく、`View` の `tray` はこの問い合わせにだけ使う。
   フォントモードは `FONT_SHELF_MAX`（8）件までで、比較ビュー（`features/fonts/CompareView.tsx`、`store.comparing`）を一覧の場所に出す。
+  ストックは画像の比較ビュー（`components/ImageCompare.tsx`、docs/COMPARE.md）。
   ファミリーの行をシェルフに置くと代表の 1 件になる（`shelfIds`）
 - スマートフォルダの `filter.kinds` はほかと同じ条件（絞り込みの行の「種類」で選んだもの）。フォントモードで作ったものは `kinds` が空。
   条件を編集するときは、`kinds` を「種類」に読み込む

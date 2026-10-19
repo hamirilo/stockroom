@@ -274,8 +274,10 @@ interface State {
   shelfOpen: boolean;
   /** Height of the open shelf's contents (px), dragged at its top edge; two rows or more wrap. */
   shelfHeight: number;
-  /** Font mode: the comparison of the shelf's fonts is shown in place of the list. */
+  /** The comparison of the shelf (fonts, or the stock's images) is shown in place of the list. */
   comparing: boolean;
+  /** Stock comparison: the zoom (1 = whole) and the point at the frames' centre (0-1), shared by all images. */
+  compareLook: CompareLook;
   /** Bands of `items`: similar-view groups, or the `groupBy` sections. */
   sections: Section[];
   folders: Folder[];
@@ -345,6 +347,7 @@ interface State {
   /** Sets the open shelf's height (kept within SHELF_HEIGHT). */
   setShelfHeight: (px: number) => void;
   setComparing: (on: boolean) => void;
+  setCompareLook: (look: CompareLook | ((l: CompareLook) => CompareLook)) => void;
   toggleSidebar: () => void;
   /** Sets a panel's width (kept within its limits, see PANEL_WIDTH). */
   setPanelWidth: (panel: "sidebar" | "inspector", px: number) => void;
@@ -548,6 +551,16 @@ function idsAt(items: Item[], id: string, at: number): string[] {
 
 /** Most fonts on the font shelf: what the comparison can line up (docs/FONT_UI.md). */
 export const FONT_SHELF_MAX = 8;
+
+/** Stock comparison: how far the images are zoomed (1 = each whole in its frame) and where (docs/COMPARE.md). */
+export type CompareLook = { k: number; cx: number; cy: number };
+export const WHOLE_LOOK: CompareLook = { k: 1, cx: 0.5, cy: 0.5 };
+export const COMPARE_ZOOM = { min: 1, max: 32, step: 1.25 };
+/** The look zoomed by `f` around the frames' centre (back to the whole at 1). */
+export const zoomLook = (l: CompareLook, f: number): CompareLook => {
+  const k = Math.min(COMPARE_ZOOM.max, Math.max(COMPARE_ZOOM.min, l.k * f));
+  return k === 1 ? WHOLE_LOOK : { ...l, k };
+};
 
 /** Smallest and largest font grid tile, and the default. */
 export const TILE_SIZE = { min: 120, max: 320, initial: 180 } as const;
@@ -810,6 +823,7 @@ export const useStore = create<State>((set, get) => ({
   shelfOpen: load("shelfOpen") !== "false",
   shelfHeight: clampShelf(loadNumber("shelfHeight", SHELF_HEIGHT.initial)),
   comparing: false,
+  compareLook: WHOLE_LOOK,
   sections: [],
   folders: [],
   smartFolders: [],
@@ -1115,7 +1129,8 @@ export const useStore = create<State>((set, get) => ({
     set({ shelfHeight });
     persist("shelfHeight", String(shelfHeight));
   },
-  setComparing: (comparing) => set({ comparing: comparing && get().mode === "font" }),
+  setComparing: (comparing) => set({ comparing, compareLook: WHOLE_LOOK }),
+  setCompareLook: (look) => set({ compareLook: typeof look === "function" ? look(get().compareLook) : look }),
   toggleSidebar: () => {
     const sidebarOpen = !get().sidebarOpen;
     set({ sidebarOpen });
