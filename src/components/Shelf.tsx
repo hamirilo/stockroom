@@ -1,6 +1,6 @@
 // The shelf: a tray under the list where things are gathered for a while
 // (the `tray` table), one per mode. Fonts are put there to be compared, at
-// most FONT_SHELF_MAX; images and files to be exported or put on one sheet.
+// most FONT_SHELF_MAX; images and files to be compared, exported or put on one sheet.
 // Folded, it is one line; it opens and closes only when the user says so
 // (docs/FONT_UI.md, docs/UI.md). Its top edge sets the open height; from two
 // rows up the chips wrap, so a long shelf can be seen at a glance.
@@ -40,6 +40,8 @@ export function Shelf() {
   const over = useStore((s) => s.drag?.kind === "items" && s.drag.from !== "shelf" && s.dropTarget === "tray");
   const flash = useStore((s) => (s.flash?.target === "tray" ? s.flash.n : null));
   const empty = shelf.length === 0;
+  // The stock's comparison lines up images only.
+  const comparable = fonts ? !empty : shelf.some((i) => i.kind === "image");
   const wrap = height >= TWO_ROWS;
   // What was just added is at the end: bring it into view.
   const chips = useRef<HTMLDivElement>(null);
@@ -64,11 +66,12 @@ export function Shelf() {
   const menu = (e: React.MouseEvent) =>
     useMenu.getState().show(e, [
       ...(fonts
-        ? [{ label: "比較する", disabled: empty || comparing, onClick: () => setComparing(true) }]
+        ? []
         : [
             { label: "書き出し…", disabled: empty, onClick: exportTray },
             { label: "まとめて出力…", disabled: empty, onClick: sheetFromTray },
           ]),
+      { label: "比較する", disabled: !comparable || comparing, onClick: () => setComparing(true) },
       { label: "別のライブラリへ…", disabled: empty, onClick: () => transferList({ kind: "tray" }) },
       { separator: true },
       { label: "シェルフを空にする", disabled: empty, onClick: clearTray },
@@ -105,21 +108,12 @@ export function Shelf() {
         <span className="min-w-0 flex-1 truncate text-dim/80">
           {fonts
             ? `B キー・ドラッグで追加。比べたいフォントを最大 ${FONT_SHELF_MAX} 件まで置いておけます`
-            : "B キー・ドラッグで追加。書き出しやまとめて出力の前に集めておけます"}
+            : "B キー・ドラッグで追加。画像を並べて比べたり、書き出しやまとめて出力の前に集めておけます"}
         </span>
         <button disabled={empty} onClick={clearTray} title="シェルフから外す（中身はそのまま残ります）" className={button}>
           空にする
         </button>
-        {fonts ? (
-          <button
-            disabled={empty || comparing}
-            onClick={() => setComparing(true)}
-            title={comparing ? "比較中" : "シェルフのフォントを並べて比べる"}
-            className="flex h-6 shrink-0 items-center gap-1 rounded-md bg-accent px-2.5 font-medium whitespace-nowrap text-white enabled:hover:brightness-110 disabled:opacity-40"
-          >
-            比較する <ArrowRight size={13} />
-          </button>
-        ) : (
+        {!fonts && (
           <>
             <button disabled={empty} onClick={exportTray} title="元のファイルのままフォルダへ書き出す" className={button}>
               書き出し…
@@ -129,6 +123,23 @@ export function Shelf() {
             </button>
           </>
         )}
+        {/* At the right end in both modes: fonts side by side, or the stock's images (docs/COMPARE.md). */}
+        <button
+          disabled={!comparable || comparing}
+          onClick={() => setComparing(true)}
+          title={
+            comparing
+              ? "比較中"
+              : fonts
+                ? "シェルフのフォントを並べて比べる"
+                : comparable
+                  ? "シェルフの画像を並べて比べる（拡大・移動はすべての画像で一緒に）"
+                  : "シェルフに画像がありません（比べられるのは画像です）"
+          }
+          className="flex h-6 shrink-0 items-center gap-1 rounded-md bg-accent px-2.5 font-medium whitespace-nowrap text-white enabled:hover:brightness-110 disabled:opacity-40"
+        >
+          比較する <ArrowRight size={13} />
+        </button>
       </div>
       {open && (
         <div

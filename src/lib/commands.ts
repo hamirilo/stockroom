@@ -51,7 +51,7 @@ import {
 import { api, isSystemId, kindLabel, type Item, type ItemKind } from "./api";
 import { fontApi } from "../features/fonts/api";
 import { checkForUpdate, openReleaseNotes } from "./update";
-import { currentFolderId, listKinds, MODES, shownModes, useStore } from "../store";
+import { COMPARE_ZOOM, currentFolderId, listKinds, MODES, shownModes, useStore, zoomLook } from "../store";
 import { modeLabel } from "./modes";
 import { rowIds } from "./grouping";
 import { useShortcutHelp } from "../components/ShortcutHelp";
@@ -108,7 +108,10 @@ const lastFolder = (s: S) => s.folders.find((f) => f.id === s.recentFolders[0]);
  * row: the text in the specimen layout, the tiles in the grid.
  */
 function zoom(s: S, dir: 1 | -1) {
-  if (s.mode === "font" && s.layout === "specimen") s.setSpecimenSize(s.specimenSize + 8 * dir);
+  // The images compared from the stock shelf zoom together (docs/COMPARE.md).
+  if (s.comparing && s.mode === "stock") {
+    s.setCompareLook((l) => zoomLook(l, dir > 0 ? COMPARE_ZOOM.step : 1 / COMPARE_ZOOM.step));
+  } else if (s.mode === "font" && s.layout === "specimen") s.setSpecimenSize(s.specimenSize + 8 * dir);
   else if (s.mode === "font") s.setTileSize(s.tileSize + 20 * dir);
   else s.setThumbSize(Math.min(360, Math.max(80, s.thumbSize + 20 * dir)));
 }

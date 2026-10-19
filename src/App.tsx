@@ -13,6 +13,7 @@ import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { SelectionBar } from "./components/SelectionBar";
 import { Shelf } from "./components/Shelf";
+import { ImageCompare } from "./components/ImageCompare";
 import { CompareView } from "./features/fonts/CompareView";
 import { pasteText } from "./features/texts/actions";
 import { ActionHud } from "./components/ActionHud";
@@ -47,6 +48,7 @@ export default function App() {
   const inspectorOpen = useStore((s) => s.inspectorOpen);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const comparing = useStore((s) => s.comparing);
+  const fontMode = useStore((s) => s.mode === "font");
   const sidebarWidth = useStore((s) => s.sidebarWidth);
   const inspectorWidth = useStore((s) => s.inspectorWidth);
   // A panel's edge is being dragged: no width animation.
@@ -212,7 +214,7 @@ export default function App() {
             <Toolbar />
             {/* The selection bar floats over the list (or the comparison), above the shelf. */}
             <div className="relative flex min-h-0 flex-1 flex-col">
-              {comparing ? <CompareView /> : <Grid />}
+              {comparing ? fontMode ? <CompareView /> : <ImageCompare /> : <Grid />}
               {!comparing && <SelectionBar />}
             </div>
             <Shelf />
