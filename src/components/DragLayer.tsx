@@ -72,8 +72,9 @@ function targetAt(x: number, y: number, drag: Drag): string | null {
     if (t.startsWith("shelf:")) {
       if (drag.from !== "shelf") return "tray";
       if (drag.ids.includes(t.slice(6))) return null;
+      // The shelf's chips stack vertically, one per row.
       const r = el.getBoundingClientRect();
-      return `${t}:${x < r.left + r.width / 2 ? "before" : "after"}`;
+      return `${t}:${y < r.top + r.height / 2 ? "before" : "after"}`;
     }
     if (t.startsWith("item:") && !system && !drag.ids.includes(t.slice(5))) {
       const r = el.getBoundingClientRect();
@@ -123,7 +124,7 @@ async function drop(drag: Drag, target: string) {
     const before = side === "before" ? id : (rest[rest.findIndex((i) => i.id === id) + 1]?.id ?? null);
     await reorderShelf(drag.ids, before);
   } else if (drag.kind === "items" && target === "tray") {
-    await addToTray(drag.ids);
+    await addToTray(drag.ids, { show: true });
   } else if (drag.kind === "items") {
     await moveToFolder(drag.ids, target.slice(7));
   } else if (target.startsWith("pos:")) {

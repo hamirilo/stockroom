@@ -10,6 +10,7 @@ import {
   FONT_SHELF_MAX,
   isHidden,
   queryKinds,
+  shelfShown,
   shownKinds,
   useStore,
   type ListSource,
@@ -582,9 +583,9 @@ export function shelfAdding(ids: string[]): { fresh: number; full: boolean } {
   return { fresh, full: st().mode === "font" && there.size + fresh > FONT_SHELF_MAX };
 }
 
-/** The toast's "シェルフを開く" while the shelf is folded. */
+/** The toast's "シェルフを表示" while the shelf is out of view. */
 const openShelfAction = (): ToastAction | undefined =>
-  st().shelfOpen ? undefined : { label: "シェルフを開く", onClick: () => st().toggleShelf() };
+  shelfShown(st()) ? undefined : { label: "シェルフを表示", onClick: () => st().setPanelTab("shelf") };
 
 /**
  * Puts `ids` on the shelf: library items, and on the font shelf the fonts
@@ -599,8 +600,12 @@ function trayAdd(ids: string[]): Promise<number> {
   ]).then(([a, b]) => a + b);
 }
 
-/** Puts items (and installed fonts) on the shelf, after the ones already there. */
-export async function addToTray(ids: string[]) {
+/**
+ * Puts items (and installed fonts) on the shelf, after the ones already there.
+ * `show`: dropped there from the list, so the shelf stays the panel's tab once
+ * something was added (docs/UI.md).
+ */
+export async function addToTray(ids: string[], { show = false } = {}) {
   if (!ids.length) return;
   const want = shelfIds(ids);
   const { fresh, full } = shelfAdding(ids);
@@ -617,11 +622,12 @@ export async function addToTray(ids: string[]) {
     added = await trayAdd(want);
   });
   if (!ok) return;
+  if (added && show) st().setPanelTab("shelf");
   st().flashTarget("tray");
-  // The open shelf shows it (the new chips, the count, the flash), so no toast
-  // then; folded, only the count would change (docs/NOTIFICATIONS.md).
+  // The shelf in view shows it (the new chips, the count, the flash), so no
+  // toast then; out of view, only the tab's count would change (docs/NOTIFICATIONS.md).
   if (!added) st().toast("すでにシェルフにあります");
-  else if (!st().shelfOpen) st().toast(`${added} 件をシェルフに追加しました`, false, openShelfAction());
+  else if (!shelfShown(st())) st().toast(`${added} 件をシェルフに追加しました`, false, openShelfAction());
 }
 
 /** B: puts items on the shelf, or takes them off when all are already there. */

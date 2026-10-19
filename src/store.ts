@@ -270,10 +270,8 @@ interface State {
   rawItems: Item[];
   /** What is on the mode's shelf (the `tray` table, of the mode's kinds), in its own order. */
   shelf: Item[];
-  /** The shelf under the list shows its contents (else one line); changed only by the user. */
-  shelfOpen: boolean;
-  /** Height of the open shelf's contents (px), dragged at its top edge; two rows or more wrap. */
-  shelfHeight: number;
+  /** What the details panel on the right shows: the selection's information or the shelf; changed only by the user. */
+  panelTab: PanelTab;
   /** The comparison of the shelf (fonts, or the stock's images) is shown in place of the list. */
   comparing: boolean;
   /** Stock comparison: the zoom (1 = whole) and the point at the frames' centre (0-1), shared by all images. */
@@ -343,9 +341,9 @@ interface State {
   toggleFamily: (family: string) => void;
   setSpecimenFallback: (on: boolean) => void;
   toggleInspector: () => void;
+  setPanelTab: (tab: PanelTab) => void;
+  /** Shows the shelf in the details panel (opening it), or the information again when the shelf is shown. */
   toggleShelf: () => void;
-  /** Sets the open shelf's height (kept within SHELF_HEIGHT). */
-  setShelfHeight: (px: number) => void;
   setComparing: (on: boolean) => void;
   setCompareLook: (look: CompareLook | ((l: CompareLook) => CompareLook)) => void;
   toggleSidebar: () => void;
@@ -443,10 +441,11 @@ export const PANEL_WIDTH = {
 const clampWidth = (panel: keyof typeof PANEL_WIDTH, px: number) =>
   Math.round(Math.min(PANEL_WIDTH[panel].max, Math.max(PANEL_WIDTH[panel].min, px)));
 
-/** Default (one row of chips), smallest and largest height of the open shelf's contents. */
-export const SHELF_HEIGHT = { initial: 48, min: 48, max: 420 } as const;
+/** The details panel's tabs: the selection's information, or the shelf. */
+export type PanelTab = "info" | "shelf";
 
-const clampShelf = (px: number) => Math.round(Math.min(SHELF_HEIGHT.max, Math.max(SHELF_HEIGHT.min, px)));
+/** The shelf is in view: the details panel is open on it. */
+export const shelfShown = (s: { inspectorOpen: boolean; panelTab: PanelTab }) => s.inspectorOpen && s.panelTab === "shelf";
 
 const loadJson = (key: string): object => {
   try {
@@ -820,8 +819,7 @@ export const useStore = create<State>((set, get) => ({
   items: [],
   rawItems: [],
   shelf: [],
-  shelfOpen: load("shelfOpen") !== "false",
-  shelfHeight: clampShelf(loadNumber("shelfHeight", SHELF_HEIGHT.initial)),
+  panelTab: load("panelTab") === "shelf" ? "shelf" : "info",
   comparing: false,
   compareLook: WHOLE_LOOK,
   sections: [],
@@ -1119,16 +1117,12 @@ export const useStore = create<State>((set, get) => ({
     set({ inspectorOpen });
     persist("inspectorOpen", String(inspectorOpen));
   },
-  toggleShelf: () => {
-    const shelfOpen = !get().shelfOpen;
-    set({ shelfOpen });
-    persist("shelfOpen", String(shelfOpen));
+  setPanelTab: (panelTab) => {
+    set({ panelTab, inspectorOpen: true });
+    persist("panelTab", panelTab);
+    persist("inspectorOpen", "true");
   },
-  setShelfHeight: (px) => {
-    const shelfHeight = clampShelf(px);
-    set({ shelfHeight });
-    persist("shelfHeight", String(shelfHeight));
-  },
+  toggleShelf: () => get().setPanelTab(shelfShown(get()) ? "info" : "shelf"),
   setComparing: (comparing) => set({ comparing, compareLook: WHOLE_LOOK }),
   setCompareLook: (look) => set({ compareLook: typeof look === "function" ? look(get().compareLook) : look }),
   toggleSidebar: () => {
@@ -1232,7 +1226,7 @@ export const useStore = create<State>((set, get) => ({
     pendingRecentTags = [...names, ...pendingRecentTags.filter((n) => !names.includes(n))];
   },
   setRenamingFolder: (renamingFolder) => set({ renamingFolder }),
-  requestItemRename: () => set({ renameItemSeq: get().renameItemSeq + 1, inspectorOpen: true }),
+  requestItemRename: () => set({ renameItemSeq: get().renameItemSeq + 1, inspectorOpen: true, panelTab: "info" }),
   setPicker: (picker) => set({ picker }),
   openSettings: (tab) =>
     set((s) => {

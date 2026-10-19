@@ -337,7 +337,7 @@ export function FlagButtons({ ids, items }: { ids: string[]; items: Item[] }) {
           state={tray}
           icon={<Layers size={14} />}
           label={tray ? "シェルフにあります" : "シェルフに追加"}
-          hint={tray ? "シェルフから外す（キー B）" : "一覧の下のシェルフに置いて、比べる・まとめて出力・書き出し（キー B）"}
+          hint={tray ? "シェルフから外す（キー B）" : "シェルフ（詳細パネルのタブ）に置いて、比べる・まとめて出力・書き出し（キー B）"}
           activeClass="border-emerald-500/60 bg-emerald-500/15 text-emerald-400"
           onClick={() => toggleTray(ids)}
         />
@@ -354,7 +354,6 @@ export function Inspector() {
   const run = useStore((s) => s.run);
   const isTrash = useStore((s) => s.view.kind === "trash");
   const noun = useStore(listNoun);
-  const inspectorWidth = useStore((s) => s.inspectorWidth);
   const [info, setInfo] = useState<SelectionInfo>({ tags: [], folders: [] });
   const [adding, setAdding] = useState(false);
 
@@ -399,34 +398,23 @@ export function Inspector() {
 
   if (!ids.length) {
     return (
-      <aside
-        className="flex shrink-0 items-center justify-center border-l border-line bg-panel text-dim"
-        style={{ width: inspectorWidth }}
-      >
-        {noun}を選択してください
-      </aside>
+      <div className="flex min-h-0 flex-1 items-center justify-center text-dim">{noun}を選択してください</div>
     );
   }
 
   const n = ids.length;
   if (system) {
     return (
-      <aside
-        className="flex shrink-0 flex-col overflow-y-auto border-l border-line bg-panel p-4"
-        style={{ width: inspectorWidth }}
-      >
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
         <SystemFontPanel single={single} ids={ids} />
-      </aside>
+      </div>
     );
   }
   const countSuffix = (c: number) => (n > 1 && c < n ? ` (${c}/${n})` : "");
   const unusedFolders = folders.filter((f) => !info.folders.some((x) => x.id === f.id && x.count === n));
 
   return (
-    <aside
-      className="flex shrink-0 flex-col overflow-y-auto border-l border-line bg-panel p-4"
-      style={{ width: inspectorWidth }}
-    >
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
       {single ? (
         <>
           <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-raised">
@@ -588,6 +576,6 @@ export function Inspector() {
           </button>
         </div>
       )}
-    </aside>
+    </div>
   );
 }
