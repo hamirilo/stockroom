@@ -342,8 +342,11 @@ interface State {
   setSpecimenFallback: (on: boolean) => void;
   toggleInspector: () => void;
   setPanelTab: (tab: PanelTab) => void;
-  /** Shows the shelf in the details panel (opening it), or the information again when the shelf is shown. */
-  toggleShelf: () => void;
+  /**
+   * ⌘I / ⌘⌥3: shows `tab` in the details panel (opening it, or switching from
+   * the other tab); closes the panel when `tab` is already shown.
+   */
+  togglePanelTab: (tab: PanelTab) => void;
   setComparing: (on: boolean) => void;
   setCompareLook: (look: CompareLook | ((l: CompareLook) => CompareLook)) => void;
   toggleSidebar: () => void;
@@ -1122,7 +1125,11 @@ export const useStore = create<State>((set, get) => ({
     persist("panelTab", panelTab);
     persist("inspectorOpen", "true");
   },
-  toggleShelf: () => get().setPanelTab(shelfShown(get()) ? "info" : "shelf"),
+  togglePanelTab: (tab) => {
+    const s = get();
+    if (s.inspectorOpen && s.panelTab === tab) s.toggleInspector();
+    else s.setPanelTab(tab);
+  },
   setComparing: (comparing) => set({ comparing, compareLook: WHOLE_LOOK }),
   setCompareLook: (look) => set({ compareLook: typeof look === "function" ? look(get().compareLook) : look }),
   toggleSidebar: () => {
