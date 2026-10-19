@@ -72,8 +72,9 @@ function targetAt(x: number, y: number, drag: Drag): string | null {
     if (t.startsWith("shelf:")) {
       if (drag.from !== "shelf") return "tray";
       if (drag.ids.includes(t.slice(6))) return null;
+      // The shelf's chips stack vertically, one per row.
       const r = el.getBoundingClientRect();
-      return `${t}:${x < r.left + r.width / 2 ? "before" : "after"}`;
+      return `${t}:${y < r.top + r.height / 2 ? "before" : "after"}`;
     }
     if (t.startsWith("item:") && !system && !drag.ids.includes(t.slice(5))) {
       const r = el.getBoundingClientRect();

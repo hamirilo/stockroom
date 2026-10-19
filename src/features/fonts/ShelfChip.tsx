@@ -46,7 +46,7 @@ export function FontShelfLabel({ item }: { item: Item }) {
   if (item.unavailable)
     return (
       <span
-        className="min-w-0 truncate pl-1 text-dim line-through"
+        className="min-w-0 flex-1 truncate pl-1 text-dim line-through"
         title={`${item.name}：この端末にインストールされていないフォントです（別の端末でシェルフに置いたもの）`}
       >
         {item.name}
@@ -65,7 +65,7 @@ export function FontShelfLabel({ item }: { item: Item }) {
           <Monitor size={11} />
         </span>
       )}
-      <span className="min-w-0 truncate" title={item.name}>
+      <span className="min-w-0 flex-1 truncate" title={item.name}>
         {item.fontFamily || item.name}
         {/* Which of the family's styles, unless it is the regular. */}
         {item.fontFamily && (item.fontWeight ?? 400) !== 400 && (

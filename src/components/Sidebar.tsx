@@ -762,7 +762,7 @@ export function Sidebar() {
   const marks: Entry[] = [
     { view: { kind: "favorites" }, label: "お気に入り", icon: <Heart size={15} />, count: counts.favorites },
     { view: { kind: "pinned" }, label: "ピン留め", icon: <Pin size={15} />, count: counts.pinned },
-    // The shelf is under the list (Shelf.tsx), not a place to go.
+    // The shelf is a tab of the details panel (Shelf.tsx), not a place to go.
   ];
   const tidying: Entry[] = [
     // Look-alikes are found by image hash: images only.

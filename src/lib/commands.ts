@@ -51,7 +51,7 @@ import {
 import { api, isSystemId, kindLabel, type Item, type ItemKind } from "./api";
 import { fontApi } from "../features/fonts/api";
 import { checkForUpdate, openReleaseNotes } from "./update";
-import { COMPARE_ZOOM, currentFolderId, listKinds, MODES, shownModes, useStore, zoomLook } from "../store";
+import { COMPARE_ZOOM, currentFolderId, listKinds, MODES, shelfShown, shownModes, useStore, zoomLook } from "../store";
 import { modeLabel } from "./modes";
 import { rowIds } from "./grouping";
 import { useShortcutHelp } from "../components/ShortcutHelp";
@@ -186,6 +186,14 @@ export const COMMANDS: Command[] = [
     keys: ["Mod+I", "Mod+Alt+2"],
     checked: (s) => s.inspectorOpen,
     run: (s) => s.toggleInspector(),
+  },
+  {
+    id: "view.shelf",
+    title: "シェルフ",
+    // The shelf is a tab of the details panel; again: its information (docs/UI.md).
+    keys: ["Mod+Alt+3"],
+    checked: (s) => shelfShown(s),
+    run: (s) => s.toggleShelf(),
   },
   {
     id: "view.zoomIn",

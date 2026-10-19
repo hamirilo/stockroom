@@ -22,6 +22,7 @@
   --animate-zoom-in: zoom-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
   --animate-slide-down: slide-down 0.18s ease-out;
   --animate-slide-up: slide-up 0.18s ease-out;
+  --animate-slide-in-right: slide-in-right 0.16s ease-out;
   /* ActionHud: the duration is set where it's used, with its timer. */
   --animate-hud: hud ease-out;
   --animate-change-pulse: change-pulse 0.7s ease-out forwards;
@@ -106,6 +107,12 @@
     from {
       opacity: 0;
       transform: translateY(4px);
+    }
+  }
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
     }
   }
   /* In, held, out; no fill, so with reduced motion it simply stays shown. */

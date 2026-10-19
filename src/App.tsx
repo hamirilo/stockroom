@@ -8,11 +8,10 @@ import { DragLayer } from "./components/DragLayer";
 import { DuplicateReview } from "./components/DuplicateReview";
 import { FolderPicker } from "./components/FolderPicker";
 import { Grid } from "./components/Grid";
-import { Inspector } from "./components/Inspector";
+import { DetailsPanel, useShelfPeek } from "./components/DetailsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { SelectionBar } from "./components/SelectionBar";
-import { Shelf } from "./components/Shelf";
 import { ImageCompare } from "./components/ImageCompare";
 import { CompareView } from "./features/fonts/CompareView";
 import { pasteText } from "./features/texts/actions";
@@ -57,6 +56,8 @@ export default function App() {
   const fileTarget = useStore((s) => (s.fileDrag ? s.dropTarget : null));
   const folders = useStore((s) => s.folders);
   const [ready, setReady] = useState(false);
+  // Dragging from the list shows the shelf in the details panel (DetailsPanel.tsx).
+  const peek = useShelfPeek();
 
   useEffect(() => {
     // The last library may be open on another PC (cloud sync): ask first.
@@ -212,18 +213,23 @@ export default function App() {
           </div>
           <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg">
             <Toolbar />
-            {/* The selection bar floats over the list (or the comparison), above the shelf. */}
+            {/* The selection bar floats over the list (or the comparison). */}
             <div className="relative flex min-h-0 flex-1 flex-col">
               {comparing ? fontMode ? <CompareView /> : <ImageCompare /> : <Grid />}
               {!comparing && <SelectionBar />}
             </div>
-            <Shelf />
+            {/* The panel is closed: the shelf comes over the list for the drag, not pushing it aside. */}
+            {peek && !inspectorOpen && (
+              <div className="absolute inset-y-0 right-0 z-20 flex animate-slide-in-right shadow-2xl">
+                <DetailsPanel peek />
+              </div>
+            )}
           </main>
           <div
             className={`relative flex shrink-0 overflow-hidden ${resizing ? "" : "transition-[width] duration-200 ease-out"}`}
             style={{ width: inspectorOpen ? inspectorWidth : 0 }}
           >
-            <Inspector />
+            <DetailsPanel peek={peek && inspectorOpen} />
             {inspectorOpen && <ResizeHandle panel="inspector" onResizing={setResizing} />}
           </div>
         </>

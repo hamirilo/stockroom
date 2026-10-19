@@ -305,6 +305,7 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     sep(),
     cmd("view.sidebar"),
     cmd("view.inspector"),
+    cmd("view.shelf"),
     sep(),
     cmd("go.folder"),
   ]);

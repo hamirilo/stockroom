@@ -50,6 +50,7 @@ export function shortcutSections(): ShortcutSection[] {
         { label: MODES.map(modeLabel).join(" / "), keys: MODES.map((_, i) => `Mod+${i + 1}`) },
         cmd("view.sidebar", { label: "サイドバーの表示・非表示" }),
         cmd("view.inspector", { label: "詳細パネルの表示・非表示" }),
+        cmd("view.shelf", { label: "詳細パネルの情報・シェルフの切り替え" }),
         cmd("edit.search"),
         cmd("edit.filter", { label: "絞り込みの行へ" }),
         cmd("go.folder", { label: "フォルダを開く（名前で探す）" }),
