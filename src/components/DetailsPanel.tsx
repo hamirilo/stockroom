@@ -71,7 +71,7 @@ function TabButton({
       role="tab"
       aria-selected={on}
       onClick={() => useStore.getState().setPanelTab(tab)}
-      title={tab === "info" ? "選択したものの情報" : "シェルフ（⌘/Ctrl+Alt+3 で情報と切り替え）"}
+      title={tab === "info" ? "選択したものの情報（⌘/Ctrl+I）" : "シェルフ（⌘/Ctrl+Alt+3）"}
       className={`flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md text-xs font-medium ${
         on ? "bg-white/10 text-fg" : "text-dim hover:bg-white/5 hover:text-fg"
       }`}
