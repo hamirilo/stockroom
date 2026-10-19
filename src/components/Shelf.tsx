@@ -4,7 +4,7 @@
 // files to be compared, exported or put on one sheet. It is shown when the
 // user picks its tab, and for the length of a drag from the list (docs/UI.md).
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ArrowRight, Ban, Plus, X } from "lucide-react";
+import { ArrowRight, Ban, ListX, Plus, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import {
   clearTray,
@@ -73,8 +73,15 @@ export function Shelf() {
           <span className="flex-1 text-dim tabular-nums">
             {fonts ? `${shelf.length} / ${FONT_SHELF_MAX} 件` : `${shelf.length} 件`}
           </span>
-          <button disabled={empty} onClick={clearTray} title="シェルフから外す（中身はそのまま残ります）" className={button}>
-            空にする
+          {/* Not a trash can: it only takes things off the shelf. */}
+          <button
+            disabled={empty}
+            onClick={clearTray}
+            title="シェルフを空にする（中身はそのまま残ります）"
+            aria-label="シェルフを空にする"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-dim enabled:hover:bg-white/10 enabled:hover:text-fg disabled:opacity-40"
+          >
+            <ListX size={15} />
           </button>
         </div>
         <button
