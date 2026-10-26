@@ -191,6 +191,15 @@ pub fn store_file(root: &Path, id: &str, file_name: &str, data: &[u8]) -> Result
     Ok(path)
 }
 
+/// `store_file` for a file on the disk, copied without reading it into memory.
+pub fn copy_file(root: &Path, id: &str, file_name: &str, from: &Path) -> Result<PathBuf, String> {
+    let dir = item_dir(root, id);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(file_name);
+    fs::copy(from, &path).map_err(|e| e.to_string())?;
+    Ok(path)
+}
+
 /// Removes the item `id`'s file (its whole folder). Missing is fine.
 pub fn remove_item_dir(root: &Path, id: &str) {
     let _ = fs::remove_dir_all(item_dir(root, id));

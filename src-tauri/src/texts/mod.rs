@@ -157,6 +157,7 @@ pub fn new_item(root: &Path, name: String, ext: String, data: Vec<u8>, hash: Str
         preview: None,
         font: None,
         body: Some(body(&decoded.text)),
+        duration_ms: None,
     })
 }
 

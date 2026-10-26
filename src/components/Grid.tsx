@@ -17,7 +17,7 @@ import {
 import { command, isEnabled, runKey } from "../lib/commands";
 import { applicable, commandIcon, commandItem } from "../lib/menuItems";
 import { FontTile, SpecimenRow } from "../features/fonts/FontRows";
-import { api, formatBytes, isSystemId, sizeLabel, type Item, type ItemKind } from "../lib/api";
+import { api, durationLabel, formatBytes, isSystemId, sizeLabel, type Item, type ItemKind } from "../lib/api";
 import { fontApi } from "../features/fonts/api";
 import { itemsNoun, kindsNoun } from "../lib/modes";
 import { colorHex } from "../lib/colors";
@@ -249,6 +249,11 @@ const Cell = memo(function Cell({
         <Thumb item={item} fit={fit} />
         {similar && <SimilarOverlay item={item} mark={similar} />}
         {flags && <FlagOverlay item={item} />}
+        {item.kind === "video" && item.durationMs != null && (
+          <span className="pointer-events-none absolute right-1.5 bottom-1.5 rounded bg-black/65 px-1.5 py-px text-[10px] text-white tabular-nums">
+            {durationLabel(item.durationMs)}
+          </span>
+        )}
         <ChangePulse id={item.id} />
         <SelectMark item={item} index={index} selected={selected} />
       </div>
@@ -907,6 +912,8 @@ function Empty({
             ? "PDF・オフィス文書やフォルダをここにドラッグ&ドロップ"
             : only === "text"
               ? `Markdown・テキスト・CSV やフォルダをここにドラッグ&ドロップ、または ${comboText("Mod+N")} で新しく作る`
+            : only === "video"
+              ? "動画（MP4・MOV・WebM）やフォルダをここにドラッグ&ドロップ"
             : only === "image"
               ? "画像やフォルダをここにドラッグ&ドロップ、またはクリップボードから貼り付け"
               : "ファイルやフォルダをここにドラッグ&ドロップ、またはクリップボードから貼り付け"}

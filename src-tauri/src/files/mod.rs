@@ -191,6 +191,7 @@ fn type_color(ext: &str) -> &'static str {
         "pages" => "#e8861a",
         "numbers" => "#2f9e4a",
         "key" => "#2f73e0",
+        "mp4" | "m4v" | "mov" | "webm" => "#7c3aed",
         _ => "#6b7280",
     }
 }

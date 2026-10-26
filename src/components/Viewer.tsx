@@ -23,6 +23,7 @@ import { useStore } from "../store";
 import { FontView } from "../features/fonts/FontView";
 import { FontMark } from "../features/fonts/ShelfChip";
 import { FileView } from "../features/files/FileView";
+import { VideoView } from "../features/videos/VideoView";
 import { TextView } from "../features/texts/TextView";
 import { FlagButtons } from "./Inspector";
 import { RatingStars } from "./RatingStars";
@@ -270,7 +271,7 @@ export function Viewer() {
           <span className="text-xs text-white/40 tabular-nums">
             {sizeLabel(item)}
           </span>
-          {(item.kind === "file" || item.kind === "text") && (
+          {(item.kind === "file" || item.kind === "text" || item.kind === "video") && (
             <button className={tool} title="既定のアプリで開く" onClick={() => openSelection([item.id])}>
               <ExternalLink size={15} />
             </button>
@@ -336,6 +337,8 @@ export function Viewer() {
             <FileView item={item} />
           ) : item.kind === "text" ? (
             <TextView key={item.id} item={item} />
+          ) : item.kind === "video" ? (
+            <VideoView item={item} />
           ) : (
             <div
               ref={boxRef}
@@ -450,7 +453,7 @@ function Details({ item, items }: { item: Item; items: Item[] }) {
           {item.name}
         </div>
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-white/70">
-          <dt className="text-white/45">{item.kind === "image" ? "サイズ" : "種類"}</dt>
+          <dt className="text-white/45">{item.kind === "image" || item.kind === "video" ? "サイズ" : "種類"}</dt>
           <dd className="tabular-nums">
             {sizeLabel(item)}
           </dd>

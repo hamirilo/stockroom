@@ -22,6 +22,7 @@ import {
   api,
   formatBytes,
   isSystemId,
+  durationLabel,
   sizeLabel,
   type Folder,
   type Item,
@@ -449,7 +450,7 @@ export function Inspector() {
             className="mt-3 w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold outline-none hover:border-line focus:border-accent"
           />
           <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-1 text-xs">
-            <dt className="text-dim">{single.kind === "image" ? "サイズ" : "種類"}</dt>
+            <dt className="text-dim">{single.kind === "image" || single.kind === "video" ? "サイズ" : "種類"}</dt>
             <dd className="tabular-nums">
               {sizeLabel(single)}
             </dd>
@@ -457,6 +458,12 @@ export function Inspector() {
             <dd>
               {single.ext.toUpperCase()} · {formatBytes(single.size)}
             </dd>
+            {single.kind === "video" && single.durationMs != null && (
+              <>
+                <dt className="text-dim">再生時間</dt>
+                <dd className="tabular-nums">{durationLabel(single.durationMs)}</dd>
+              </>
+            )}
             {single.kind === "font" && <FontDetails item={single} />}
             <dt className="text-dim">追加日</dt>
             <dd>{new Date(single.importedAt).toLocaleString("ja-JP")}</dd>
