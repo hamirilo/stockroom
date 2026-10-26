@@ -21,6 +21,7 @@ type MockItem = Omit<
   | "fontCategoryUser"
   | "fontFeatures"
   | "fontPsName"
+  | "durationMs"
   | "inTray"
 > & {
   hue: number;
@@ -35,6 +36,8 @@ type MockItem = Omit<
   fontCategoryUser?: string | null;
   fontFeatures?: string[];
   fontPsName?: string;
+  /** Videos: the length in milliseconds. */
+  durationMs?: number;
   /** Texts: the file's content (src-tauri/src/texts). */
   body?: string;
 };
@@ -231,6 +234,35 @@ function seed() {
       hue: (i * 67) % 360,
     });
   }
+  // Videos (docs/VIDEO.md): they can't play here (no real file), so the viewer shows its fallback.
+  for (const [i, [file, w, h, sec]] of ([
+    ["店頭の様子.mp4", 1920, 1080, 187],
+    ["商品紹介.mov", 1280, 720, 62],
+    ["縦型ショート.mp4", 1080, 1920, 15],
+    ["会議の録画.webm", 1920, 1080, 3725],
+  ] as const).entries()) {
+    items.push({
+      id: id(),
+      kind: "video",
+      name: file,
+      fileName: file,
+      ext: file.split(".").pop()!,
+      width: w,
+      height: h,
+      size: sec * 900_000,
+      durationMs: sec * 1000,
+      thumb: "",
+      note: "",
+      rating: 0,
+      importedAt: Date.now() - 15_000 + i,
+      deletedAt: null,
+      favorite: false,
+      pinnedAt: null,
+      rotation: 0,
+      flipped: false,
+      hue: (i * 83 + 200) % 360,
+    });
+  }
   // Texts: Markdown, plain text, CSV (docs/TEXT.md), 0 × 0 like files.
   const texts: [string, string][] = [
     [
@@ -346,6 +378,13 @@ function fileSvg(it: MockItem) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`;
 }
 
+/** A video's thumbnail: a frame (a gradient here) with the play mark. */
+function videoSvg(it: MockItem) {
+  const [w, h] = [it.width, it.height].map((v) => Math.round(v / 3));
+  const s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${it.hue},45%,25%)"/><stop offset="1" stop-color="hsl(${(it.hue + 50) % 360},55%,50%)"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><path d="M${w / 2 - h / 12} ${h / 2 - h / 9} L${w / 2 + h / 8} ${h / 2} L${w / 2 - h / 12} ${h / 2 + h / 9} Z" fill="white" fill-opacity="0.85"/></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`;
+}
+
 /** A text's thumbnail: its first lines on a page with the type (texts/mod.rs draws the real one). */
 function textSvg(it: MockItem) {
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -398,7 +437,7 @@ function svg(it: MockItem, scale: number, oriented = false) {
 /** The mock image drawn to PNG data, as the real command hands it out. */
 async function sheetImage(it: MockItem, maxSide: number): Promise<ArrayBuffer> {
   const img = new Image();
-  img.src = it.kind === "font" ? fontSvg(it) : it.kind === "file" ? fileSvg(it) : it.kind === "text" ? textSvg(it) : svg(it, 1, true);
+  img.src = it.kind === "font" ? fontSvg(it) : it.kind === "file" ? fileSvg(it) : it.kind === "text" ? textSvg(it) : it.kind === "video" ? videoSvg(it) : svg(it, 1, true);
   await img.decode();
   const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   const canvas = document.createElement("canvas");
@@ -411,11 +450,27 @@ async function sheetImage(it: MockItem, maxSide: number): Promise<ArrayBuffer> {
 
 const view = (it: MockItem): Item => {
   const filePath =
-    it.kind === "file" ? (it.ext === "pdf" ? pdfData(it) : fileSvg(it)) : it.kind === "text" ? textSvg(it) : svg(it, 1);
+    it.kind === "file"
+      ? it.ext === "pdf"
+        ? pdfData(it)
+        : fileSvg(it)
+      : it.kind === "text"
+        ? textSvg(it)
+        : it.kind === "video"
+          ? "data:video/mp4;base64,"
+          : svg(it, 1);
   const folderId = folders.find((f) => inFolder(it.id, f.id))?.id ?? null;
   const tagIds = tags.filter((t) => hasTag(it.id, t.id)).map((t) => t.id);
   const thumbPath =
-    it.kind === "font" ? fontSvg(it) : it.kind === "file" ? fileSvg(it) : it.kind === "text" ? textSvg(it) : svg(it, 3, true);
+    it.kind === "font"
+      ? fontSvg(it)
+      : it.kind === "file"
+        ? fileSvg(it)
+        : it.kind === "text"
+          ? textSvg(it)
+          : it.kind === "video"
+            ? videoSvg(it)
+            : svg(it, 3, true);
   return {
     ...it,
     sourceUrl: it.sourceUrl ?? null,
@@ -426,6 +481,7 @@ const view = (it: MockItem): Item => {
     fontCategoryUser: it.fontCategoryUser ?? null,
     fontFeatures: it.fontFeatures ?? [],
     fontPsName: it.fontPsName ?? null,
+    durationMs: it.durationMs ?? null,
     inTray: tray.has(it.id),
     preview: null,
     folderId,
@@ -785,7 +841,7 @@ function handle(cmd: string, a: any): unknown {
         pinned: of(live()).filter((i) => i.pinnedAt !== null).length,
         tray: of(live()).filter((i) => tray.has(i.id)).length,
         kinds: Object.fromEntries(
-          (["image", "font", "file", "text"] as const)
+          (["image", "font", "file", "text", "video"] as const)
             .map((k) => [k, live().filter((i) => i.kind === k).length])
             .filter(([, n]) => n),
         ),
@@ -1064,6 +1120,7 @@ function handle(cmd: string, a: any): unknown {
         ...["ttf", "otf", "woff", "woff2", "ttc", "otc"],
         ...["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key"],
         ...["md", "markdown", "txt", "csv", "tsv"],
+        ...["mp4", "m4v", "mov", "webm"],
       ];
     case "import_paths":
     case "import_bytes":

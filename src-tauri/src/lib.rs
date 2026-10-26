@@ -18,6 +18,7 @@ pub mod sheet;
 pub mod similar;
 pub mod texts;
 pub mod transfer;
+pub mod videos;
 pub mod webimport;
 
 use commands::*;

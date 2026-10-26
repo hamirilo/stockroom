@@ -17,6 +17,8 @@ pub const SUPPORTED_EXTS: &[&str] = &[
     "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key",
     // Texts (see texts/mod.rs `EXTS`).
     "md", "markdown", "txt", "csv", "tsv",
+    // Videos (see videos/mod.rs `EXTS`).
+    "mp4", "m4v", "mov", "webm",
 ];
 
 /// Font files are imported with a rendered sample as their thumbnail.

@@ -275,6 +275,7 @@ mod tests {
             preview: None,
             font: None,
             body: None,
+            duration_ms: None,
         };
         db::insert_item(&tx, &it, at).unwrap();
         tx.commit().unwrap();

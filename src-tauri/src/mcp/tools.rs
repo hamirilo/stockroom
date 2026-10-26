@@ -39,7 +39,7 @@ fn where_schema() -> Value {
         "type": "object",
         "description": "絞り込みの条件。すべて省略するとライブラリ全体（ゴミ箱を除く）。複数指定するとすべてを満たすもの",
         "properties": {
-            "kind": { "type": "string", "enum": ["image", "font", "file", "text"], "description": "種類" },
+            "kind": { "type": "string", "enum": ["image", "font", "file", "text", "video"], "description": "種類" },
             "folder": { "type": "string", "description": "フォルダのパス（例: 写真/旅行）" },
             "include_subfolders": { "type": "boolean", "description": "folder のサブフォルダの中身も含める" },
             "tags": { "type": "array", "items": { "type": "string" }, "description": "このタグのどれかが付いているもの" },
@@ -86,7 +86,7 @@ pub fn list() -> Value {
             "description": "フォルダを「パス<TAB>件数」の行で、サイドバーの並びのまま返す。フォルダは画像・ファイル・テキスト用とフォント用に分かれていて、フォント用は「（フォント用）」の見出しの後に続く",
             "inputSchema": {
                 "type": "object",
-                "properties": { "kind": { "type": "string", "enum": ["image", "font", "file", "text"], "description": "この種類用のフォルダだけを返す（image・file・text は同じ）" } }
+                "properties": { "kind": { "type": "string", "enum": ["image", "font", "file", "text", "video"], "description": "この種類用のフォルダだけを返す（image・file・text・video は同じ）" } }
             },
             "annotations": read_only(),
         },
@@ -96,7 +96,7 @@ pub fn list() -> Value {
             "description": "タグを「名前<TAB>件数」の行で返す。タグは画像・ファイル・テキスト用とフォント用に分かれていて（同じ名前もある）、フォント用は「（フォント用）」の見出しの後に続く",
             "inputSchema": {
                 "type": "object",
-                "properties": { "kind": { "type": "string", "enum": ["image", "font", "file", "text"], "description": "この種類用のタグだけを返す（image・file・text は同じ）" } }
+                "properties": { "kind": { "type": "string", "enum": ["image", "font", "file", "text", "video"], "description": "この種類用のタグだけを返す（image・file・text・video は同じ）" } }
             },
             "annotations": read_only(),
         },
@@ -182,7 +182,7 @@ pub fn list() -> Value {
                 "type": "object",
                 "properties": {
                     "path": { "type": "string", "description": "例: 写真/旅行/京都" },
-                    "kind": { "type": "string", "enum": ["image", "font", "file", "text"], "description": "この種類用のフォルダを作る（image・file・text は同じ）" },
+                    "kind": { "type": "string", "enum": ["image", "font", "file", "text", "video"], "description": "この種類用のフォルダを作る（image・file・text・video は同じ）" },
                     "dry_run": dry_run_schema()
                 },
                 "required": ["path"]
@@ -452,6 +452,7 @@ fn kind_label(kind: Kind) -> &'static str {
         Kind::Font => "フォント",
         Kind::File => "ファイル",
         Kind::Text => "テキスト",
+        Kind::Video => "動画",
     }
 }
 
@@ -582,7 +583,7 @@ fn select(conn: &Connection, w: &Where) -> Result<Vec<Item>, String> {
         q.filter.kinds = match (w.kind, mode) {
             (Some(k), _) => vec![k],
             (None, Mode::Font) => vec![Kind::Font],
-            (None, Mode::Stock) => vec![Kind::Image, Kind::File, Kind::Text],
+            (None, Mode::Stock) => vec![Kind::Image, Kind::File, Kind::Text, Kind::Video],
         };
         q.filter.exts = w.ext.clone();
         items.extend(db::query_items(conn, &q).map_err(e)?);

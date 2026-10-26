@@ -10,7 +10,7 @@ use crate::{search, similar};
 
 pub type DbResult<T> = rusqlite::Result<T>;
 
-const SCHEMA_VERSION: i32 = 23;
+const SCHEMA_VERSION: i32 = 24;
 
 const SETTINGS_TABLE: &str = "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)";
 
@@ -413,6 +413,11 @@ pub fn migrate(conn: &Connection) -> DbResult<()> {
              )",
         )
     })?;
+    // Videos (videos/mod.rs): the length in milliseconds (NULL = not known).
+    step(24, &|c| {
+        add_column(c, "items", "duration_ms", "INTEGER")?;
+        Ok(())
+    })?;
     // New steps go above; the last one must be SCHEMA_VERSION.
     debug_assert!(
         conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i32>(0))? >= SCHEMA_VERSION,
@@ -433,6 +438,8 @@ pub enum Kind {
     File,
     /// Markdown, plain text, CSV / TSV (texts/mod.rs).
     Text,
+    /// MP4 / MOV / WebM (videos/mod.rs).
+    Video,
 }
 
 impl Kind {
@@ -442,6 +449,7 @@ impl Kind {
             Kind::Font => "font",
             Kind::File => "file",
             Kind::Text => "text",
+            Kind::Video => "video",
         }
     }
 
@@ -450,6 +458,7 @@ impl Kind {
             "font" => Kind::Font,
             "file" => Kind::File,
             "text" => Kind::Text,
+            "video" => Kind::Video,
             _ => Kind::Image,
         }
     }
@@ -800,6 +809,8 @@ pub struct Item {
     pub font_features: Vec<String>,
     /// Fonts: PostScript name of the first font (None until read, or when it has none).
     pub font_ps_name: Option<String>,
+    /// Videos: the length in milliseconds (None = not known).
+    pub duration_ms: Option<i64>,
     /// On the shelf (シェルフ; the `tray` table).
     pub in_tray: bool,
     /// Similar view only: which group of look-alikes the item belongs to.
@@ -830,6 +841,8 @@ pub struct NewItem {
     pub font: Option<crate::fonts::FontMeta>,
     /// Texts: what the search box looks in (texts/mod.rs `body`).
     pub body: Option<String>,
+    /// Videos: the length in milliseconds.
+    pub duration_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq)]
@@ -961,7 +974,8 @@ const ITEM_COLS: &str = "items.id, items.name, items.file_name, items.ext, items
      (SELECT group_concat(tag_id) FROM item_tags WHERE item_id = items.id), \
      items.rotation, items.flipped, items.kind, items.source_url, items.font_family, items.font_weight, \
      items.font_script, items.font_category, items.font_category_user, \
-     EXISTS (SELECT 1 FROM tray WHERE tray.item_id = items.id), items.font_features, items.font_ps_name";
+     EXISTS (SELECT 1 FROM tray WHERE tray.item_id = items.id), items.font_features, items.font_ps_name, \
+     items.duration_ms";
 
 fn row_to_item(r: &rusqlite::Row) -> DbResult<Item> {
     let tag_ids: Option<String> = r.get(16)?;
@@ -1000,6 +1014,7 @@ fn row_to_item(r: &rusqlite::Row) -> DbResult<Item> {
             .map(|s| s.split(',').filter(|f| !f.is_empty()).map(str::to_string).collect())
             .unwrap_or_default(),
         font_ps_name: r.get::<_, Option<String>>(28)?.filter(|s| !s.is_empty()),
+        duration_ms: r.get(29)?,
         group: None,
         distance: None,
     })
@@ -1561,8 +1576,8 @@ pub fn insert_item(tx: &Transaction, it: &NewItem, imported_at: i64) -> DbResult
     tx.execute(
         "INSERT INTO items (id, name, file_name, ext, width, height, size, hash, thumb, imported_at, phash, pcolor, preview, kind,
            font_family, font_weight, font_script, font_category, font_weight_min, font_weight_max, font_features, body,
-           font_ps_name)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
+           font_ps_name, duration_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
         params![
             it.id,
             it.name,
@@ -1586,7 +1601,8 @@ pub fn insert_item(tx: &Transaction, it: &NewItem, imported_at: i64) -> DbResult
             it.font.as_ref().map(|f| f.weight_max),
             it.font.as_ref().map(|f| f.features_text()),
             it.body,
-            it.font.as_ref().map(|f| &f.ps_name)
+            it.font.as_ref().map(|f| &f.ps_name),
+            it.duration_ms
         ],
     )?;
     Ok(())
@@ -2105,7 +2121,7 @@ pub fn used_kinds(conn: &Connection) -> DbResult<Option<Vec<Kind>>> {
         .query_row("SELECT value FROM settings WHERE key = 'modes'", [], |r| r.get(0))
         .optional()?;
     let names: Vec<String> = value.and_then(|v| serde_json::from_str(&v).ok()).unwrap_or_default();
-    let kinds: Vec<Kind> = [Kind::Image, Kind::Font, Kind::File, Kind::Text]
+    let kinds: Vec<Kind> = [Kind::Image, Kind::Font, Kind::File, Kind::Text, Kind::Video]
         .into_iter()
         .filter(|k| names.iter().any(|n| n == k.as_str()))
         .collect();
@@ -2722,6 +2738,7 @@ mod tests {
                 preview: None,
                 font: None,
                 body: None,
+                duration_ms: None,
             },
             at,
         )
@@ -3203,7 +3220,7 @@ mod tests {
         assert!(library_settings(&conn).unwrap().is_empty());
         assert_eq!(used_kinds(&conn).unwrap(), None);
 
-        let modes = serde_json::json!(["font", "video", "image"]);
+        let modes = serde_json::json!(["font", "audio", "image"]);
         set_library_setting(&conn, "modes", Some(&modes)).unwrap();
         set_library_setting(&conn, "lastMode", Some(&serde_json::json!("font"))).unwrap();
         // Unknown kinds are skipped, the order is the app's.
@@ -3221,7 +3238,7 @@ mod tests {
         assert!(library_settings(&conn).unwrap().is_empty());
         assert_eq!(used_kinds(&conn).unwrap(), None);
         // Only unknown kinds = none chosen = all.
-        set_library_setting(&conn, "modes", Some(&serde_json::json!(["video"]))).unwrap();
+        set_library_setting(&conn, "modes", Some(&serde_json::json!(["audio"]))).unwrap();
         assert_eq!(used_kinds(&conn).unwrap(), None);
     }
 

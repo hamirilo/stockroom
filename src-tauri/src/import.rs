@@ -10,6 +10,7 @@ use crate::library::{self, Library};
 use crate::orient::{self, OrientOp, Orientation};
 use crate::similar;
 use crate::texts;
+use crate::videos;
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, ImageFormat};
 use rayon::prelude::*;
@@ -18,6 +19,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -258,6 +260,22 @@ fn process(
     known: &HashMap<String, String>,
     seen: &Mutex<HashSet<String>>,
 ) -> Result<Outcome, String> {
+    // Videos can be gigabytes: they are hashed and copied from the disk.
+    let video = match &src {
+        Source::Path { path, .. } => path.file_name().and_then(|n| ext_of(&n.to_string_lossy())),
+        Source::Bytes { name, .. } => ext_of(name),
+    }
+    .filter(|e| videos::is_video(e));
+    let dedupe = |hash: &str| -> Option<Outcome> {
+        if let Some(existing) = known.get(hash) {
+            return Some(Outcome::Duplicate(existing.clone()));
+        }
+        // Same file twice in this batch.
+        (!seen.lock().unwrap().insert(hash.to_string())).then(|| Outcome::Duplicate(String::new()))
+    };
+    if let Some(ext) = video {
+        return process_video(src, ext, root, dedupe);
+    }
     let (name, data) = match src {
         Source::Path { path, .. } => {
             let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
@@ -267,11 +285,8 @@ fn process(
     };
     let ext = ext_of(&name).ok_or("unsupported file type")?;
     let hash = hex::encode(Sha256::digest(&data));
-    if let Some(existing) = known.get(&hash) {
-        return Ok(Outcome::Duplicate(existing.clone()));
-    }
-    if !seen.lock().unwrap().insert(hash.clone()) {
-        return Ok(Outcome::Duplicate(String::new())); // same file twice in this batch
+    if let Some(done) = dedupe(&hash) {
+        return Ok(done);
     }
 
     if formats::is_font(&ext) {
@@ -332,6 +347,7 @@ fn process(
         preview,
         font: None,
         body: None,
+        duration_ms: None,
     }))
 }
 
@@ -360,6 +376,7 @@ fn process_font(name: String, ext: String, data: Vec<u8>, hash: String, root: &P
         preview: None,
         font: Some(meta),
         body: None,
+        duration_ms: None,
     }))
 }
 
@@ -390,6 +407,74 @@ fn process_file(name: String, ext: String, data: Vec<u8>, hash: String, root: &P
         preview: None,
         font: None,
         body: None,
+        duration_ms: None,
+    }))
+}
+
+/// Videos: stored as is, with a frame from the OS as the thumbnail and the
+/// length and size from the file's headers (videos/mod.rs).
+fn process_video(
+    src: Source,
+    ext: String,
+    root: &Path,
+    dedupe: impl Fn(&str) -> Option<Outcome>,
+) -> Result<Outcome, String> {
+    let (name, stored, hash, size) = match src {
+        Source::Path { path, .. } => {
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            let mut f = fs::File::open(&path).map_err(|e| e.to_string())?;
+            let mut hasher = Sha256::new();
+            let mut buf = vec![0u8; 1 << 20];
+            let mut size = 0u64;
+            loop {
+                let n = f.read(&mut buf).map_err(|e| e.to_string())?;
+                if n == 0 {
+                    break;
+                }
+                hasher.update(&buf[..n]);
+                size += n as u64;
+            }
+            let hash = hex::encode(hasher.finalize());
+            if let Some(done) = dedupe(&hash) {
+                return Ok(done);
+            }
+            (name, Err(path), hash, size as i64)
+        }
+        Source::Bytes { name, data } => {
+            let hash = hex::encode(Sha256::digest(&data));
+            if let Some(done) = dedupe(&hash) {
+                return Ok(done);
+            }
+            let size = data.len() as i64;
+            (name, Ok(data), hash, size)
+        }
+    };
+    let id = uuid::Uuid::new_v4().simple().to_string();
+    let file_name = sanitize(&name);
+    let path = match &stored {
+        Ok(data) => library::store_file(root, &id, &file_name, data)?,
+        Err(from) => library::copy_file(root, &id, &file_name, from)?,
+    };
+    // Made from the stored copy: the OS needs a file with the right extension.
+    let info = videos::probe(&path, &ext);
+    let thumb = files::thumbnail(&path, &ext, THUMB_MAX);
+    let thumb = write_thumb(&thumb, &root.join("thumbs"), &id).inspect_err(|_| library::remove_item_dir(root, &id))?;
+    Ok(Outcome::New(NewItem {
+        id,
+        kind: db::Kind::Video,
+        name,
+        file_name,
+        ext,
+        width: info.width,
+        height: info.height,
+        size,
+        hash,
+        thumb,
+        phash: None,
+        preview: None,
+        font: None,
+        body: None,
+        duration_ms: info.duration_ms,
     }))
 }
 
@@ -1007,6 +1092,27 @@ mod tests {
         assert_eq!((it.kind, it.width, it.height), (db::Kind::Text, 0, 0));
         assert_eq!(fs::read(l.file_path(it)).unwrap(), sjis.to_vec(), "stored as is");
         assert!(l.thumb_path(it).is_file());
+    }
+
+    #[test]
+    fn imports_videos_from_the_disk_with_their_length_and_size() {
+        let (tmp, lib) = setup();
+        let data = videos::tests::mp4(false);
+        let path = tmp.path().join("clip.mp4");
+        fs::write(&path, &data).unwrap();
+        let copy = tmp.path().join("copy.mp4");
+        fs::write(&copy, &data).unwrap();
+
+        let sum = run(&lib, vec![Source::file(&path), Source::file(&copy)], None, |_, _| {}).unwrap();
+        assert_eq!((sum.imported, sum.duplicates), (1, 1), "{:?}", sum.failed);
+        assert_eq!(sum.kinds, std::collections::BTreeMap::from([(db::Kind::Video, 1)]));
+
+        let g = lib.lock().unwrap();
+        let l = g.as_ref().unwrap();
+        let it = &db::query_items(&l.conn, &db::ItemQuery::default()).unwrap()[0];
+        assert_eq!((it.kind, it.width, it.height, it.duration_ms), (db::Kind::Video, 1920, 1080, Some(15_000)));
+        assert_eq!(fs::read(l.file_path(it)).unwrap(), data, "stored as is");
+        assert!(l.thumb_path(it).is_file(), "a card at least");
     }
 
     #[test]

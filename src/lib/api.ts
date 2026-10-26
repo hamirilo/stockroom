@@ -54,9 +54,10 @@ export interface AppSettings {
 /**
  * What a file is. Fonts have no pixel size (0 × 0) and a rendered sample as the thumbnail;
  * files (PDF, office documents) are 0 × 0 too, with a thumbnail from the OS or the file;
- * texts (Markdown, plain text, CSV) are 0 × 0, can be edited in the app and searched by their body (docs/TEXT.md).
+ * texts (Markdown, plain text, CSV) are 0 × 0, can be edited in the app and searched by their body (docs/TEXT.md);
+ * videos have their picture size and a length (`durationMs`), a frame as the thumbnail and play in the viewer (docs/VIDEO.md).
  */
-export type ItemKind = "image" | "font" | "file" | "text";
+export type ItemKind = "image" | "font" | "file" | "text" | "video";
 
 /**
  * What the app shows (docs/MODES.md): the stock (images and files) or the
@@ -83,6 +84,7 @@ export const KINDS: { kind: ItemKind; label: string }[] = [
   { kind: "font", label: "フォント" },
   { kind: "file", label: "ファイル" },
   { kind: "text", label: "テキスト" },
+  { kind: "video", label: "動画" },
 ];
 
 export const kindLabel = (k: ItemKind) => KINDS.find((x) => x.kind === k)?.label ?? k;
@@ -96,9 +98,29 @@ export const FILE_EXTS = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "p
 /** File types imported as texts (src-tauri/src/texts/mod.rs `EXTS`). */
 export const TEXT_EXTS = ["md", "markdown", "txt", "csv", "tsv"];
 
+/** File types imported as videos (src-tauri/src/videos/mod.rs `EXTS`). */
+export const VIDEO_EXTS = ["mp4", "m4v", "mov", "webm"];
+
 /** The kind a file type is imported as. */
 export const kindOfExt = (ext: string): ItemKind =>
-  FONT_EXTS.includes(ext) ? "font" : FILE_EXTS.includes(ext) ? "file" : TEXT_EXTS.includes(ext) ? "text" : "image";
+  FONT_EXTS.includes(ext)
+    ? "font"
+    : FILE_EXTS.includes(ext)
+      ? "file"
+      : TEXT_EXTS.includes(ext)
+        ? "text"
+        : VIDEO_EXTS.includes(ext)
+          ? "video"
+          : "image";
+
+/** "3:07" or "1:02:09" for a length in milliseconds. */
+export function durationLabel(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
 
 /** Name of a text's type. */
 export function textTypeLabel(ext: string): string {
@@ -208,6 +230,8 @@ export interface Item {
   fontFeatures: string[];
   /** Fonts: PostScript name of the first font (null until read, or when it has none). */
   fontPsName: string | null;
+  /** Videos: the length in milliseconds (null = not known). */
+  durationMs: number | null;
   /**
    * An installed font on the font shelf that this computer doesn't have (the
    * library was put together on another one): only its name is known (docs/SYSTEM_FONTS.md).
@@ -237,6 +261,7 @@ export function sizeLabel(item: Pick<Item, "kind" | "width" | "height" | "ext">)
   if (item.kind === "font") return "フォント";
   if (item.kind === "file") return fileTypeLabel(item.ext);
   if (item.kind === "text") return textTypeLabel(item.ext);
+  if (item.kind === "video" && !item.width) return "動画";
   return `${item.width} × ${item.height}`;
 }
 
