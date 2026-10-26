@@ -3238,7 +3238,7 @@ mod tests {
         assert!(library_settings(&conn).unwrap().is_empty());
         assert_eq!(used_kinds(&conn).unwrap(), None);
         // Only unknown kinds = none chosen = all.
-        set_library_setting(&conn, "modes", Some(&serde_json::json!(["video"]))).unwrap();
+        set_library_setting(&conn, "modes", Some(&serde_json::json!(["audio"]))).unwrap();
         assert_eq!(used_kinds(&conn).unwrap(), None);
     }
 
