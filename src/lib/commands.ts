@@ -51,7 +51,7 @@ import {
 import { api, isSystemId, kindLabel, type Item, type ItemKind } from "./api";
 import { fontApi } from "../features/fonts/api";
 import { checkForUpdate, openReleaseNotes } from "./update";
-import { COMPARE_ZOOM, currentFolderId, listKinds, MODES, shownModes, useStore, zoomLook } from "../store";
+import { COMPARE_ZOOM, currentFolderId, listKinds, MODES, shelfShown, shownModes, useStore, zoomLook } from "../store";
 import { modeLabel } from "./modes";
 import { rowIds } from "./grouping";
 import { useShortcutHelp } from "../components/ShortcutHelp";
@@ -182,10 +182,19 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "view.inspector",
-    title: "詳細パネル",
+    // The details panel's information tab: from the shelf it switches, shown it closes (docs/UI.md).
+    title: "情報",
     keys: ["Mod+I", "Mod+Alt+2"],
-    checked: (s) => s.inspectorOpen,
-    run: (s) => s.toggleInspector(),
+    checked: (s) => s.inspectorOpen && s.panelTab === "info",
+    run: (s) => s.togglePanelTab("info"),
+  },
+  {
+    id: "view.shelf",
+    title: "シェルフ",
+    // The details panel's other tab, the same way as "情報".
+    keys: ["Mod+Alt+3"],
+    checked: (s) => shelfShown(s),
+    run: (s) => s.togglePanelTab("shelf"),
   },
   {
     id: "view.zoomIn",
