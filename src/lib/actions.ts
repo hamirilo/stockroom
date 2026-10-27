@@ -1,6 +1,7 @@
 // User-level actions shared by several components (dialogs + API + refresh).
 import { listen } from "@tauri-apps/api/event";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, EMPTY_FILTER, isSystemId, kindLabel, kindOfExt, libraryIds, type DuplicateEffect, type Item, type ItemKind, type LibraryInfo, type Mode, type OrientOp, type View } from "./api";
 import { itemsNoun, kindsNoun, MODES, modeLabel } from "./modes";
 import { fontApi } from "../features/fonts/api";
@@ -871,7 +872,16 @@ export async function openSelection(ids: string[]) {
     });
     if (!ok) return;
   }
-  await st().run(() => api.openItems(ids));
+  // A bookmark opens its page in the browser; the rest in their default app.
+  const pages = new Map(st().items.filter((i) => i.kind === "bookmark" && i.sourceUrl).map((i) => [i.id, i.sourceUrl!]));
+  const files = ids.filter((id) => !pages.has(id));
+  await st().run(async () => {
+    for (const id of ids) {
+      const url = pages.get(id);
+      if (url) await openUrl(url);
+    }
+    if (files.length) await api.openItems(files);
+  });
 }
 
 // -------------------------------------------------------- smart folders

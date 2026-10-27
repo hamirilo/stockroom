@@ -440,6 +440,8 @@ pub enum Kind {
     Text,
     /// MP4 / MOV / WebM (videos/mod.rs).
     Video,
+    /// A URL, kept as an internet shortcut (bookmarks/mod.rs).
+    Bookmark,
 }
 
 impl Kind {
@@ -450,6 +452,7 @@ impl Kind {
             Kind::File => "file",
             Kind::Text => "text",
             Kind::Video => "video",
+            Kind::Bookmark => "bookmark",
         }
     }
 
@@ -459,6 +462,7 @@ impl Kind {
             "file" => Kind::File,
             "text" => Kind::Text,
             "video" => Kind::Video,
+            "bookmark" => Kind::Bookmark,
             _ => Kind::Image,
         }
     }
@@ -1572,6 +1576,11 @@ pub fn hash_index(conn: &Connection) -> DbResult<HashMap<String, String>> {
     rows.collect()
 }
 
+/// The item (trashed or not) with this hash, if any.
+pub fn item_by_hash(conn: &Connection, hash: &str) -> DbResult<Option<String>> {
+    conn.query_row("SELECT id FROM items WHERE hash = ?1 LIMIT 1", [hash], |r| r.get(0)).optional()
+}
+
 pub fn insert_item(tx: &Transaction, it: &NewItem, imported_at: i64) -> DbResult<()> {
     tx.execute(
         "INSERT INTO items (id, name, file_name, ext, width, height, size, hash, thumb, imported_at, phash, pcolor, preview, kind,
@@ -2121,7 +2130,7 @@ pub fn used_kinds(conn: &Connection) -> DbResult<Option<Vec<Kind>>> {
         .query_row("SELECT value FROM settings WHERE key = 'modes'", [], |r| r.get(0))
         .optional()?;
     let names: Vec<String> = value.and_then(|v| serde_json::from_str(&v).ok()).unwrap_or_default();
-    let kinds: Vec<Kind> = [Kind::Image, Kind::Font, Kind::File, Kind::Text, Kind::Video]
+    let kinds: Vec<Kind> = [Kind::Image, Kind::Font, Kind::File, Kind::Text, Kind::Video, Kind::Bookmark]
         .into_iter()
         .filter(|k| names.iter().any(|n| n == k.as_str()))
         .collect();

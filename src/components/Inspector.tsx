@@ -24,6 +24,7 @@ import {
   isSystemId,
   durationLabel,
   sizeLabel,
+  urlLabel,
   type Folder,
   type Item,
   type SelectionInfo,
@@ -144,16 +145,6 @@ function TagInput({ onAdd, exclude }: { onAdd: (names: string[]) => void; exclud
 }
 
 const btn = "h-8 rounded-md border border-line hover:bg-white/5";
-
-/** "example.com/path" for showing a URL compactly. */
-function hostOf(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.host.replace(/^www\./, "") + (u.pathname === "/" ? "" : decodeURI(u.pathname));
-  } catch {
-    return url;
-  }
-}
 
 /** A video's picture and sound codecs, read from the file when the panel shows it. */
 function VideoCodecRows({ id }: { id: string }) {
@@ -467,10 +458,14 @@ export function Inspector() {
             <dd className="tabular-nums">
               {sizeLabel(single)}
             </dd>
-            <dt className="text-dim">形式</dt>
-            <dd>
-              {single.ext.toUpperCase()} · {formatBytes(single.size)}
-            </dd>
+            {single.kind !== "bookmark" && (
+              <>
+                <dt className="text-dim">形式</dt>
+                <dd>
+                  {single.ext.toUpperCase()} · {formatBytes(single.size)}
+                </dd>
+              </>
+            )}
             {single.kind === "video" && single.durationMs != null && (
               <>
                 <dt className="text-dim">再生時間</dt>
@@ -483,14 +478,14 @@ export function Inspector() {
             <dd>{new Date(single.importedAt).toLocaleString("ja-JP")}</dd>
             {single.sourceUrl && (
               <>
-                <dt className="text-dim">元のページ</dt>
+                <dt className="text-dim">{single.kind === "bookmark" ? "URL" : "元のページ"}</dt>
                 <dd className="min-w-0">
                   <button
                     className="block max-w-full truncate text-left text-accent hover:underline"
                     title={single.sourceUrl}
                     onClick={() => openUrl(single.sourceUrl!).catch((e) => useStore.getState().toast(String(e), true))}
                   >
-                    {hostOf(single.sourceUrl)}
+                    {urlLabel(single.sourceUrl)}
                   </button>
                 </dd>
               </>

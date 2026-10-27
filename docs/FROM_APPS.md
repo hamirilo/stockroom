@@ -17,7 +17,7 @@ stockroom はストック、Feedability はフローと役割を分け、**取�
 | データ | 相手のアプリは stockroom の `library.db` やライブラリのフォルダを直接触らない。書き込むのは stockroom だけ（MCP と同じ） |
 | 初期状態 | 受付が今どおりオフなら、相手のアプリには「stockroom で受付をオンにしてください」と返る |
 
-URL（ブックマーク）の種類（docs/ARCHITECTURE.md「今後」）を作ったら、「リンクだけ送る」もこの受け口で受ける。それまでは待たない。
+URL（ブックマーク。docs/BOOKMARKS.md）の種類ができたので、「リンクだけ送る」は `POST /bookmark`（`{ url, title, description, folder, tags }`）で受ける。アプリは Web に取りに行かないので、タイトルや説明は送る側が付ける。
 
 ## 接続の許可（`/pair`）を拡張以外にも開く
 
@@ -79,5 +79,5 @@ URL（ブックマーク）の種類（docs/ARCHITECTURE.md「今後」）を作
 ## あとで
 
 - 記事の画像を画像として送る（`page` は記事の URL。Feedability は画像をすでに Rust で取っている）
-- URL の種類ができたら、Feedability に「リンクだけ送る」を足す
+- Feedability に「リンクだけ送る」を足す（受け口の `POST /bookmark` はできている）
 - 送り先のフォルダを送るたびに選ぶ（最初は Feedability の設定で 1 つ決める）

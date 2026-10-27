@@ -94,7 +94,7 @@ Claude Code / Claude Desktop では、書き込みのたびにユーザーの承
 
 **絞り込み `where`**（`find_items` と書き込みで共通。知らないキーはエラーにする）
 
-- `kind`：`image` / `font` / `file` / `text`
+- `kind`：`image` / `font` / `file` / `text` / `video` / `bookmark`
 - `folder`：フォルダのパス。`include_subfolders` でサブフォルダも含める
 - `tags`：タグ名のリスト。`tag_match_all` を付けるとすべて付いているもの
 - `untagged` / `unfiled`：タグなし／未分類だけ

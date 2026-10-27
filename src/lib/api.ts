@@ -55,9 +55,10 @@ export interface AppSettings {
  * What a file is. Fonts have no pixel size (0 × 0) and a rendered sample as the thumbnail;
  * files (PDF, office documents) are 0 × 0 too, with a thumbnail from the OS or the file;
  * texts (Markdown, plain text, CSV) are 0 × 0, can be edited in the app and searched by their body (docs/TEXT.md);
- * videos have their picture size and a length (`durationMs`), a frame as the thumbnail and play in the viewer (docs/VIDEO.md).
+ * videos have their picture size and a length (`durationMs`), a frame as the thumbnail and play in the viewer (docs/VIDEO.md);
+ * bookmarks are a URL (`sourceUrl`) with the page's title as the name, 0 × 0, an eyecatch or a card as the thumbnail (docs/BOOKMARKS.md).
  */
-export type ItemKind = "image" | "font" | "file" | "text" | "video";
+export type ItemKind = "image" | "font" | "file" | "text" | "video" | "bookmark";
 
 /**
  * What the app shows (docs/MODES.md): the stock (images and files) or the
@@ -85,6 +86,7 @@ export const KINDS: { kind: ItemKind; label: string }[] = [
   { kind: "file", label: "ファイル" },
   { kind: "text", label: "テキスト" },
   { kind: "video", label: "動画" },
+  { kind: "bookmark", label: "ブックマーク" },
 ];
 
 export const kindLabel = (k: ItemKind) => KINDS.find((x) => x.kind === k)?.label ?? k;
@@ -112,6 +114,16 @@ export const kindOfExt = (ext: string): ItemKind =>
         : VIDEO_EXTS.includes(ext)
           ? "video"
           : "image";
+
+/** "example.com/path" for showing a URL compactly. */
+export function urlLabel(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.host.replace(/^www\./, "") + (u.pathname === "/" ? "" : decodeURI(u.pathname));
+  } catch {
+    return url;
+  }
+}
 
 /** "3:07" or "1:02:09" for a length in milliseconds. */
 export function durationLabel(ms: number): string {
@@ -267,6 +279,7 @@ export function sizeLabel(item: Pick<Item, "kind" | "width" | "height" | "ext">)
   if (item.kind === "file") return fileTypeLabel(item.ext);
   if (item.kind === "text") return textTypeLabel(item.ext);
   if (item.kind === "video" && !item.width) return "動画";
+  if (item.kind === "bookmark") return "ブックマーク";
   return `${item.width} × ${item.height}`;
 }
 

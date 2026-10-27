@@ -62,7 +62,7 @@
   メニューの件数は開いたときに `facet_counts`（`db.rs`。問い合わせの WHERE は `query_where` を `query_rows` と共有）で数える。
   「5 / 13 件」の分母は `placeTotal`（サイドバーの件数から）
 
-種類を増やすとき（例：ブックマーク。動画は足した：docs/VIDEO.md）：`ItemKind` と `KINDS`（`lib/api.ts`）、`features/<kind>/` を足し、`modeOf` と
+種類を増やすとき（例：動画は docs/VIDEO.md、ブックマークは docs/BOOKMARKS.md）：`ItemKind` と `KINDS`（`lib/api.ts`）、`features/<kind>/` を足し、`modeOf` と
 `db::Mode::of` でどのモードのものかを決める。チップと「使う種類」は `KINDS` から作られる。見え方が根本的に違うならモードにする
 （`Mode`、`MODES`、`MODE_LAYOUTS` / `MODE_GROUPS`、サイドバーの `ModeSwitch`、`db.rs` の `Mode` と移行）。
 
@@ -96,6 +96,8 @@
 | | `src-tauri/src/texts/` | 対応する拡張子、文字コードの判定と書き戻し（Shift_JIS）、サムネイル（先頭を紙に描く SVG）、検索用の本文、読み込み・保存・新規作成のコマンド |
 | 動画 | `src/features/videos/` | ビューア（`VideoView.tsx`：`<video>` で再生） |
 | | `src-tauri/src/videos/` | 対応する拡張子、ヘッダからの長さ・縦横（`probe`）。取り込みは `import.rs` の `process_video` |
+| ブックマーク | `src/features/bookmarks/` | ビューア（`BookmarkView.tsx`）、URL の貼り付け（`actions.ts`）。docs/BOOKMARKS.md |
+| | `src-tauri/src/bookmarks/` | URL のそろえ方・カードのサムネイル・登録（`add`。拡張の `POST /bookmark` と貼り付けで共通）、コマンド |
 | 画像 | `src-tauri/src/{formats,orient,similar}.rs`、`components/DuplicateReview.tsx` ほか | デコード、回転・反転、似ている画像の検出（まだ `components/` に混ざっている） |
 
 依存の向きは **features → core** のみ。core が種類ごとの知識を持つのは、DB に入っている語彙（`ItemKind`、`FONT_SCRIPTS` /
@@ -134,7 +136,4 @@ features 側が core の部品（`Row` / `Section`、`CellProps` / `showItemMenu
 ## 今後
 
 - 画像だけの機能（重複の候補・回転）も `features/images/` に寄せる
-- **URL（ブックマーク）を種類として足す**想定。画像・ファイルと同じフォルダに並べたいのでモードにはしない。
-  `Item` はファイル前提（`fileName`・`ext`・`size`）なので、データの形は作るときに決める。ブラウザ拡張の保存と
-  `Item.sourceUrl`（画像の保存元ページ）とつなげる
 - 別アプリに分ける場合は、`features/fonts/` と `src-tauri/src/fonts/` をそのまま持ち出し、core をパッケージとして共有する

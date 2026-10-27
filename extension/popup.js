@@ -13,6 +13,11 @@ $("list").onclick = () => {
   chrome.runtime.sendMessage({ type: "list-images", tab });
   window.close();
 };
+$("bookmark").disabled = !/^https?:/.test(tab?.url ?? "");
+$("bookmark").onclick = () => {
+  chrome.runtime.sendMessage({ type: "bookmark", tab });
+  window.close();
+};
 $("capture").onclick = () => {
   // The background worker saves it and reports in the page; the popup can close.
   chrome.runtime.sendMessage({ type: "capture", tab });
