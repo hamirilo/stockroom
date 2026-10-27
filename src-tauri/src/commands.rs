@@ -1396,7 +1396,7 @@ fn release_page(version: &str) -> CmdResult<String> {
     if !ok {
         return Err(format!("not a version: {version}"));
     }
-    Ok(format!("https://github.com/2204601/stockroom/releases/tag/v{version}"))
+    Ok(format!("https://github.com/hamirilo/stockroom/releases/tag/v{version}"))
 }
 
 #[tauri::command]
@@ -1581,7 +1581,7 @@ mod tests {
 
     #[test]
     fn release_page_takes_only_a_version() {
-        let page = "https://github.com/2204601/stockroom/releases/tag/v0.28.0";
+        let page = "https://github.com/hamirilo/stockroom/releases/tag/v0.28.0";
         assert_eq!(super::release_page("0.28.0").unwrap(), page);
         assert_eq!(super::release_page("v0.28.0").unwrap(), page);
         assert!(super::release_page("1.0.0-beta.1").is_ok());

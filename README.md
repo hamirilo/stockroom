@@ -21,13 +21,13 @@
 
 ## インストール
 
-[Releases](https://github.com/2204601/stockroom/releases) から入手する。署名なしのビルドなので、**初回インストール時だけ**警告が出る。
+[Releases](https://github.com/hamirilo/stockroom/releases) から入手する。署名なしのビルドなので、**初回インストール時だけ**警告が出る。
 
 - **macOS（Apple Silicon 専用）**：`.dmg` を開いて「アプリケーション」へコピー → 起動して「開発元を検証できない」と出たら「完了」→ **システム設定 › プライバシーとセキュリティ** の「このまま開く」。
   ターミナルで `xattr -dr com.apple.quarantine "/Applications/Stockroom.app"` を実行しても良い
 - **Windows**：`-setup.exe` を実行 → SmartScreen が出たら「詳細情報」→「実行」
 
-2 回目以降はアプリ内で更新する（起動時に確認。手動では設定（⌘,）→「一般」の「アップデート」→「アップデートを確認」）。何が変わったかは [Releases](https://github.com/2204601/stockroom/releases) の各版のページにある（更新のダイアログと設定の「更新内容」からも開ける）。
+2 回目以降はアプリ内で更新する（起動時に確認。手動では設定（⌘,）→「一般」の「アップデート」→「アップデートを確認」）。何が変わったかは [Releases](https://github.com/hamirilo/stockroom/releases) の各版のページにある（更新のダイアログと設定の「更新内容」からも開ける）。
 
 ### Image Library から更新した場合
 
