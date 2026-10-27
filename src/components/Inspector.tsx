@@ -36,6 +36,7 @@ import { FontCategorySelect, FontDetails } from "../features/fonts/FontDetails";
 import { SystemFontPanel } from "../features/fonts/SystemFontPanel";
 import { useStore } from "../store";
 import { composing } from "../lib/ime";
+import { LinksField } from "./LinksField";
 import { RatingStars } from "./RatingStars";
 
 function folderPath(folders: Folder[], id: string): string {
@@ -386,6 +387,7 @@ export function Inspector() {
   const rev = useStore((s) => s.rev);
   const run = useStore((s) => s.run);
   const isTrash = useStore((s) => s.view.kind === "trash");
+  const stock = useStore((s) => s.mode === "stock");
   const noun = useStore(listNoun);
   const [info, setInfo] = useState<SelectionInfo>({ tags: [], folders: [] });
   const [adding, setAdding] = useState(false);
@@ -588,6 +590,9 @@ export function Inspector() {
           )
         )}
       </Field>
+
+      {/* Stock only (fonts have families); not in the trash. */}
+      {!isTrash && stock && <LinksField ids={ids} single={single} />}
 
       {single && (
         <Field label="メモ">

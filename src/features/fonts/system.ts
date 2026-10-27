@@ -67,6 +67,7 @@ export function systemItem(f: SystemFont): Item {
     fontPsName: f.psName || null,
     durationMs: null,
     inTray: false,
+    parentId: null,
     filePath: f.path,
     // No rendered sample: rows and tiles draw in the font itself.
     thumbPath: "",

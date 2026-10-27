@@ -7,6 +7,7 @@ import { ResizeHandle } from "./components/ResizeHandle";
 import { DragLayer } from "./components/DragLayer";
 import { DuplicateReview } from "./components/DuplicateReview";
 import { FolderPicker } from "./components/FolderPicker";
+import { ParentPicker } from "./components/ParentPicker";
 import { Grid } from "./components/Grid";
 import { DetailsPanel, useShelfPeek } from "./components/DetailsPanel";
 import { Sidebar } from "./components/Sidebar";
@@ -255,6 +256,7 @@ export default function App() {
       )}
       <Viewer />
       <FolderPicker />
+      <ParentPicker />
       <DuplicateReview />
       <SheetDialog />
       <TransferDialog />

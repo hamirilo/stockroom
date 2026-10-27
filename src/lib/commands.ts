@@ -31,6 +31,8 @@ import {
   exportLibrary,
   exportList,
   moveToLastFolder,
+  linkedIn,
+  unlinkItems,
   onShelf,
   openLibraryDialog,
   openSelection,
@@ -100,6 +102,17 @@ const selItems = (s: S): Item[] => {
 const allHave = (s: S, f: (i: Item) => boolean) => {
   const xs = selItems(s);
   return xs.length > 0 && xs.every(f);
+};
+/** Links are on for this library and the list is the stock's (fonts have families instead). */
+export const linksOn = (s: S) => s.librarySettings.links && s.mode === "stock";
+/**
+ * Every selected item is a child whose parent isn't selected: it can't change folder on its own,
+ * it goes where its parent goes (docs/LINKS.md; db.rs `with_linked`).
+ */
+const onlyChildren = (s: S) => {
+  const xs = selItems(s);
+  const picked = new Set(sel(s));
+  return xs.length > 0 && xs.every((i) => i.parentId && !picked.has(i.parentId));
 };
 const lastFolder = (s: S) => s.folders.find((f) => f.id === s.recentFolders[0]);
 
@@ -430,7 +443,7 @@ export const COMMANDS: Command[] = [
     id: "item.moveTo",
     title: "フォルダへ移動…",
     keys: ["Mod+Shift+J"],
-    enabled: live,
+    enabled: (s) => live(s) && !onlyChildren(s),
     run: (s) => s.setPicker("move"),
   },
   {
@@ -438,23 +451,36 @@ export const COMMANDS: Command[] = [
     title: "最後に使ったフォルダへ移動",
     label: (s) => (lastFolder(s) ? `「${lastFolder(s)!.name}」へ移動` : "最後に使ったフォルダへ移動"),
     keys: ["Shift+D"],
-    enabled: live,
+    enabled: (s) => live(s) && !onlyChildren(s),
     run: (s) => void moveToLastFolder(sel(s)),
   },
   {
     id: "item.newFolder",
     title: "選択から新しいフォルダ",
-    enabled: live,
+    enabled: (s) => live(s) && !onlyChildren(s),
     run: (s) => void createFolder(null, sel(s)),
   },
   {
     id: "item.unfile",
     title: "未分類に戻す",
-    enabled: (s) => mine(s) && s.view.kind === "folder",
+    enabled: (s) => mine(s) && s.view.kind === "folder" && !onlyChildren(s),
     run: (s) => {
       const folder = currentFolderId();
       if (folder) void s.run(() => api.removeFromFolder(sel(s), folder));
     },
+  },
+  // Parent–child links (docs/LINKS.md): the library turns them on in the settings.
+  {
+    id: "item.link",
+    title: "親に紐づける…",
+    enabled: (s) => live(s) && linksOn(s),
+    run: (s) => s.setPicker("parent"),
+  },
+  {
+    id: "item.unlink",
+    title: "紐づけを外す",
+    enabled: (s) => live(s) && linksOn(s) && linkedIn(sel(s)).length > 0,
+    run: (s) => void unlinkItems(sel(s)),
   },
   { id: "folder.new", title: "新しいフォルダ", keys: ["Mod+Shift+N"], run: () => void createFolderHere() },
   {

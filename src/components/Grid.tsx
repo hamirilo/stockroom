@@ -1,5 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Check, Heart, ImagePlus, Layers, Pin, Star, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Heart, ImagePlus, Layers, Link2, Pin, Star, Trash2 } from "lucide-react";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -90,6 +90,51 @@ function Thumb({ item, fit }: { item: Item; fit: "cover" | "contain" }) {
         fit === "cover" && clampedAspect(item) === rawAspect(item) ? "object-cover" : "object-contain"
       }`}
     />
+  );
+}
+
+/**
+ * A parent's "＋3" with ▸ / ▾ to open its children under it (links on, docs/LINKS.md);
+ * "中に該当あり" when the parent is in the list only because children of it match.
+ * A child under its parent's row gets a link mark. `inline`: in a list row.
+ */
+function LinkMark({ item, inline = false }: { item: Item; inline?: boolean }) {
+  const open = useStore((s) => s.openParents.has(item.id));
+  const parentName = useStore((s) => (item.childMember ? s.rawItems.find((i) => i.id === item.parentId)?.name : undefined));
+  if (item.childMember) {
+    return (
+      <span
+        title={`「${parentName ?? "親"}」に紐づいています`}
+        className={
+          inline
+            ? "inline-flex shrink-0 align-middle text-dim"
+            : "pointer-events-none absolute bottom-1.5 left-1.5 rounded-full bg-black/55 p-1 text-white/90"
+        }
+      >
+        <Link2 size={inline ? 12 : 11} strokeWidth={2.25} />
+      </span>
+    );
+  }
+  const n = item.childIds?.length ?? 0;
+  if (!n) return null;
+  const Chevron = open ? ChevronDown : ChevronRight;
+  const label = item.viaChild ? "中に該当あり" : `＋${n}`;
+  const title = `${open ? "紐づけた項目を閉じる" : "紐づけた項目を開く"}（${n} 件${item.viaChild ? "。この親自体は条件に合いません" : ""}）`;
+  return (
+    <button
+      onPointerDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onClick={() => useStore.getState().toggleParent(item.id)}
+      title={title}
+      className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] leading-none tabular-nums ${
+        inline
+          ? "mr-1.5 inline-flex shrink-0 bg-white/10 align-middle text-dim hover:bg-white/20"
+          : "absolute bottom-1.5 left-1.5 max-w-[calc(100%-2.75rem)] bg-black/60 text-white hover:bg-black/80"
+      }`}
+    >
+      <Chevron size={11} strokeWidth={2.5} className="shrink-0" />
+      <span className="truncate">{label}</span>
+    </button>
   );
 }
 
@@ -249,6 +294,7 @@ const Cell = memo(function Cell({
         <Thumb item={item} fit={fit} />
         {similar && <SimilarOverlay item={item} mark={similar} />}
         {flags && <FlagOverlay item={item} />}
+        <LinkMark item={item} />
         {item.kind === "video" && item.durationMs != null && (
           <span className="pointer-events-none absolute right-1.5 bottom-1.5 rounded bg-black/65 px-1.5 py-px text-[10px] text-white tabular-nums">
             {durationLabel(item.durationMs)}
@@ -319,7 +365,7 @@ const ListRow = memo(function ListRow({
         selected,
         focused,
       )} ${dimmed ? "opacity-35" : ""}`}
-      style={{ width, height }}
+      style={{ width, height, paddingLeft: item.childMember ? 32 : undefined }}
       onPointerDown={(e) => onItemPointerDown(e, item, index)}
       onDoubleClick={() => useStore.getState().openViewer(index)}
       onContextMenu={(e) => showItemMenu(e, item, index)}
@@ -331,6 +377,7 @@ const ListRow = memo(function ListRow({
         <Thumb item={item} fit="contain" />
       </div>
       <span className="min-w-0 flex-1 truncate text-[13px]">
+        <LinkMark item={item} inline />
         {item.name}
         {similar && (
           <span
@@ -457,6 +504,17 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
       ],
     },
     { label: "タグ", submenu: [commandItem("item.copyTags"), commandItem("item.pasteTags")] },
+    // Stock only; with links off the rows stay, greyed, and say why (docs/UI.md).
+    ...(s.mode === "stock"
+      ? [
+          {
+            label: "紐づけ",
+            submenu: s.librarySettings.links
+              ? [commandItem("item.link"), commandItem("item.unlink")]
+              : [{ label: "親子関係が無効です（設定で有効にできます）", onClick: () => {}, disabled: true }],
+          },
+        ]
+      : []),
     { separator: true },
     commandItem("item.trash", { danger: true }),
   ]);
