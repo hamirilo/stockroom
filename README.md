@@ -69,5 +69,6 @@ npm test               # Rust のユニットテスト + 型チェック
 | [SYSTEM_FONTS.md](docs/SYSTEM_FONTS.md) | この端末のフォント（ライブラリに取り込まない読み取り専用の一覧） |
 | [TEXT.md](docs/TEXT.md) | テキスト（Markdown・テキスト・CSV）：見る・編集・新規作成・文字コード |
 | [VIDEO.md](docs/VIDEO.md) | 動画（MP4・MOV・WebM）：取り込み・サムネイル・再生 |
+| [LINKS.md](docs/LINKS.md) | 親子の紐づけ（計画）：動画にサムネイル案を付ける、ライブラリごとに有効・無効 |
 | [EXPORT.md](docs/EXPORT.md) | ライブラリ全体の書き出し（すべてのファイルをフォルダ構成どおりに） |
 | [ROADMAP.md](docs/ROADMAP.md) | 今後の予定 |
