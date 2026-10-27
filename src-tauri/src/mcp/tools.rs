@@ -223,6 +223,47 @@ pub fn list() -> Value {
             "annotations": writes(),
         },
         {
+            "name": "link_items",
+            "title": "親に紐づける",
+            "description": "ids（または where）の項目を、parent の項目の子として紐づける（例：動画に、サムネイル案の画像）。子は親のフォルダへ移り、アプリの一覧では親の下にまとまる。ストックの項目だけで、親子は 1 階層（子は親になれず、子は 1 つの親にだけ付く）。ライブラリの設定「親子の紐づけを使う」が有効なときだけ使える",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "parent": { "type": "string", "description": "親にする項目の id" },
+                    "ids": ids_schema(),
+                    "where": where_schema(),
+                    "dry_run": dry_run_schema()
+                },
+                "required": ["parent"]
+            },
+            "annotations": writes(),
+        },
+        {
+            "name": "unlink_items",
+            "title": "紐づけを外す",
+            "description": "子の紐づけを外す（ふつうの項目に戻り、いまのフォルダに残る）。ids か where。親を指定すると、その子すべてを外す",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "ids": ids_schema(), "where": where_schema(), "dry_run": dry_run_schema() }
+            },
+            "annotations": writes(),
+        },
+        {
+            "name": "set_adopted",
+            "title": "採用にする",
+            "description": "子の 1 つを「採用」にする（親ごとに 1 つ。ほかの子の採用は外れる）。adopted を false にすると採用を外す",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "子の id" },
+                    "adopted": { "type": "boolean", "description": "既定は true" },
+                    "dry_run": dry_run_schema()
+                },
+                "required": ["id"]
+            },
+            "annotations": writes(),
+        },
+        {
             "name": "rename_items",
             "title": "表示名を変える",
             "description": "表示名を変える（ライブラリ内の実ファイルはそのまま。書き出すときのファイル名になる）。拡張子は変えられず、付けなければ元の拡張子を足す。ファイル名に使えない文字（/ \\ : など）は不可",
@@ -284,6 +325,9 @@ pub fn call(host: &dyn Host, name: &str, args: &Value) -> ToolOutput {
         "remove_from_folder" => {
             parse(args).and_then(|a: UnfileArgs| write(host, a.dry_run, |c, u| unfile(c, u, &a.target)))
         }
+        "link_items" => parse(args).and_then(|a: LinkArgs| write(host, a.dry_run, |c, u| link_items(c, u, &a))),
+        "unlink_items" => parse(args).and_then(|a: UnfileArgs| write(host, a.dry_run, |c, u| unlink_items(c, u, &a.target))),
+        "set_adopted" => parse(args).and_then(|a: AdoptArgs| write(host, a.dry_run, |c, u| set_adopted(c, u, &a))),
         "rename_items" => parse(args).and_then(|a: RenameArgs| write(host, a.dry_run, |c, u| rename_items(c, u, &a.items))),
         "set_note" => parse(args).and_then(|a: NoteArgs| write(host, a.dry_run, |c, u| set_notes(c, u, &a.items))),
         _ => Err(format!("{name} というツールはありません")),
@@ -626,12 +670,20 @@ fn find_items(conn: &Connection, a: &FindArgs) -> Result<String, String> {
     let _ = writeln!(out, "該当 {} 件（{}〜{} 件目）", items.len(), a.offset + 1, a.offset + page.len());
     let paths = folder_paths(conn, None)?;
     let tag_names: HashMap<i64, String> = db::list_tags(conn, None).map_err(e)?.into_iter().map(|t| (t.id, t.name)).collect();
-    out.push_str("id\t種類\t表示名\tフォルダ\tタグ\t取り込み元\tメモ\n");
+    // With links on, the parent of a child and its adopted mark (docs/LINKS.md).
+    let links = db::links_enabled(conn).map_err(e)?;
+    out.push_str("id\t種類\t表示名\tフォルダ\tタグ\t取り込み元\tメモ");
+    out.push_str(if links { "\t親\t採用\n" } else { "\n" });
     for i in &page {
         let tags: Vec<&str> = i.tag_ids.iter().filter_map(|t| tag_names.get(t).map(String::as_str)).collect();
+        let linked = if links {
+            format!("\t{}\t{}", i.parent_id.as_deref().map(short).unwrap_or(""), if i.adopted { "採用" } else { "" })
+        } else {
+            String::new()
+        };
         let _ = writeln!(
             out,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}{linked}",
             short(&i.id),
             kind_label(i.kind),
             cell(&i.name, 200),
@@ -908,6 +960,76 @@ fn unfile(conn: &Connection, undo: &mut Undo, target: &Target) -> Result<Outcome
     Ok(Outcome { summary: format!("{n} 件を未分類に戻しました"), details })
 }
 
+fn need_links(conn: &Connection) -> Result<(), String> {
+    if db::links_enabled(conn).map_err(e)? {
+        Ok(())
+    } else {
+        Err("このライブラリでは親子の紐づけが無効です（アプリの設定 → このライブラリ → 親子の紐づけを使う）。何も変えていません".into())
+    }
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct LinkArgs {
+    parent: String,
+    #[serde(flatten)]
+    target: Target,
+    dry_run: bool,
+}
+
+fn link_items(conn: &Connection, undo: &mut Undo, a: &LinkArgs) -> Result<Outcome, String> {
+    need_links(conn)?;
+    let parent = resolve(conn, std::slice::from_ref(&a.parent))?.remove(0);
+    let ids = a.target.resolve(conn)?;
+    too_many(ids.len())?;
+    let n = changes::link(conn, undo, &parent, &ids).map_err(e)?;
+    let mut details = Vec::new();
+    if ids.len() > n {
+        details.push(format!(
+            "{} 件は紐づけませんでした（親そのもの、子を持つ項目、ストック以外、親が子・ゴミ箱の中、のどれか）",
+            ids.len() - n
+        ));
+    }
+    Ok(Outcome { summary: format!("{n} 件を「{}」に紐づけました", item_name(conn, &parent)?), details })
+}
+
+fn unlink_items(conn: &Connection, undo: &mut Undo, target: &Target) -> Result<Outcome, String> {
+    need_links(conn)?;
+    let ids = target.resolve(conn)?;
+    too_many(ids.len())?;
+    // A parent given frees all of its children.
+    let ids = db::with_children(conn, &ids).map_err(e)?;
+    let n = changes::unlink(conn, undo, &ids).map_err(e)?;
+    Ok(Outcome { summary: format!("{n} 件の紐づけを外しました"), details: vec![] })
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct AdoptArgs {
+    id: String,
+    adopted: Option<bool>,
+    dry_run: bool,
+}
+
+fn set_adopted(conn: &Connection, undo: &mut Undo, a: &AdoptArgs) -> Result<Outcome, String> {
+    need_links(conn)?;
+    let id = resolve(conn, std::slice::from_ref(&a.id))?.remove(0);
+    let parent: Option<String> = conn
+        .query_row("SELECT parent_id FROM items WHERE id = ?1", [&id], |r| r.get(0))
+        .map_err(e)?;
+    if parent.is_none() {
+        return Err(format!("{} は子ではありません（採用にできるのは、紐づけた子だけです）。何も変えていません", short(&id)));
+    }
+    let on = a.adopted.unwrap_or(true);
+    changes::adopt(conn, undo, &id, on).map_err(e)?;
+    let name = item_name(conn, &id)?;
+    Ok(Outcome { summary: if on { format!("「{name}」を採用にしました") } else { format!("「{name}」の採用を外しました") }, details: vec![] })
+}
+
+fn item_name(conn: &Connection, id: &str) -> Result<String, String> {
+    conn.query_row("SELECT name FROM items WHERE id = ?1", [id], |r| r.get(0)).map_err(e)
+}
+
 #[derive(Deserialize)]
 struct PerItemName {
     id: String,
@@ -1118,6 +1240,48 @@ mod tests {
         assert!(!err, "{text}");
         let (_, list) = run(&host, "list_folders", json!({ "kind": "image" }));
         assert!(!list.contains("和文"), "{list}");
+    }
+
+    #[test]
+    fn links_are_made_adopted_and_undone() {
+        let (_d, host, ids) = setup(&["video.mp4", "t1.png", "t2.png"]);
+        let short = |n: usize| &ids[n][..8];
+        // Off by default: nothing changes.
+        let (err, text) = run(&host, "link_items", json!({ "parent": short(0), "ids": [short(1)] }));
+        assert!(err && text.contains("無効"), "{text}");
+        db::set_links_enabled(&conn(&host).as_ref().unwrap().conn, true).unwrap();
+
+        let (err, text) = run(&host, "link_items", json!({ "parent": short(0), "ids": [short(1), short(2)] }));
+        assert!(!err && text.contains("2 件を「video.mp4」に紐づけました"), "{text}");
+        let link_id = host.changes.lock().unwrap()[0].id;
+        let (_, text) = run(&host, "find_items", json!({}));
+        assert!(text.contains("親\t採用") && text.contains(&format!("\t{}\t", short(0))), "{text}");
+
+        // A child is adopted, not a parent.
+        let (err, _) = run(&host, "set_adopted", json!({ "id": short(0) }));
+        assert!(err);
+        let (err, text) = run(&host, "set_adopted", json!({ "id": short(2) }));
+        assert!(!err && text.contains("採用にしました"), "{text}");
+        let (err, _) = run(&host, "set_adopted", json!({ "id": short(1) }));
+        assert!(!err);
+        let adopted_id = host.changes.lock().unwrap()[2].id;
+
+        // Undo the later change first: the pick goes back to the other child.
+        {
+            let mut g = conn(&host);
+            let lib = g.as_mut().unwrap();
+            changes::undo(&mut lib.conn, adopted_id).unwrap();
+            let t2 = db::get_items(&lib.conn, &[ids[2].clone()]).unwrap().remove(0);
+            assert!(t2.adopted && t2.parent_id.is_some());
+            changes::undo(&mut lib.conn, link_id).unwrap();
+            let after = db::get_items(&lib.conn, &[ids[1].clone(), ids[2].clone()]).unwrap();
+            assert!(after.iter().all(|i| i.parent_id.is_none()), "the links are gone");
+        }
+
+        // A parent given to unlink frees all of its children.
+        run(&host, "link_items", json!({ "parent": short(0), "ids": [short(1), short(2)] }));
+        let (err, text) = run(&host, "unlink_items", json!({ "ids": [short(0)] }));
+        assert!(!err && text.contains("2 件の紐づけを外しました"), "{text}");
     }
 
     #[test]

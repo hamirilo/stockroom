@@ -30,6 +30,18 @@ pub struct Undo {
     /// (item, before, after)
     names: Vec<(String, String, String)>,
     notes: Vec<(String, String, String)>,
+    /// Links made or removed (docs/LINKS.md).
+    links: Vec<LinkChange>,
+    /// (item, before, after): the adopted mark of a child.
+    adopted: Vec<(String, bool, bool)>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+struct LinkChange {
+    /// How the child stood before (its parent, folder and adopted mark).
+    before: db::Placement,
+    /// Its parent after the change; None = freed.
+    after_parent: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -118,6 +130,45 @@ pub fn move_to_folder(conn: &Connection, undo: &mut Undo, items: &[String], fold
         }
         undo.folder_moves.push(FolderMove { item: id.clone(), before, after: folder.map(str::to_owned) });
         n += 1;
+    }
+    Ok(n)
+}
+
+/// Links `children` to `parent` (they go to its folder); returns how many were linked.
+pub fn link(conn: &Connection, undo: &mut Undo, parent: &str, children: &[String]) -> DbResult<usize> {
+    let moved = db::link_items(conn, parent, children)?;
+    let n = moved.len();
+    undo.links.extend(moved.into_iter().map(|before| LinkChange { before, after_parent: Some(parent.to_owned()) }));
+    Ok(n)
+}
+
+/// Frees `ids` from their parents; returns how many had one.
+pub fn unlink(conn: &Connection, undo: &mut Undo, ids: &[String]) -> DbResult<usize> {
+    let was = db::unlink_items(conn, ids)?;
+    let n = was.len();
+    undo.links.extend(was.into_iter().map(|before| LinkChange { before, after_parent: None }));
+    Ok(n)
+}
+
+/// Picks (or unpicks) the adopted child; returns how many items' marks changed
+/// (picking one takes the mark off its siblings).
+pub fn adopt(conn: &Connection, undo: &mut Undo, id: &str, on: bool) -> DbResult<usize> {
+    let family = |conn: &Connection| -> DbResult<Vec<(String, bool)>> {
+        let mut stmt = conn.prepare(
+            "SELECT id, adopted != 0 FROM items
+             WHERE parent_id IS NOT NULL AND parent_id = (SELECT parent_id FROM items WHERE id = ?1)",
+        )?;
+        let rows = stmt.query_map([id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        rows.collect()
+    };
+    let before = family(conn)?;
+    db::set_adopted(conn, id, on)?;
+    let mut n = 0;
+    for ((item, was), (_, now)) in before.into_iter().zip(family(conn)?) {
+        if was != now {
+            undo.adopted.push((item, was, now));
+            n += 1;
+        }
     }
     Ok(n)
 }
@@ -234,6 +285,25 @@ pub fn undo(conn: &mut Connection, id: i64) -> Result<Undone, String> {
 
 fn revert(conn: &Connection, u: &Undo) -> DbResult<usize> {
     let mut skipped = 0;
+    for l in u.links.iter().rev() {
+        let now: Option<Option<String>> = conn
+            .query_row("SELECT parent_id FROM items WHERE id = ?1", [&l.before.id], |r| r.get(0))
+            .optional()?;
+        // Left alone when it was linked again (or deleted) since.
+        if now.as_ref() != Some(&l.after_parent) {
+            skipped += 1;
+            continue;
+        }
+        db::restore_links(conn, std::slice::from_ref(&l.before))?;
+    }
+    {
+        let mut stmt = conn.prepare("UPDATE items SET adopted = ?2 WHERE id = ?1 AND adopted = ?3")?;
+        for (item, before, after) in u.adopted.iter().rev() {
+            if stmt.execute(params![item, before, after])? == 0 {
+                skipped += 1;
+            }
+        }
+    }
     for (texts, col) in [(&u.names, "name"), (&u.notes, "note")] {
         let mut stmt = conn.prepare(&format!("UPDATE items SET {col} = ?2 WHERE id = ?1 AND {col} = ?3"))?;
         for (item, before, after) in texts {

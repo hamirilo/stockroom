@@ -99,6 +99,7 @@ export function shortcutSections(): ShortcutSection[] {
         cmd("item.moveTo"),
         cmd("item.moveToLast"),
         { label: "フォルダへ入れる", keys: ["Drag"] },
+        { label: "別の項目へドラッグして紐づける（親子の紐づけが有効なとき）", keys: ["Drag"] },
         cmd("item.link"),
         cmd("item.unlink"),
         cmd("item.adopt"),
