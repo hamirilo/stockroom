@@ -32,6 +32,13 @@ export interface Grouped {
  */
 export type Families = { open: ReadonlySet<string> } | null;
 
+/**
+ * How children are folded under their parent (links on, the stock; docs/LINKS.md):
+ * one row per parent, and the children of the parents in `open` listed under their row.
+ * Null = every item is a row of its own.
+ */
+export type Links = { open: ReadonlySet<string> } | null;
+
 /** Folders in sidebar order (depth first), each with its full path. */
 export function folderPaths(folders: Folder[]): { folder: Folder; path: string }[] {
   const out: { folder: Folder; path: string }[] = [];
@@ -100,6 +107,25 @@ function familyRows(items: Item[]): { rows: Item[]; members: Map<string, Item[]>
   return { rows, members };
 }
 
+/**
+ * Children whose parent is in the list go under it: the rows are the rest, a
+ * parent with `childIds`. A child whose parent isn't here (the parent was
+ * left out of the view, say a trashed parent) stays a row of its own.
+ */
+function linkRows(items: Item[]): { rows: Item[]; children: Map<string, Item[]> } {
+  const here = new Set(items.map((i) => i.id));
+  const children = new Map<string, Item[]>();
+  for (const i of items) {
+    if (!i.parentId || !here.has(i.parentId)) continue;
+    if (!children.has(i.parentId)) children.set(i.parentId, []);
+    children.get(i.parentId)!.push(i);
+  }
+  const rows = items
+    .filter((i) => !(i.parentId && here.has(i.parentId)))
+    .map((i) => (children.has(i.id) ? { ...i, childIds: children.get(i.id)!.map((c) => c.id) } : i));
+  return { rows, children };
+}
+
 function build(buckets: { items: Item[]; title: string; color?: string | null; rating?: number }[]): Grouped {
   const items: Item[] = [];
   const sections: Section[] = [];
@@ -132,21 +158,34 @@ function byDate(rows: Item[], by: "year" | "month") {
  * kept. With tags an item appears under each of its tags (a family under
  * each tag any of its fonts has).
  */
-export function groupItems(items: Item[], by: GroupBy, tags: Tag[], folders: Folder[], families: Families = null): Grouped {
+export function groupItems(
+  items: Item[],
+  by: GroupBy,
+  tags: Tag[],
+  folders: Folder[],
+  families: Families = null,
+  links: Links = null,
+): Grouped {
   if (!items.length) return { items, sections: [] };
-  const { rows, members } = families ? familyRows(items) : { rows: items, members: new Map<string, Item[]>() };
+  const { rows: foldedRows, members } = families ? familyRows(items) : { rows: items, members: new Map<string, Item[]>() };
+  const { rows, children } = links ? linkRows(foldedRows) : { rows: foldedRows, children: new Map<string, Item[]>() };
   const byId = new Map(items.map((i) => [i.id, i]));
-  // A family row's styles go right under it while it is open.
+  // A family row's styles, and a parent's children, go right under it while it is open.
   const expand = (list: Item[]): Item[] =>
-    families?.open.size
+    families?.open.size || links?.open.size
       ? list.flatMap((r) =>
-          r.familyIds && families.open.has(r.fontFamily!)
+          r.familyIds && families?.open.has(r.fontFamily!)
             ? [r, ...[...members.get(r.fontFamily!)!].sort(byWeight).map((m) => ({ ...m, familyMember: true }))]
-            : [r],
+            : r.childIds && links?.open.has(r.id)
+              ? [r, ...children.get(r.id)!.map((c) => ({ ...c, childMember: true }))]
+              : [r],
         )
       : list;
+  // A parent counts under the tags of its children too (it is in the list because of them).
   const tagsOf = (r: Item) =>
-    r.familyIds ? new Set(r.familyIds.flatMap((id) => byId.get(id)?.tagIds ?? [])) : new Set(r.tagIds);
+    r.familyIds
+      ? new Set(r.familyIds.flatMap((id) => byId.get(id)?.tagIds ?? []))
+      : new Set([...r.tagIds, ...(children.get(r.id) ?? []).flatMap((c) => c.tagIds)]);
   const grouped = (buckets: { items: Item[]; title: string; color?: string | null; rating?: number }[]) =>
     build(buckets.map((b) => ({ ...b, items: expand(b.items) })));
 

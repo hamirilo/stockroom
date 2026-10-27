@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS settings (
 | `modes` | 使う種類 `["image","font"]` | すべての種類（`MODES`） |
 | `lastMode` | 最後に開いていたモード `"stock"` / `"font"` | 下の「開くときのモード」で決める |
 | `hidden:<mode>` | そのモード（`stock` / `font`）のサイドバーで隠す項目 `["pinned","untagged"]` | 何も隠さない |
+| `links` | 親子の紐づけを使う `true`（[LINKS.md](LINKS.md)） | 使わない。`set_links_enabled` が書く（無効にするときは紐づけも外す） |
 | `specimenPatterns` | フォントの見本の「自分のパターン」（新しい順、20 個まで）`["永遠の青い空", …]` | 無し |
 
 モードを「すべて」と「フォント」の 2 つにしたとき（画像・ファイルは「すべて」の中の種類の絞り込みへ。docs/ARCHITECTURE.md）の読み替え：
@@ -188,6 +189,7 @@ workbench の各ツールにも同じファイルを置いている（desktop-pl
 
 - ライブラリの名前と場所（「Finder で表示」）、件数と容量
 - 使う種類（チェックボックス。最低 1 つ。各種類の件数を添える）
+- 親子の紐づけを使う（チェックボックス。外すときは外す件数を確かめる。[LINKS.md](LINKS.md)）
 
 サイドバーの項目は、アプリ全体とライブラリのそれぞれの「サイドバー」のページに置く。
 

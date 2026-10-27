@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { transferAllOfKind } from "../lib/actions";
+import { setLinks, transferAllOfKind } from "../lib/actions";
 import { api, formatBytes, KINDS, kindLabel, type ItemKind } from "../lib/api";
 import { sidebarEntriesOf, type SidebarHidden } from "../lib/librarySettings";
 import { MODES, modeLabel, modesFor, type Mode } from "../lib/modes";
@@ -173,6 +173,7 @@ function LibraryPage() {
   const kinds = useStore((s) => s.counts.kinds);
   const used = useStore(useShallow(usedModes));
   const setUsedModes = useStore((s) => s.setUsedModes);
+  const links = useStore((s) => s.librarySettings.links);
   const [size, setSize] = useState<number | null>(null);
   useEffect(() => {
     if (library) api.librarySize().then(setSize, () => setSize(null));
@@ -250,6 +251,18 @@ function LibraryPage() {
             </Check>
           );
         })}
+      </Section>
+      <Section
+        title="親子の紐づけ"
+        sub="1 つのファイルに別のファイルを紐づけます（例：動画に、サムネイル案の画像）。紐づけた項目は親のフォルダに入り、一覧では親の下にまとまります。この設定はライブラリに保存されます"
+      >
+        <Check
+          checked={links}
+          onChange={(v) => void setLinks(v)}
+          hint="無効にすると、すべての紐づけを外します（項目は残り、いまのフォルダにあるままふつうの項目に戻ります）"
+        >
+          親子の紐づけを使う
+        </Check>
       </Section>
       {dropped.length > 0 && (
         <p className="mt-2 rounded-md bg-raised px-2.5 py-1.5 text-xs text-dim">

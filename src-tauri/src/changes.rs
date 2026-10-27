@@ -104,13 +104,14 @@ fn folder_of(conn: &Connection, item: &str) -> DbResult<Option<(String, Option<f
 /// Puts `items` into `folder` (None = unfiled); returns how many moved.
 pub fn move_to_folder(conn: &Connection, undo: &mut Undo, items: &[String], folder: Option<&str>) -> DbResult<usize> {
     let mut n = 0;
-    for id in items {
+    // A child only moves with its parent, and a parent takes its children (docs/LINKS.md).
+    for id in &db::with_linked(conn, items)? {
         let before = folder_of(conn, id)?;
         if before.as_ref().map(|(f, _)| f.as_str()) == folder {
             continue;
         }
         match folder {
-            Some(f) => db::move_to_folder(conn, std::slice::from_ref(id), f)?,
+            Some(f) => db::place_in_folder(conn, std::slice::from_ref(id), f)?,
             None => {
                 conn.execute("DELETE FROM item_folders WHERE item_id = ?1", [id])?;
             }

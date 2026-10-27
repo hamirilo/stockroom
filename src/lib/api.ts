@@ -253,6 +253,14 @@ export interface Item {
   familyMember?: boolean;
   /** On the shelf (シェルフ; the `tray` table). */
   inTray: boolean;
+  /** The item this one is linked to as a child (docs/LINKS.md); null = not a child. */
+  parentId: string | null;
+  /** A parent in a list only because a child of it matches (docs/LINKS.md): "中に該当あり". */
+  viaChild?: boolean;
+  /** A parent's row (links on): the children listed with it (`groupItems`), shown under it while opened (▸). */
+  childIds?: string[];
+  /** A child shown under its parent's opened row, indented. */
+  childMember?: boolean;
   filePath: string;
   thumbPath: string;
   /** What the viewer shows: the display copy if any, else the original. */
@@ -383,6 +391,13 @@ export interface SmartFolder {
 /** How alike images must be to count as duplicates: strict, standard, loose. */
 export type SimilarLevel = "strict" | "standard" | "loose";
 
+/** Where a child stood before its links changed (docs/LINKS.md). */
+export interface LinkPlacement {
+  id: string;
+  parentId: string | null;
+  folderId: string | null;
+}
+
 export type SortKey = "importedAt" | "name" | "size" | "dimensions" | "rating" | "manual";
 
 export interface ItemQuery {
@@ -395,6 +410,8 @@ export interface ItemQuery {
   minRating: number;
   filter: Filter;
   similarLevel: SimilarLevel;
+  /** Links on: a matching child brings its parent into the list (docs/LINKS.md). Only the list on screen asks. */
+  withParents?: boolean;
   sort: SortKey;
   desc: boolean;
 }
@@ -679,6 +696,13 @@ export const api = {
    * Items of the other mode than the folder's are left alone.
    */
   moveToFolder: (ids: string[], folderId: string) => invoke<void>("move_to_folder", { ids, folderId }),
+  /** Parent–child links (docs/LINKS.md). Each returns where the children stood, for `restoreLinks`. */
+  linkItems: (parentId: string, ids: string[]) => invoke<LinkPlacement[]>("link_items", { parentId, ids }),
+  unlinkItems: (ids: string[]) => invoke<LinkPlacement[]>("unlink_items", { ids }),
+  restoreLinks: (placements: LinkPlacement[]) => invoke<void>("restore_links", { placements }),
+  countLinks: () => invoke<number>("count_links"),
+  /** Off removes every link; resolves to how many. */
+  setLinksEnabled: (on: boolean) => invoke<number>("set_links_enabled", { on }),
   reorderInFolder: (folderId: string, ids: string[], before: string | null) =>
     invoke<void>("reorder_in_folder", { folderId, ids, before }),
   placeFolder: (id: string, parentId: string | null, before: string | null) =>

@@ -46,7 +46,7 @@ import {
   type LibrarySettings,
   type SidebarHidden,
 } from "./lib/librarySettings";
-import { groupItems, rowIds, similarSections, type GroupBy, type Section } from "./lib/grouping";
+import { groupItems, rowIds, similarSections, type GroupBy, type Links, type Section } from "./lib/grouping";
 import { warn } from "./lib/log";
 import { MAX_OWN_PATTERNS } from "./features/fonts/patterns";
 import { notifyIfAway } from "./lib/osNotify";
@@ -205,6 +205,8 @@ interface State {
   tileSize: number;
   /** Font mode: families whose styles are listed under their row (▸), for the session. */
   openFamilies: ReadonlySet<string>;
+  /** Parents whose children are listed under them (▸, docs/LINKS.md). */
+  openParents: ReadonlySet<string>;
   /** Fonts lacking most of `specimenText` show their own sample instead (an English font with Japanese text). */
   specimenFallback: boolean;
   inspectorOpen: boolean;
@@ -238,7 +240,8 @@ interface State {
   renamingFolder: string | null;
   /** Bumped to ask the inspector to focus the item name field. */
   renameItemSeq: number;
-  picker: "move" | "goto" | null;
+  /** "parent": choose the item the selection is linked to as children (docs/LINKS.md). */
+  picker: "move" | "goto" | "parent" | null;
   /** The settings screen (⌘,) is open, on this page. */
   settingsTab: SettingsTab | null;
   /** The page the settings showed last; "last" opens it again (UI §9). */
@@ -317,6 +320,8 @@ interface State {
   setKinds: (kinds: ItemKind[]) => void;
   /** Kinds the library is used for / switches to drop or bring back a kind. */
   setUsedModes: (modes: ItemKind[]) => void;
+  /** Reflects the links setting (already stored by `api.setLinksEnabled`) and lists again. */
+  setLinks: (on: boolean) => void;
   /** Hides (or shows again) sidebar entries of a mode, in `scope` (default: the one in effect). */
   setSidebarHidden: (mode: Mode, ids: string[], scope?: SidebarScope) => void;
   /** The library gets its own sidebar entries, or follows the app's again. */
@@ -339,6 +344,8 @@ interface State {
   removeSpecimenPattern: (text: string) => void;
   /** Opens or closes a family's styles under its row (font mode, specimen layout). */
   toggleFamily: (family: string) => void;
+  /** Opens or closes a parent's children under its row (stock, links on). */
+  toggleParent: (id: string) => void;
   setSpecimenFallback: (on: boolean) => void;
   toggleInspector: () => void;
   setPanelTab: (tab: PanelTab) => void;
@@ -568,6 +575,7 @@ export const zoomLook = (l: CompareLook, f: number): CompareLook => {
 export const TILE_SIZE = { min: 120, max: 320, initial: 180 } as const;
 
 const NO_FAMILIES: ReadonlySet<string> = new Set();
+const NO_PARENTS: ReadonlySet<string> = new Set();
 
 /**
  * The display list and its sections for the current view / grouping. The
@@ -579,13 +587,26 @@ function arrange(s: {
   view: View;
   groupBy: GroupBy;
   openFamilies: ReadonlySet<string>;
+  openParents: ReadonlySet<string>;
+  librarySettings: LibrarySettings;
   rawItems: Item[];
   tags: Tag[];
   folders: Folder[];
 }): { items: Item[]; sections: Section[] } {
   if (s.view.kind === "similar") return { items: s.rawItems, sections: similarSections(s.rawItems) };
   const families = s.mode === "font" ? { open: s.layout === "specimen" ? s.openFamilies : NO_FAMILIES } : null;
-  return groupItems(s.rawItems, shownGroupBy(s), s.tags, s.folders, families);
+  return groupItems(s.rawItems, shownGroupBy(s), s.tags, s.folders, families, linksFold(s));
+}
+
+/** Children go under their parents in the stock's lists, links on (not the trash, the shelf or the installed fonts). */
+function linksFold(s: {
+  mode: Mode;
+  view: View;
+  openParents: ReadonlySet<string>;
+  librarySettings: LibrarySettings;
+}): Links {
+  const listsFolded = s.view.kind !== "trash" && s.view.kind !== "tray" && s.view.kind !== "system";
+  return s.mode === "stock" && s.librarySettings.links && listsFolded ? { open: s.openParents } : null;
 }
 
 /** Groupings by what only library items have (docs/SYSTEM_FONTS.md). */
@@ -686,6 +707,10 @@ export function listQuery(s: QueryState, without?: ConditionKey): ItemQuery {
     desc: st.desc,
   };
 }
+
+/** The list on screen asks for the parents of what matches (docs/LINKS.md); the shelf, exports and counts don't. */
+const shownQuery = (s: QueryState & { librarySettings: LibrarySettings }): ItemQuery =>
+  ({ ...listQuery(s), withParents: s.librarySettings.links });
 
 /**
  * How many items the open place has without any condition, for "5 / 13 件";
@@ -795,6 +820,7 @@ export const useStore = create<State>((set, get) => ({
   specimenSize: loadNumber("specimenSize", 40),
   tileSize: Math.min(TILE_SIZE.max, Math.max(TILE_SIZE.min, loadNumber("fontTileSize", TILE_SIZE.initial))),
   openFamilies: NO_FAMILIES,
+  openParents: NO_PARENTS,
   specimenFallback: load("specimenFallback") !== "false",
   showInfo: { name: true, dims: true, rating: true, meta: false, ...loadJson("showInfo") },
   groupBy: loadGroupBy(initialMode),
@@ -895,6 +921,7 @@ export const useStore = create<State>((set, get) => ({
       shelf: [],
       comparing: false,
       openFamilies: NO_FAMILIES,
+      openParents: NO_PARENTS,
       view: { kind: "all" },
       search: "",
       tagFilter: [],
@@ -962,6 +989,10 @@ export const useStore = create<State>((set, get) => ({
     // Every kind in use is the same list as none picked.
     const filter = { ...s.filter, kinds: picked.length === used.length ? [] : picked };
     set({ filter, ...fitToKinds({ ...s, filter }) });
+    get().refresh();
+  },
+  setLinks: (links) => {
+    set({ librarySettings: { ...get().librarySettings, links }, openParents: NO_PARENTS });
     get().refresh();
   },
   setUsedModes: (modes) => {
@@ -1105,6 +1136,11 @@ export const useStore = create<State>((set, get) => ({
     const patterns = get().librarySettings.patterns.filter((t) => t !== text);
     set({ librarySettings: { ...get().librarySettings, patterns } });
     saveLibrarySetting("specimenPatterns", patterns.length ? patterns : null);
+  },
+  toggleParent: (id) => {
+    const open = new Set(get().openParents);
+    if (!open.delete(id)) open.add(id);
+    set(rearrange(get(), { openParents: open }));
   },
   toggleFamily: (family) => {
     const open = new Set(get().openFamilies);
@@ -1280,7 +1316,7 @@ export const useStore = create<State>((set, get) => ({
       // Which fonts are both in the library and installed (marked on both sides).
       if (mode === "font") refreshFontLinks();
       const [rawItems, folders, tags, counts, smartFolders, exts, trayItems] = await Promise.all([
-        system ? querySystemFonts(listQuery(get())) : api.queryItems(listQuery(get())),
+        system ? querySystemFonts(listQuery(get())) : api.queryItems(shownQuery(get())),
         api.listFolders(mode),
         api.listTags(mode),
         api.getCounts(mode),

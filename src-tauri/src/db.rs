@@ -10,7 +10,7 @@ use crate::{search, similar};
 
 pub type DbResult<T> = rusqlite::Result<T>;
 
-const SCHEMA_VERSION: i32 = 24;
+const SCHEMA_VERSION: i32 = 25;
 
 const SETTINGS_TABLE: &str = "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)";
 
@@ -418,6 +418,12 @@ pub fn migrate(conn: &Connection) -> DbResult<()> {
         add_column(c, "items", "duration_ms", "INTEGER")?;
         Ok(())
     })?;
+    // Parent–child links (docs/LINKS.md): a child names its parent (one level,
+    // one parent). Deleting the parent for good frees the children.
+    step(25, &|c| {
+        add_column(c, "items", "parent_id", "TEXT REFERENCES items(id) ON DELETE SET NULL")?;
+        c.execute_batch("CREATE INDEX IF NOT EXISTS idx_items_parent ON items(parent_id)")
+    })?;
     // New steps go above; the last one must be SCHEMA_VERSION.
     debug_assert!(
         conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i32>(0))? >= SCHEMA_VERSION,
@@ -813,6 +819,11 @@ pub struct Item {
     pub duration_ms: Option<i64>,
     /// On the shelf (シェルフ; the `tray` table).
     pub in_tray: bool,
+    /// The item this one is linked to as a child (docs/LINKS.md); None = not a child.
+    pub parent_id: Option<String>,
+    /// A parent that a list holds only because a child of it matches (`ItemQuery::with_parents`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub via_child: bool,
     /// Similar view only: which group of look-alikes the item belongs to.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<u32>,
@@ -951,6 +962,10 @@ pub struct ItemQuery {
     /// Similar view only: how alike images must be.
     #[serde(default)]
     pub similar_level: similar::Level,
+    /// With links on, a child that matches brings its parent into the list (`via_child`)
+    /// even when the parent doesn't match itself. Only the list on screen asks for it.
+    #[serde(default)]
+    pub with_parents: bool,
     pub sort: SortKey,
     pub desc: bool,
 }
@@ -975,7 +990,7 @@ const ITEM_COLS: &str = "items.id, items.name, items.file_name, items.ext, items
      items.rotation, items.flipped, items.kind, items.source_url, items.font_family, items.font_weight, \
      items.font_script, items.font_category, items.font_category_user, \
      EXISTS (SELECT 1 FROM tray WHERE tray.item_id = items.id), items.font_features, items.font_ps_name, \
-     items.duration_ms";
+     items.duration_ms, items.parent_id";
 
 fn row_to_item(r: &rusqlite::Row) -> DbResult<Item> {
     let tag_ids: Option<String> = r.get(16)?;
@@ -1015,6 +1030,8 @@ fn row_to_item(r: &rusqlite::Row) -> DbResult<Item> {
             .unwrap_or_default(),
         font_ps_name: r.get::<_, Option<String>>(28)?.filter(|s| !s.is_empty()),
         duration_ms: r.get(29)?,
+        parent_id: r.get(30)?,
+        via_child: false,
         group: None,
         distance: None,
     })
@@ -1290,7 +1307,11 @@ pub fn query_rows(conn: &Connection, q: &ItemQuery) -> DbResult<QueryRows> {
     );
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(params_from_iter(args.iter().map(|b| b.as_ref())), row_to_item)?;
-    let items = rows.collect::<DbResult<Vec<_>>>()?;
+    let mut items = rows.collect::<DbResult<Vec<_>>>()?;
+    let lists_parents = !matches!(q.view, View::Trash | View::Tray | View::Similar);
+    if q.with_parents && lists_parents && links_enabled(conn)? {
+        add_parents(conn, &mut items)?;
+    }
     let similar = match q.view {
         View::Similar => Some(SimilarInput::read(conn, q.similar_level)?),
         _ => None,
@@ -1801,10 +1822,14 @@ pub fn rename_item(conn: &Connection, id: &str, name: &str) -> DbResult<()> {
     Ok(())
 }
 
+/// Moves items to the trash; the children of a parent go with it (docs/LINKS.md).
 pub fn trash_items(conn: &Connection, ids: &[String]) -> DbResult<()> {
     conn.execute(
-        &format!("UPDATE items SET deleted_at = ? WHERE deleted_at IS NULL AND id {IN_IDS}"),
-        params![now_ms(), ids_param(ids)],
+        &format!(
+            "UPDATE items SET deleted_at = ?1 WHERE deleted_at IS NULL
+               AND (id {IN_IDS} OR parent_id {IN_IDS})"
+        ),
+        params![now_ms(), ids_param(ids), ids_param(ids)],
     )?;
     Ok(())
 }
@@ -1955,8 +1980,12 @@ pub fn resolve_duplicates(conn: &mut Connection, groups: &[DuplicateGroup]) -> D
     Ok(effects)
 }
 
+/// Takes items out of the trash; a parent brings its children back (docs/LINKS.md).
 pub fn restore_items(conn: &Connection, ids: &[String]) -> DbResult<()> {
-    conn.execute(&format!("UPDATE items SET deleted_at = NULL WHERE id {IN_IDS}"), [ids_param(ids)])?;
+    conn.execute(
+        &format!("UPDATE items SET deleted_at = NULL WHERE id {IN_IDS} OR parent_id {IN_IDS}"),
+        [ids_param(ids), ids_param(ids)],
+    )?;
     Ok(())
 }
 
@@ -2431,6 +2460,11 @@ fn of_folder_mode(conn: &Connection, ids: &[String], folder_id: &str) -> DbResul
 /// go to the end of its manual order. Items already there stay where they are,
 /// and items of the other mode aren't moved (a folder holds its mode's only).
 pub fn move_to_folder(conn: &Connection, item_ids: &[String], folder_id: &str) -> DbResult<()> {
+    place_in_folder(conn, &with_linked(conn, item_ids)?, folder_id)
+}
+
+/// `move_to_folder` for `item_ids` as they are (see `with_linked`).
+pub(crate) fn place_in_folder(conn: &Connection, item_ids: &[String], folder_id: &str) -> DbResult<()> {
     let item_ids = of_folder_mode(conn, item_ids, folder_id)?;
     let mut del = conn.prepare("DELETE FROM item_folders WHERE item_id = ?1 AND folder_id != ?2")?;
     for id in &item_ids {
@@ -2502,8 +2536,187 @@ pub fn find_or_create_folder(conn: &Connection, parent: Option<&str>, name: &str
 
 pub fn remove_from_folder(conn: &Connection, item_ids: &[String], folder_id: &str) -> DbResult<()> {
     let mut stmt = conn.prepare("DELETE FROM item_folders WHERE item_id = ?1 AND folder_id = ?2")?;
-    for id in item_ids {
+    for id in &with_linked(conn, item_ids)? {
         stmt.execute(params![id, folder_id])?;
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------- links
+
+/// Parent–child links (docs/LINKS.md): a parent (say a video) with children
+/// (its thumbnail ideas). The library opts in with the `links` setting; off,
+/// there are no links (turning it off clears them, `clear_links`).
+pub fn links_enabled(conn: &Connection) -> DbResult<bool> {
+    let on: Option<String> =
+        conn.query_row("SELECT value FROM settings WHERE key = 'links'", [], |r| r.get(0)).optional()?;
+    Ok(on.as_deref() == Some("true"))
+}
+
+/// Where a child stood before a change of links, to put it back (the toast's undo).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Placement {
+    pub id: String,
+    pub parent_id: Option<String>,
+    pub folder_id: Option<String>,
+}
+
+fn placement(conn: &Connection, id: &str) -> DbResult<Placement> {
+    Ok(Placement {
+        id: id.to_string(),
+        parent_id: conn.query_row("SELECT parent_id FROM items WHERE id = ?1", [id], |r| r.get(0))?,
+        folder_id: conn
+            .query_row("SELECT folder_id FROM item_folders WHERE item_id = ?1", [id], |r| r.get(0))
+            .optional()?,
+    })
+}
+
+/// Sets the folder of `id` (None = unfiled), as `move_to_folder` does.
+fn set_folder(conn: &Connection, id: &str, folder: Option<&str>) -> DbResult<()> {
+    match folder {
+        Some(f) => place_in_folder(conn, std::slice::from_ref(&id.to_string()), f),
+        None => {
+            conn.execute("DELETE FROM item_folders WHERE item_id = ?1", [id])?;
+            Ok(())
+        }
+    }
+}
+
+/// `ids` as a folder change should treat them: a child only moves with its
+/// parent (alone it stays where its parent is), and a parent takes its
+/// children along.
+pub(crate) fn with_linked(conn: &Connection, ids: &[String]) -> DbResult<Vec<String>> {
+    let mut parent_of = conn.prepare_cached("SELECT parent_id FROM items WHERE id = ?1")?;
+    let mut children_of = conn.prepare_cached("SELECT id FROM items WHERE parent_id = ?1")?;
+    let picked: HashSet<&str> = ids.iter().map(String::as_str).collect();
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut out: Vec<String> = Vec::new();
+    for id in ids {
+        let parent: Option<String> = parent_of.query_row([id], |r| r.get(0)).optional()?.flatten();
+        if parent.is_some_and(|p| !picked.contains(p.as_str())) {
+            continue;
+        }
+        if seen.insert(id.clone()) {
+            out.push(id.clone());
+        }
+        for child in children_of.query_map([id], |r| r.get::<_, String>(0))? {
+            let child = child?;
+            if seen.insert(child.clone()) {
+                out.push(child);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Makes `children` children of `parent`; each goes to the parent's folder.
+/// Skipped: the parent itself, anything in the trash, a parent (one level
+/// only), fonts, and a `parent` that is a child or in the trash.
+/// Returns where the linked children stood, for the undo.
+pub fn link_items(conn: &Connection, parent: &str, children: &[String]) -> DbResult<Vec<Placement>> {
+    let row = |id: &str| -> DbResult<Option<(Mode, Option<String>, bool)>> {
+        conn.query_row("SELECT kind, parent_id, deleted_at IS NOT NULL FROM items WHERE id = ?1", [id], |r| {
+            Ok((Mode::of(Kind::parse(&r.get::<_, String>(0)?)), r.get(1)?, r.get(2)?))
+        })
+        .optional()
+    };
+    let Some((mode, parent_of_parent, trashed)) = row(parent)? else { return Ok(vec![]) };
+    // Fonts have their families instead (docs/FONT_UI.md).
+    if parent_of_parent.is_some() || trashed || mode != Mode::Stock {
+        return Ok(vec![]);
+    }
+    let folder: Option<String> = conn
+        .query_row("SELECT folder_id FROM item_folders WHERE item_id = ?1", [parent], |r| r.get(0))
+        .optional()?;
+    let has_children = |id: &str| -> DbResult<bool> {
+        conn.query_row("SELECT EXISTS (SELECT 1 FROM items WHERE parent_id = ?1)", [id], |r| r.get(0))
+    };
+    let mut moved = Vec::new();
+    for id in children {
+        if id == parent || has_children(id)? {
+            continue;
+        }
+        match row(id)? {
+            Some((m, _, false)) if m == mode => {}
+            _ => continue,
+        }
+        moved.push(placement(conn, id)?);
+        conn.execute("UPDATE items SET parent_id = ?2 WHERE id = ?1", params![id, parent])?;
+        set_folder(conn, id, folder.as_deref())?;
+    }
+    Ok(moved)
+}
+
+/// Takes `ids` out of their parents; they stay in the folder they are in.
+/// Returns what they were, for the undo.
+pub fn unlink_items(conn: &Connection, ids: &[String]) -> DbResult<Vec<Placement>> {
+    let mut out = Vec::new();
+    for id in ids {
+        let p = placement(conn, id)?;
+        if p.parent_id.is_some() {
+            conn.execute("UPDATE items SET parent_id = NULL WHERE id = ?1", [id])?;
+            out.push(p);
+        }
+    }
+    Ok(out)
+}
+
+/// Puts children back as `link_items` / `unlink_items` found them.
+pub fn restore_links(conn: &Connection, placements: &[Placement]) -> DbResult<()> {
+    for p in placements {
+        conn.execute("UPDATE items SET parent_id = ?2 WHERE id = ?1", params![p.id, p.parent_id])?;
+        set_folder(conn, &p.id, p.folder_id.as_deref())?;
+    }
+    Ok(())
+}
+
+/// How many links there are (children, trash included).
+pub fn count_links(conn: &Connection) -> DbResult<i64> {
+    conn.query_row("SELECT COUNT(*) FROM items WHERE parent_id IS NOT NULL", [], |r| r.get(0))
+}
+
+/// Turns the links on or off. Off removes every link (the children stay where
+/// they are, as plain items); returns how many were removed.
+pub fn set_links_enabled(conn: &Connection, on: bool) -> DbResult<i64> {
+    if on {
+        set_library_setting(conn, "links", Some(&serde_json::Value::Bool(true)))?;
+        return Ok(0);
+    }
+    let n = count_links(conn)?;
+    conn.execute("UPDATE items SET parent_id = NULL WHERE parent_id IS NOT NULL", [])?;
+    set_library_setting(conn, "links", None)?;
+    Ok(n)
+}
+
+/// A list's parents that only a child of them put there (with links on): the
+/// parent comes just before its first child, marked `via_child`.
+fn add_parents(conn: &Connection, items: &mut Vec<Item>) -> DbResult<()> {
+    let present: HashSet<&str> = items.iter().map(|i| i.id.as_str()).collect();
+    let mut missing: Vec<String> = items
+        .iter()
+        .filter_map(|i| i.parent_id.clone())
+        .filter(|p| !present.contains(p.as_str()))
+        .collect();
+    missing.sort();
+    missing.dedup();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    let mut parents: HashMap<String, Item> = get_items(conn, &missing)?
+        .into_iter()
+        .filter(|p| p.deleted_at.is_none())
+        .map(|mut p| {
+            p.via_child = true;
+            (p.id.clone(), p)
+        })
+        .collect();
+    let old = std::mem::take(items);
+    for it in old {
+        if let Some(p) = it.parent_id.as_ref().and_then(|id| parents.remove(id)) {
+            items.push(p);
+        }
+        items.push(it);
     }
     Ok(())
 }
@@ -2756,6 +2969,7 @@ mod tests {
             min_rating: 0,
             filter: Filter::default(),
             similar_level: similar::Level::Standard,
+            with_parents: false,
             sort: SortKey::ImportedAt,
             desc: false,
         }
@@ -2767,6 +2981,168 @@ mod tests {
 
     fn s(v: &[&str]) -> Vec<String> {
         v.iter().map(|x| x.to_string()).collect()
+    }
+
+    // ------------------------------------------------------------ links
+
+    fn links_on(conn: &Connection) {
+        set_links_enabled(conn, true).unwrap();
+    }
+
+    fn folder_of_item(conn: &Connection, id: &str) -> Option<String> {
+        get_items(conn, &s(&[id])).unwrap().remove(0).folder_id
+    }
+
+    #[test]
+    fn links_are_off_until_turned_on() {
+        let conn = mem();
+        assert!(!links_enabled(&conn).unwrap());
+        links_on(&conn);
+        assert!(links_enabled(&conn).unwrap());
+    }
+
+    #[test]
+    fn linking_moves_children_to_the_parents_folder() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("v", 1), ("t1", 2), ("t2", 3)] {
+            add(&mut conn, id, id, at);
+        }
+        let f = create_folder(&conn, "動画", None, Mode::Stock).unwrap();
+        let g = create_folder(&conn, "案", None, Mode::Stock).unwrap();
+        move_to_folder(&conn, &s(&["v"]), &f).unwrap();
+        move_to_folder(&conn, &s(&["t1"]), &g).unwrap();
+
+        let before = link_items(&conn, "v", &s(&["t1", "t2", "v"])).unwrap();
+        // The parent itself is skipped; the undo notes where the children were.
+        assert_eq!(
+            before,
+            vec![
+                Placement { id: "t1".into(), parent_id: None, folder_id: Some(g.clone()) },
+                Placement { id: "t2".into(), parent_id: None, folder_id: None },
+            ]
+        );
+        assert_eq!(folder_of_item(&conn, "t1"), Some(f.clone()));
+        assert_eq!(folder_of_item(&conn, "t2"), Some(f.clone()));
+        assert_eq!(count_links(&conn).unwrap(), 2);
+
+        restore_links(&conn, &before).unwrap();
+        assert_eq!(folder_of_item(&conn, "t1"), Some(g));
+        assert_eq!(folder_of_item(&conn, "t2"), None);
+        assert_eq!(count_links(&conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn links_stay_one_level_and_in_one_mode() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("a", 1), ("b", 2), ("c", 3)] {
+            add(&mut conn, id, id, at);
+        }
+        link_items(&conn, "a", &s(&["b"])).unwrap();
+        // A child can't be a parent, and a parent can't become a child.
+        assert!(link_items(&conn, "b", &s(&["c"])).unwrap().is_empty());
+        assert!(link_items(&conn, "c", &s(&["a"])).unwrap().is_empty());
+        // Linking to another parent moves the child over.
+        let moved = link_items(&conn, "c", &s(&["b"])).unwrap();
+        assert_eq!(moved[0].parent_id.as_deref(), Some("a"));
+        assert_eq!(get_items(&conn, &s(&["b"])).unwrap()[0].parent_id.as_deref(), Some("c"));
+
+        // A font is another mode.
+        let tx = conn.transaction().unwrap();
+        let mut font = NewItem {
+            id: "f".into(),
+            kind: Kind::Font,
+            name: "f".into(),
+            file_name: "f.ttf".into(),
+            ext: "ttf".into(),
+            width: 0,
+            height: 0,
+            size: 1,
+            hash: "h-f".into(),
+            thumb: "f.png".into(),
+            phash: None,
+            preview: None,
+            font: None,
+            body: None,
+            duration_ms: None,
+        };
+        font.id = "f".into();
+        insert_item(&tx, &font, 9).unwrap();
+        tx.commit().unwrap();
+        assert!(link_items(&conn, "c", &s(&["f"])).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_child_moves_only_with_its_parent() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("v", 1), ("t", 2), ("x", 3)] {
+            add(&mut conn, id, id, at);
+        }
+        let f = create_folder(&conn, "F", None, Mode::Stock).unwrap();
+        let g = create_folder(&conn, "G", None, Mode::Stock).unwrap();
+        move_to_folder(&conn, &s(&["v"]), &f).unwrap();
+        link_items(&conn, "v", &s(&["t"])).unwrap();
+
+        // The child alone stays; the parent takes it along.
+        move_to_folder(&conn, &s(&["t"]), &g).unwrap();
+        assert_eq!(folder_of_item(&conn, "t"), Some(f.clone()));
+        move_to_folder(&conn, &s(&["v", "x"]), &g).unwrap();
+        assert_eq!(folder_of_item(&conn, "t"), Some(g.clone()));
+        assert_eq!(folder_of_item(&conn, "v"), Some(g.clone()));
+        remove_from_folder(&conn, &s(&["v"]), &g).unwrap();
+        assert_eq!(folder_of_item(&conn, "t"), None);
+
+        // Unlinked, the child is an item like any other.
+        unlink_items(&conn, &s(&["t"])).unwrap();
+        move_to_folder(&conn, &s(&["t"]), &f).unwrap();
+        assert_eq!(folder_of_item(&conn, "t"), Some(f));
+    }
+
+    #[test]
+    fn the_trash_takes_children_along_and_gives_them_back() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("v", 1), ("t", 2), ("o", 3)] {
+            add(&mut conn, id, id, at);
+        }
+        link_items(&conn, "v", &s(&["t"])).unwrap();
+        trash_items(&conn, &s(&["v"])).unwrap();
+        assert_eq!(ids(query_items(&conn, &q(View::All)).unwrap()), s(&["o"]));
+        assert_eq!(ids(query_items(&conn, &q(View::Trash)).unwrap()), s(&["v", "t"]));
+        restore_items(&conn, &s(&["v"])).unwrap();
+        assert_eq!(ids(query_items(&conn, &q(View::All)).unwrap()), s(&["v", "t", "o"]));
+
+        // Deleting the parent for good frees the child.
+        delete_items(&conn, &s(&["v"])).unwrap();
+        assert_eq!(get_items(&conn, &s(&["t"])).unwrap()[0].parent_id, None);
+    }
+
+    #[test]
+    fn a_matching_child_brings_its_parent_into_the_list() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("v", 1), ("t1", 2), ("t2", 3), ("o", 4)] {
+            add(&mut conn, id, id, at);
+        }
+        link_items(&conn, "v", &s(&["t1", "t2"])).unwrap();
+        set_favorite(&conn, &s(&["t2"]), true).unwrap();
+        let mut query = q(View::Favorites);
+        // Asked for, the parent comes first and says why it is there.
+        query.with_parents = true;
+        let list = query_items(&conn, &query).unwrap();
+        assert_eq!(ids(list.clone()), s(&["v", "t2"]));
+        assert!(list[0].via_child && !list[1].via_child);
+        // Not asked for (exports, the shelf), nothing is added.
+        query.with_parents = false;
+        assert_eq!(ids(query_items(&conn, &query).unwrap()), s(&["t2"]));
+        // Off, there are no links.
+        query.with_parents = true;
+        assert_eq!(set_links_enabled(&conn, false).unwrap(), 2);
+        assert_eq!(ids(query_items(&conn, &query).unwrap()), s(&["t2"]));
+        assert_eq!(count_links(&conn).unwrap(), 0);
+        assert!(!links_enabled(&conn).unwrap());
     }
 
     #[test]

@@ -1,7 +1,7 @@
 // User-level actions shared by several components (dialogs + API + refresh).
 import { listen } from "@tauri-apps/api/event";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
-import { api, EMPTY_FILTER, isSystemId, kindLabel, kindOfExt, libraryIds, type DuplicateEffect, type Item, type ItemKind, type LibraryInfo, type Mode, type OrientOp, type View } from "./api";
+import { api, EMPTY_FILTER, isSystemId, kindLabel, kindOfExt, libraryIds, type DuplicateEffect, type Item, type ItemKind, type LibraryInfo, type LinkPlacement, type Mode, type OrientOp, type View } from "./api";
 import { itemsNoun, kindsNoun, MODES, modeLabel } from "./modes";
 import { fontApi } from "../features/fonts/api";
 import {
@@ -243,8 +243,11 @@ export async function deleteSelection(ids: string[]) {
     if (!ok) return;
     await st().run(() => api.deleteItems(ids));
   } else {
+    // A parent takes its children along (docs/LINKS.md).
+    const picked = new Set(ids);
+    const linked = st().rawItems.filter((i) => i.parentId && picked.has(i.parentId) && !picked.has(i.id)).length;
     if (!(await st().run(() => api.trashItems(ids)))) return;
-    st().toast(`${ids.length} 件をゴミ箱へ移動しました`, false, {
+    st().toast(`${ids.length + linked} 件${linked ? `（紐づけた ${linked} 件を含む）` : ""}をゴミ箱へ移動しました`, false, {
       label: "元に戻す",
       onClick: () => st().run(() => api.restoreItems(ids)),
     });
@@ -434,6 +437,14 @@ const folderName = (id: string) => st().folders.find((f) => f.id === id)?.name ?
 export async function moveToFolder(ids: string[], folderId: string) {
   ids = libraryIds(ids);
   if (!ids.length) return;
+  // A child goes where its parent goes, not on its own (docs/LINKS.md).
+  const picked = new Set(ids);
+  const stay = new Set(st().rawItems.filter((i) => i.parentId && !picked.has(i.parentId)).map((i) => i.id));
+  ids = ids.filter((id) => !stay.has(id));
+  if (!ids.length) {
+    st().toast("紐づけた項目は親と一緒に移ります。親を移すか、紐づけを外してください", true);
+    return;
+  }
   if (!(await st().run(() => api.moveToFolder(ids, folderId)))) return;
   st().rememberFolders([folderId]);
   st().flashTarget(`folder:${folderId}`);
@@ -443,6 +454,65 @@ export async function moveToFolder(ids: string[], folderId: string) {
     false,
     hiddenViewAction("section:folders", `「${name}」を開く`, { kind: "folder", id: folderId }),
   );
+}
+
+// ------------------------------------------------------------ links (docs/LINKS.md)
+
+/** What the toast's undo does: puts the children back as they stood. */
+function undoLinks(placements: LinkPlacement[]) {
+  return { label: "元に戻す", onClick: () => st().run(() => api.restoreLinks(placements)) };
+}
+
+/** Makes `ids` children of `parentId`; they move to the parent's folder. */
+export async function linkItems(parentId: string, ids: string[]) {
+  ids = libraryIds(ids).filter((id) => id !== parentId);
+  if (!ids.length) return;
+  let moved: LinkPlacement[] = [];
+  if (!(await st().run(async () => void (moved = await api.linkItems(parentId, ids))))) return;
+  if (!moved.length) {
+    st().toast("紐づけられる項目がありません（親子は 1 階層で、子は 1 つの親にだけ付けられます）", true);
+    return;
+  }
+  const parent = st().rawItems.find((i) => i.id === parentId);
+  if (!st().openParents.has(parentId)) st().toggleParent(parentId);
+  st().toast(`${moved.length} 件を「${parent?.name ?? "親"}」に紐づけました`, false, undoLinks(moved));
+}
+
+/** The ids `unlinkSelection` takes out of their parents: the selected children, and the children of the selected parents. */
+export function linkedIn(ids: string[]): string[] {
+  const picked = new Set(ids);
+  return st()
+    .rawItems.filter((i) => i.parentId && (picked.has(i.id) || picked.has(i.parentId)))
+    .map((i) => i.id);
+}
+
+/** Takes children out of their parents; they stay in the parent's folder as plain items. */
+export async function unlinkItems(ids: string[]) {
+  ids = linkedIn(libraryIds(ids));
+  if (!ids.length) return;
+  let was: LinkPlacement[] = [];
+  if (!(await st().run(async () => void (was = await api.unlinkItems(ids))))) return;
+  st().toast(`${was.length} 件の紐づけを外しました`, false, undoLinks(was));
+}
+
+/**
+ * Turns the library's links on or off. Off removes every link, so it asks first
+ * with how many there are (the children stay where they are, as plain items).
+ */
+export async function setLinks(on: boolean) {
+  if (!on) {
+    const n = await api.countLinks().catch(() => 0);
+    if (n > 0) {
+      const ok = await ask(`親子の紐づけ ${n} 件を外します。子はいまのフォルダに残り、ふつうの項目に戻ります。元に戻せません。`, {
+        title: "親子関係を無効にする",
+        kind: "warning",
+        okLabel: "無効にする",
+        cancelLabel: "キャンセル",
+      });
+      if (!ok) return;
+    }
+  }
+  if (await st().run(() => api.setLinksEnabled(on))) st().setLinks(on);
 }
 
 /** Shift+D: repeat the last "move to folder". */
