@@ -45,8 +45,8 @@ export function LinksField({ ids, single }: { ids: string[]; single: Item | unde
       {!on && (
         <p className="mb-2 text-xs text-dim">
           親子関係は無効です。
-          <button className="text-accent hover:underline" onClick={() => useStore.getState().openSettings("library")}>
-            設定（このライブラリ）
+          <button className="text-accent hover:underline" onClick={() => useStore.getState().openSettings("libraryLinks")}>
+            設定（親子の紐づけ）
           </button>
           で有効にできます。
         </p>

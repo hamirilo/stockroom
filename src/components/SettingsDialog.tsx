@@ -1,6 +1,6 @@
 // The settings screen (⌘,), see docs/SETTINGS.md: the app's pages (一般,
 // サイドバー, ブラウザ拡張, Claude; settings.json and this PC), then the open
-// library's (概要, サイドバー; stored in its library.db). Changes are saved as
+// library's (概要, 種類, 親子の紐づけ, サイドバー, フォルダの共有; stored in its library.db). Changes are saved as
 // they are made. The frame and rows are SettingsFrame's, the same in every
 // tool (desktop-platform UI §9).
 import {
@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   Info,
   Library,
+  Link2,
   PanelLeft,
   Puzzle,
   Settings,
@@ -60,6 +61,8 @@ const APP_PAGES: Page[] = [
 /** Saved in the open library (library.db). */
 const LIBRARY_PAGES: Page[] = [
   { id: "library", label: "概要", icon: <Info size={15} /> },
+  { id: "libraryKinds", label: "種類", icon: <Shapes size={15} /> },
+  { id: "libraryLinks", label: "親子の紐づけ", icon: <Link2 size={15} /> },
   { id: "librarySidebar", label: "サイドバー", icon: <PanelLeft size={15} /> },
   { id: "libraryShare", label: "フォルダの共有", icon: <Share2 size={15} /> },
 ];
@@ -103,6 +106,8 @@ function Dialog({ tab }: { tab: SettingsTab }) {
       {tab === "extension" && <WebImportSettings />}
       {tab === "claude" && <ClaudeSettings />}
       {tab === "library" && <LibraryPage />}
+      {tab === "libraryKinds" && <LibraryKindsPage />}
+      {tab === "libraryLinks" && <LibraryLinksPage />}
       {tab === "librarySidebar" && <LibrarySidebarPage />}
       {tab === "libraryShare" && <ShareSettings />}
     </SettingsFrame>
@@ -170,14 +175,10 @@ function GeneralPage() {
 
 // ----------------------------------------------------- このライブラリ
 
+/** The library's name and place, and how much is in it. */
 function LibraryPage() {
   const library = useStore((s) => s.library);
   const kinds = useStore((s) => s.counts.kinds);
-  const used = useStore(useShallow(usedModes));
-  const setUsedModes = useStore((s) => s.setUsedModes);
-  const links = useStore((s) => s.librarySettings.links);
-  const linksTrash = useStore((s) => s.librarySettings.linksTrash);
-  const setLinksTrash = useStore((s) => s.setLinksTrash);
   const [size, setSize] = useState<number | null>(null);
   useEffect(() => {
     if (library) api.librarySize().then(setSize, () => setSize(null));
@@ -185,7 +186,6 @@ function LibraryPage() {
 
   if (!library) return <p className="mt-8 text-center text-dim">ライブラリを開いていません</p>;
   const total = Object.values(kinds).reduce((a, n) => a + (n ?? 0), 0);
-  const dropped = KINDS.filter((k) => !used.includes(k.kind) && (kinds[k.kind] ?? 0) > 0);
 
   return (
     <div>
@@ -209,34 +209,25 @@ function LibraryPage() {
             {isMac ? "Finder で表示" : "エクスプローラで表示"}
           </RowButton>
         </Row>
-        {/* A kind at a time (one library per kind is what moving all is for). */}
-        {KINDS.filter((k) => (kinds[k.kind] ?? 0) > 0).map(({ kind }) => (
-          <Row
-            key={kind}
-            icon={<span className="text-dim">{KIND_ICON[kind]}</span>}
-            label={
-              <>
-                {kindLabel(kind)}
-                <span className="ml-1.5 text-xs text-dim tabular-nums">{kinds[kind]} 件</span>
-              </>
-            }
-          >
-            <RowButton
-              onClick={() => {
-                useStore.getState().openSettings(null);
-                transferAllOfKind(kind);
-              }}
-            >
-              <FolderInput size={13} />
-              すべて別のライブラリへ移す…
-            </RowButton>
-          </Row>
-        ))}
       </Section>
+    </div>
+  );
+}
 
+/** Which kinds the library uses, and moving a whole kind to another library. */
+function LibraryKindsPage() {
+  const library = useStore((s) => s.library);
+  const kinds = useStore((s) => s.counts.kinds);
+  const used = useStore(useShallow(usedModes));
+  const setUsedModes = useStore((s) => s.setUsedModes);
+  if (!library) return <p className="mt-8 text-center text-dim">ライブラリを開いていません</p>;
+  const dropped = KINDS.filter((k) => !used.includes(k.kind) && (kinds[k.kind] ?? 0) > 0);
+
+  return (
+    <div>
       <Section
         title="使う種類"
-        sub="使う種類が一覧と種類の絞り込みに出ます。フォントをほかの種類と使うときは、フォントを見比べる「フォント」のモードも出ます。この設定はライブラリに保存されます"
+        sub="使う種類が一覧と種類の絞り込みに出ます。フォントをほかの種類と使うときは、フォントを見比べる「フォント」のモードも出ます"
       >
         {KINDS.map(({ kind, label }) => {
           const on = used.includes(kind);
@@ -256,9 +247,56 @@ function LibraryPage() {
           );
         })}
       </Section>
+      {dropped.length > 0 && (
+        <p className="mt-2 rounded-md bg-raised px-2.5 py-1.5 text-xs text-dim">
+          {dropped.map((k) => `${k.label} ${kinds[k.kind]} 件`).join("、")}
+          は一覧に出なくなります。アイテムは消えません（チェックを戻すとまた出ます）
+        </p>
+      )}
+      {/* A kind at a time (one library per kind is what moving all is for). */}
+      {KINDS.some((k) => (kinds[k.kind] ?? 0) > 0) && (
+        <Section title="別のライブラリへ移す" sub="種類ごとに、すべてのアイテムを別のライブラリへ移します">
+          {KINDS.filter((k) => (kinds[k.kind] ?? 0) > 0).map(({ kind }) => (
+            <Row
+              key={kind}
+              icon={<span className="text-dim">{KIND_ICON[kind]}</span>}
+              label={
+                <>
+                  {kindLabel(kind)}
+                  <span className="ml-1.5 text-xs text-dim tabular-nums">{kinds[kind]} 件</span>
+                </>
+              }
+            >
+              <RowButton
+                onClick={() => {
+                  useStore.getState().openSettings(null);
+                  transferAllOfKind(kind);
+                }}
+              >
+                <FolderInput size={13} />
+                すべて別のライブラリへ移す…
+              </RowButton>
+            </Row>
+          ))}
+        </Section>
+      )}
+    </div>
+  );
+}
+
+/** Parent-child links (docs/LINKS.md). */
+function LibraryLinksPage() {
+  const library = useStore((s) => s.library);
+  const links = useStore((s) => s.librarySettings.links);
+  const linksTrash = useStore((s) => s.librarySettings.linksTrash);
+  const setLinksTrash = useStore((s) => s.setLinksTrash);
+  if (!library) return <p className="mt-8 text-center text-dim">ライブラリを開いていません</p>;
+
+  return (
+    <div>
       <Section
         title="親子の紐づけ"
-        sub="1 つのファイルに別のファイルを紐づけます（例：動画に、サムネイル案の画像）。紐づけた項目は親のフォルダに入り、一覧では親の下にまとまります。この設定はライブラリに保存されます"
+        sub="1 つのファイルに別のファイルを紐づけます（例：動画に、サムネイル案の画像）。紐づけた項目は親のフォルダに入り、一覧では親の下にまとまります"
       >
         <Check
           checked={links}
@@ -280,12 +318,6 @@ function LibraryPage() {
             onChange={setLinksTrash}
           />
         </Section>
-      )}
-      {dropped.length > 0 && (
-        <p className="mt-2 rounded-md bg-raised px-2.5 py-1.5 text-xs text-dim">
-          {dropped.map((k) => `${k.label} ${kinds[k.kind]} 件`).join("、")}
-          は一覧に出なくなります。アイテムは消えません（チェックを戻すとまた出ます）
-        </p>
       )}
     </div>
   );

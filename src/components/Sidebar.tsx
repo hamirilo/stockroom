@@ -661,7 +661,7 @@ function ModeSwitch() {
           <button
             onClick={() => {
               setOpen(false);
-              useStore.getState().openSettings("library");
+              useStore.getState().openSettings("libraryKinds");
             }}
             className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-dim hover:bg-accent hover:text-white"
           >
