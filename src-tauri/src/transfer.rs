@@ -52,7 +52,8 @@ pub struct Source {
 impl Source {
     pub fn read(lib: &Library, ids: &[String]) -> Result<Self, String> {
         let e = |e: rusqlite::Error| e.to_string();
-        let items = db::get_items(&lib.conn, ids).map_err(e)?;
+        // A parent travels with its children (docs/LINKS.md).
+        let items = db::get_items(&lib.conn, &db::with_children(&lib.conn, ids).map_err(e)?).map_err(e)?;
         let mut stmt = lib.conn.prepare("SELECT id, parent_id, name, color FROM folders").map_err(e)?;
         let folders = stmt
             .query_map([], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?, r.get(3)?))))
@@ -170,7 +171,8 @@ fn copy_attached(
     let cols = columns(&lib.conn, "main")
         .map_err(e)?
         .into_iter()
-        .filter(|c| theirs.contains(c))
+        // Links are made again below, in the destination's own terms (docs/LINKS.md).
+        .filter(|c| theirs.contains(c) && c != "parent_id" && c != "adopted")
         .collect::<Vec<_>>()
         .join(", ");
     let insert = format!("INSERT INTO main.items ({cols}) SELECT {cols} FROM src.items WHERE id = ?1");
@@ -178,6 +180,8 @@ fn copy_attached(
     let mut summary = TransferSummary::default();
     // Source folder id -> destination folder id.
     let mut folder_map: HashMap<String, String> = HashMap::new();
+    // Source item id -> its id in the destination (the same, unless the file was already there).
+    let mut target_of: HashMap<String, String> = HashMap::new();
     let total = src.items.len();
     for (n, item) in src.items.iter().enumerate() {
         progress(n, total);
@@ -267,10 +271,25 @@ fn copy_attached(
                     summary.copied += 1;
                 }
                 summary.done_ids.push(item.id.clone());
+                target_of.insert(item.id.clone(), target);
             }
             Err(err) => {
                 remove_written(&written);
                 summary.failed.push(format!("{}: {err}", item.name));
+            }
+        }
+    }
+    // Parents and children that arrived together are linked again, where the destination uses links.
+    if db::links_enabled(&lib.conn).map_err(e)? {
+        for item in &src.items {
+            let (Some(parent), Some(child)) =
+                (item.parent_id.as_ref().and_then(|p| target_of.get(p)), target_of.get(&item.id))
+            else {
+                continue;
+            };
+            db::link_items(&lib.conn, parent, std::slice::from_ref(child)).map_err(e)?;
+            if item.adopted {
+                db::set_adopted(&lib.conn, child, true).map_err(e)?;
             }
         }
     }
@@ -425,6 +444,53 @@ mod tests {
         drop(b);
         let again = copy_into(&src, &b_root, |_, _| {}).unwrap();
         assert_eq!((again.copied, again.duplicates), (0, 2));
+    }
+
+    #[test]
+    fn a_parent_arrives_with_its_children_and_links_follow_the_destination() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = Library::create(&tmp.path().join("A.library")).unwrap();
+        let b_on_root = tmp.path().join("B.library");
+        let b_off_root = tmp.path().join("C.library");
+        let b_on = Library::create(&b_on_root).unwrap();
+        db::set_links_enabled(&b_on.conn, true).unwrap();
+        drop(b_on);
+        Library::create(&b_off_root).unwrap();
+        db::set_links_enabled(&a.conn, true).unwrap();
+        for (id, h) in [("v", "h1"), ("t1", "h2"), ("t2", "h3"), ("solo", "h4")] {
+            add(&a, id, h);
+        }
+        db::link_items(&a.conn, "v", &["t1".into(), "t2".into()]).unwrap();
+        db::set_adopted(&a.conn, "t2", true).unwrap();
+
+        // Only the parent is picked: its children come too.
+        let src = Source::read(&a, &["v".into(), "solo".into()]).unwrap();
+        assert_eq!(src.items.len(), 4);
+        let sum = copy_into(&src, &b_on_root, |_, _| {}).unwrap();
+        assert_eq!((sum.copied, sum.failed.len()), (4, 0));
+        let b = Library::open(&b_on_root).unwrap();
+        let items = all(&b);
+        let get = |id: &str| items.iter().find(|i| i.id == id).unwrap();
+        assert_eq!(get("t1").parent_id.as_deref(), Some("v"));
+        assert_eq!(get("t2").parent_id.as_deref(), Some("v"));
+        assert!(get("t2").adopted && !get("t1").adopted);
+        assert_eq!(get("solo").parent_id, None);
+
+        // A destination without links gets plain items.
+        let sum = copy_into(&src, &b_off_root, |_, _| {}).unwrap();
+        assert_eq!((sum.copied, sum.failed.len()), (4, 0));
+        let c = Library::open(&b_off_root).unwrap();
+        assert!(all(&c).iter().all(|i| i.parent_id.is_none() && !i.adopted));
+
+        // A child alone arrives on its own, not pointing at a parent that isn't there.
+        let one = Source::read(&a, &["t1".into()]).unwrap();
+        let tmp_root = tmp.path().join("D.library");
+        let d = Library::create(&tmp_root).unwrap();
+        db::set_links_enabled(&d.conn, true).unwrap();
+        drop(d);
+        let sum = copy_into(&one, &tmp_root, |_, _| {}).unwrap();
+        assert_eq!((sum.copied, sum.failed.len()), (1, 0));
+        assert_eq!(all(&Library::open(&tmp_root).unwrap())[0].parent_id, None);
     }
 
     #[test]

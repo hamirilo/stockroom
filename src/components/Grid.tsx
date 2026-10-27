@@ -104,14 +104,18 @@ function LinkMark({ item, inline = false }: { item: Item; inline?: boolean }) {
   if (item.childMember) {
     return (
       <span
-        title={`「${parentName ?? "親"}」に紐づいています`}
+        title={`「${parentName ?? "親"}」に紐づいています${item.adopted ? "（採用）" : ""}`}
         className={
           inline
             ? "inline-flex shrink-0 align-middle text-dim"
             : "pointer-events-none absolute bottom-1.5 left-1.5 rounded-full bg-black/55 p-1 text-white/90"
         }
       >
-        <Link2 size={inline ? 12 : 11} strokeWidth={2.25} />
+        {item.adopted ? (
+          <Star size={inline ? 12 : 11} fill="currentColor" className="text-amber-400" />
+        ) : (
+          <Link2 size={inline ? 12 : 11} strokeWidth={2.25} />
+        )}
       </span>
     );
   }
@@ -515,7 +519,7 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
           {
             label: "紐づけ",
             submenu: s.librarySettings.links
-              ? [commandItem("item.link"), commandItem("item.unlink")]
+              ? [commandItem("item.link"), commandItem("item.unlink"), commandItem("item.adopt")]
               : [{ label: "親子関係が無効です（設定で有効にできます）", onClick: () => {}, disabled: true }],
           },
         ]

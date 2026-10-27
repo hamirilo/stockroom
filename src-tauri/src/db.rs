@@ -10,7 +10,7 @@ use crate::{search, similar};
 
 pub type DbResult<T> = rusqlite::Result<T>;
 
-const SCHEMA_VERSION: i32 = 25;
+const SCHEMA_VERSION: i32 = 26;
 
 const SETTINGS_TABLE: &str = "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)";
 
@@ -424,6 +424,11 @@ pub fn migrate(conn: &Connection) -> DbResult<()> {
         add_column(c, "items", "parent_id", "TEXT REFERENCES items(id) ON DELETE SET NULL")?;
         c.execute_batch("CREATE INDEX IF NOT EXISTS idx_items_parent ON items(parent_id)")
     })?;
+    // The child among a parent's children that was picked (docs/LINKS.md: 採用).
+    step(26, &|c| {
+        add_column(c, "items", "adopted", "INTEGER NOT NULL DEFAULT 0")?;
+        Ok(())
+    })?;
     // New steps go above; the last one must be SCHEMA_VERSION.
     debug_assert!(
         conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i32>(0))? >= SCHEMA_VERSION,
@@ -825,6 +830,8 @@ pub struct Item {
     pub in_tray: bool,
     /// The item this one is linked to as a child (docs/LINKS.md); None = not a child.
     pub parent_id: Option<String>,
+    /// The child picked among its parent's children (採用); at most one per parent.
+    pub adopted: bool,
     /// A parent that a list holds only because a child of it matches (`ItemQuery::with_parents`).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub via_child: bool,
@@ -994,7 +1001,7 @@ const ITEM_COLS: &str = "items.id, items.name, items.file_name, items.ext, items
      items.rotation, items.flipped, items.kind, items.source_url, items.font_family, items.font_weight, \
      items.font_script, items.font_category, items.font_category_user, \
      EXISTS (SELECT 1 FROM tray WHERE tray.item_id = items.id), items.font_features, items.font_ps_name, \
-     items.duration_ms, items.parent_id";
+     items.duration_ms, items.parent_id, items.adopted";
 
 fn row_to_item(r: &rusqlite::Row) -> DbResult<Item> {
     let tag_ids: Option<String> = r.get(16)?;
@@ -1035,6 +1042,7 @@ fn row_to_item(r: &rusqlite::Row) -> DbResult<Item> {
         font_ps_name: r.get::<_, Option<String>>(28)?.filter(|s| !s.is_empty()),
         duration_ms: r.get(29)?,
         parent_id: r.get(30)?,
+        adopted: r.get::<_, i64>(31)? != 0,
         via_child: false,
         group: None,
         distance: None,
@@ -1831,8 +1839,18 @@ pub fn rename_item(conn: &Connection, id: &str, name: &str) -> DbResult<()> {
     Ok(())
 }
 
-/// Moves items to the trash; the children of a parent go with it (docs/LINKS.md).
+/// Moves items to the trash. The children of a parent go with it, unless the library
+/// keeps them (`linksTrash` = "keep": they are freed instead, docs/LINKS.md).
 pub fn trash_items(conn: &Connection, ids: &[String]) -> DbResult<()> {
+    if links_trash_keeps_children(conn)? {
+        conn.execute(
+            &format!(
+                "UPDATE items SET parent_id = NULL, adopted = 0
+                 WHERE parent_id {IN_IDS} AND id NOT {IN_IDS}"
+            ),
+            [ids_param(ids), ids_param(ids)],
+        )?;
+    }
     conn.execute(
         &format!(
             "UPDATE items SET deleted_at = ?1 WHERE deleted_at IS NULL
@@ -1983,6 +2001,7 @@ pub fn resolve_duplicates(conn: &mut Connection, groups: &[DuplicateGroup]) -> D
         if let Some(f) = &e.folder_id {
             file_unfiled(&tx, std::slice::from_ref(&e.keep), f)?;
         }
+        hand_over_children(&tx, &e.keep, &e.remove)?;
         trash_items(&tx, &e.remove)?;
     }
     tx.commit()?;
@@ -2569,12 +2588,14 @@ pub struct Placement {
     pub id: String,
     pub parent_id: Option<String>,
     pub folder_id: Option<String>,
+    pub adopted: bool,
 }
 
 fn placement(conn: &Connection, id: &str) -> DbResult<Placement> {
     Ok(Placement {
         id: id.to_string(),
         parent_id: conn.query_row("SELECT parent_id FROM items WHERE id = ?1", [id], |r| r.get(0))?,
+        adopted: conn.query_row("SELECT adopted FROM items WHERE id = ?1", [id], |r| r.get::<_, i64>(0))? != 0,
         folder_id: conn
             .query_row("SELECT folder_id FROM item_folders WHERE item_id = ?1", [id], |r| r.get(0))
             .optional()?,
@@ -2651,7 +2672,7 @@ pub fn link_items(conn: &Connection, parent: &str, children: &[String]) -> DbRes
             _ => continue,
         }
         moved.push(placement(conn, id)?);
-        conn.execute("UPDATE items SET parent_id = ?2 WHERE id = ?1", params![id, parent])?;
+        conn.execute("UPDATE items SET parent_id = ?2, adopted = 0 WHERE id = ?1", params![id, parent])?;
         set_folder(conn, id, folder.as_deref())?;
     }
     Ok(moved)
@@ -2664,7 +2685,7 @@ pub fn unlink_items(conn: &Connection, ids: &[String]) -> DbResult<Vec<Placement
     for id in ids {
         let p = placement(conn, id)?;
         if p.parent_id.is_some() {
-            conn.execute("UPDATE items SET parent_id = NULL WHERE id = ?1", [id])?;
+            conn.execute("UPDATE items SET parent_id = NULL, adopted = 0 WHERE id = ?1", [id])?;
             out.push(p);
         }
     }
@@ -2674,7 +2695,10 @@ pub fn unlink_items(conn: &Connection, ids: &[String]) -> DbResult<Vec<Placement
 /// Puts children back as `link_items` / `unlink_items` found them.
 pub fn restore_links(conn: &Connection, placements: &[Placement]) -> DbResult<()> {
     for p in placements {
-        conn.execute("UPDATE items SET parent_id = ?2 WHERE id = ?1", params![p.id, p.parent_id])?;
+        conn.execute(
+            "UPDATE items SET parent_id = ?2, adopted = ?3 WHERE id = ?1",
+            params![p.id, p.parent_id, p.adopted],
+        )?;
         set_folder(conn, &p.id, p.folder_id.as_deref())?;
     }
     Ok(())
@@ -2693,9 +2717,70 @@ pub fn set_links_enabled(conn: &Connection, on: bool) -> DbResult<i64> {
         return Ok(0);
     }
     let n = count_links(conn)?;
-    conn.execute("UPDATE items SET parent_id = NULL WHERE parent_id IS NOT NULL", [])?;
+    conn.execute("UPDATE items SET parent_id = NULL, adopted = 0 WHERE parent_id IS NOT NULL", [])?;
     set_library_setting(conn, "links", None)?;
     Ok(n)
+}
+
+/// What the library does with the children of a parent put in the trash: they go
+/// along (the default) or are kept, as plain items (`linksTrash` = "keep").
+pub fn links_trash_keeps_children(conn: &Connection) -> DbResult<bool> {
+    let v: Option<String> =
+        conn.query_row("SELECT value FROM settings WHERE key = 'linksTrash'", [], |r| r.get(0)).optional()?;
+    Ok(v.as_deref() == Some("\"keep\""))
+}
+
+/// Picks `id`, a child, as the one adopted among its parent's children (the others
+/// are not), or takes the pick back. No effect on an item that isn't a child.
+pub fn set_adopted(conn: &Connection, id: &str, on: bool) -> DbResult<()> {
+    let parent: Option<String> =
+        conn.query_row("SELECT parent_id FROM items WHERE id = ?1", [id], |r| r.get(0)).optional()?.flatten();
+    let Some(parent) = parent else { return Ok(()) };
+    if on {
+        conn.execute("UPDATE items SET adopted = 0 WHERE parent_id = ?1", [&parent])?;
+    }
+    conn.execute("UPDATE items SET adopted = ?2 WHERE id = ?1", params![id, on])?;
+    Ok(())
+}
+
+/// `ids` and the live children of any of them (each id once, `ids` first).
+pub fn with_children(conn: &Connection, ids: &[String]) -> DbResult<Vec<String>> {
+    let mut out: Vec<String> = ids.to_vec();
+    let mut seen: HashSet<String> = ids.iter().cloned().collect();
+    let mut stmt = conn.prepare_cached("SELECT id FROM items WHERE parent_id = ?1 AND deleted_at IS NULL")?;
+    for id in ids {
+        for child in stmt.query_map([id], |r| r.get::<_, String>(0))? {
+            let child = child?;
+            if seen.insert(child.clone()) {
+                out.push(child);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Copies of a duplicate about to be trashed: their children go to the copy kept
+/// (`link_items`), or are freed when it can't be their parent (it is a child, a font…).
+fn hand_over_children(conn: &Connection, keep: &str, removed: &[String]) -> DbResult<()> {
+    // The kept copy isn't a child of one it replaces.
+    conn.execute(
+        &format!("UPDATE items SET parent_id = NULL, adopted = 0 WHERE id = ?1 AND parent_id {IN_IDS}"),
+        params![keep, ids_param(removed)],
+    )?;
+    for gone in removed {
+        let children: Vec<String> = {
+            let mut stmt = conn.prepare("SELECT id FROM items WHERE parent_id = ?1")?;
+            let rows = stmt.query_map([gone], |r| r.get(0))?;
+            rows.collect::<DbResult<_>>()?
+        };
+        if children.is_empty() {
+            continue;
+        }
+        link_items(conn, keep, &children)?;
+        // Whatever it couldn't take is freed.
+        conn.execute("UPDATE items SET parent_id = NULL, adopted = 0 WHERE parent_id = ?1", [gone])?;
+    }
+    Ok(())
 }
 
 /// A list's parents that only a child of them put there (with links on): the
@@ -3027,8 +3112,8 @@ mod tests {
         assert_eq!(
             before,
             vec![
-                Placement { id: "t1".into(), parent_id: None, folder_id: Some(g.clone()) },
-                Placement { id: "t2".into(), parent_id: None, folder_id: None },
+                Placement { id: "t1".into(), parent_id: None, folder_id: Some(g.clone()), adopted: false },
+                Placement { id: "t2".into(), parent_id: None, folder_id: None, adopted: false },
             ]
         );
         assert_eq!(folder_of_item(&conn, "t1"), Some(f.clone()));
@@ -3152,6 +3237,76 @@ mod tests {
         assert_eq!(ids(query_items(&conn, &query).unwrap()), s(&["t2"]));
         assert_eq!(count_links(&conn).unwrap(), 0);
         assert!(!links_enabled(&conn).unwrap());
+    }
+
+    #[test]
+    fn one_child_is_adopted_and_the_pick_follows_the_links() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("v", 1), ("a", 2), ("b", 3), ("x", 4)] {
+            add(&mut conn, id, id, at);
+        }
+        link_items(&conn, "v", &s(&["a", "b"])).unwrap();
+        let adopted = |conn: &Connection| -> Vec<String> {
+            let mut got: Vec<String> = get_items(conn, &s(&["v", "a", "b", "x"]))
+                .unwrap()
+                .into_iter()
+                .filter(|i| i.adopted)
+                .map(|i| i.id)
+                .collect();
+            got.sort();
+            got
+        };
+        set_adopted(&conn, "a", true).unwrap();
+        set_adopted(&conn, "b", true).unwrap();
+        assert_eq!(adopted(&conn), s(&["b"]), "one per parent");
+        // Not a child: nothing to adopt.
+        set_adopted(&conn, "x", true).unwrap();
+        set_adopted(&conn, "v", true).unwrap();
+        assert_eq!(adopted(&conn), s(&["b"]));
+        // Freeing the child takes the pick with it, and the undo gives it back.
+        let was = unlink_items(&conn, &s(&["b"])).unwrap();
+        assert!(adopted(&conn).is_empty());
+        restore_links(&conn, &was).unwrap();
+        assert_eq!(adopted(&conn), s(&["b"]));
+        set_adopted(&conn, "b", false).unwrap();
+        assert!(adopted(&conn).is_empty());
+    }
+
+    #[test]
+    fn the_library_can_keep_the_children_of_a_trashed_parent() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("v", 1), ("t", 2), ("u", 3)] {
+            add(&mut conn, id, id, at);
+        }
+        link_items(&conn, "v", &s(&["t", "u"])).unwrap();
+        set_library_setting(&conn, "linksTrash", Some(&serde_json::json!("keep"))).unwrap();
+        // A child picked together with its parent goes along and stays linked.
+        trash_items(&conn, &s(&["v", "u"])).unwrap();
+        assert_eq!(ids(query_items(&conn, &q(View::All)).unwrap()), s(&["t"]));
+        let t = get_items(&conn, &s(&["t", "u"])).unwrap();
+        assert_eq!(t.iter().find(|i| i.id == "t").unwrap().parent_id, None);
+        assert_eq!(t.iter().find(|i| i.id == "u").unwrap().parent_id.as_deref(), Some("v"));
+    }
+
+    #[test]
+    fn duplicates_hand_their_children_to_the_copy_kept() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("keep", 1), ("dup", 2), ("t", 3)] {
+            add(&mut conn, id, id, at);
+        }
+        let f = create_folder(&conn, "F", None, Mode::Stock).unwrap();
+        move_to_folder(&conn, &s(&["dup"]), &f).unwrap();
+        link_items(&conn, "dup", &s(&["t"])).unwrap();
+        resolve_duplicates(&mut conn, &[DuplicateGroup { keep: "keep".into(), remove: s(&["dup"]) }]).unwrap();
+        let t = get_items(&conn, &s(&["t"])).unwrap().remove(0);
+        assert_eq!(t.parent_id.as_deref(), Some("keep"));
+        assert!(t.deleted_at.is_none(), "the child is not trashed with the duplicate");
+        // The folder the duplicate gave the kept copy comes with the child.
+        assert_eq!(folder_of_item(&conn, "keep"), Some(f.clone()));
+        assert_eq!(folder_of_item(&conn, "t"), Some(f));
     }
 
     #[test]

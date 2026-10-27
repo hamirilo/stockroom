@@ -244,13 +244,23 @@ export async function deleteSelection(ids: string[]) {
     if (!ok) return;
     await st().run(() => api.deleteItems(ids));
   } else {
-    // A parent takes its children along (docs/LINKS.md).
+    // A parent takes its children along, or frees them (the library's setting, docs/LINKS.md).
     const picked = new Set(ids);
-    const linked = st().rawItems.filter((i) => i.parentId && picked.has(i.parentId) && !picked.has(i.id)).length;
+    const children = st().rawItems.filter((i) => i.parentId && picked.has(i.parentId) && !picked.has(i.id));
+    const keep = st().librarySettings.linksTrash === "keep";
+    const linked = keep ? 0 : children.length;
+    // Freed children are linked again by the undo.
+    const freed: LinkPlacement[] = keep
+      ? children.map((i) => ({ id: i.id, parentId: i.parentId, folderId: i.folderId, adopted: i.adopted }))
+      : [];
     if (!(await st().run(() => api.trashItems(ids)))) return;
     st().toast(`${ids.length + linked} 件${linked ? `（紐づけた ${linked} 件を含む）` : ""}をゴミ箱へ移動しました`, false, {
       label: "元に戻す",
-      onClick: () => st().run(() => api.restoreItems(ids)),
+      onClick: () =>
+        st().run(async () => {
+          await api.restoreItems(ids);
+          if (freed.length) await api.restoreLinks(freed);
+        }),
     });
   }
   selectSuccessor(before, ids);
@@ -477,6 +487,15 @@ export async function linkItems(parentId: string, ids: string[]) {
   const parent = st().rawItems.find((i) => i.id === parentId);
   if (!st().openParents.has(parentId)) st().toggleParent(parentId);
   st().toast(`${moved.length} 件を「${parent?.name ?? "親"}」に紐づけました`, false, undoLinks(moved));
+}
+
+/** Picks the selected child as the adopted one of its parent's children, or takes the pick back (docs/LINKS.md). */
+export async function toggleAdopted(id: string) {
+  const item = st().rawItems.find((i) => i.id === id);
+  if (!item?.parentId) return;
+  const on = !item.adopted;
+  await st().run(() => api.setAdopted(id, on));
+  st().toast(on ? `「${item.name}」を採用にしました` : `「${item.name}」の採用を外しました`);
 }
 
 /** The ids `unlinkSelection` takes out of their parents: the selected children, and the children of the selected parents. */

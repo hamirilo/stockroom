@@ -250,6 +250,7 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     sep(),
     cmd("item.link"),
     cmd("item.unlink"),
+    cmd("item.adopt"),
   ]);
 
   const view = submenu("表示", [

@@ -101,6 +101,7 @@ export function shortcutSections(): ShortcutSection[] {
         { label: "フォルダへ入れる", keys: ["Drag"] },
         cmd("item.link"),
         cmd("item.unlink"),
+        cmd("item.adopt"),
         cmd("folder.new"),
         cmd("smart.new"),
         pair("folder.up", "folder.down", "フォルダを上へ / 下へ"),

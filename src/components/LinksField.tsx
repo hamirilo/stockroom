@@ -2,9 +2,9 @@
 // children, and the link / unlink buttons. With links off it stays, greyed,
 // and says where to turn them on (docs/UI.md: don't move the controls around).
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Link2, Link2Off } from "lucide-react";
+import { Link2, Link2Off, Star } from "lucide-react";
 import { useMemo } from "react";
-import { linkedIn, unlinkItems } from "../lib/actions";
+import { linkedIn, toggleAdopted, unlinkItems } from "../lib/actions";
 import type { Item } from "../lib/api";
 import { useStore } from "../store";
 
@@ -79,6 +79,7 @@ export function LinksField({ ids, single }: { ids: string[]; single: Item | unde
               >
                 <Thumb item={c} />
                 <span className="min-w-0 flex-1 truncate text-xs">{c.name}</span>
+                {c.adopted && <Star size={12} fill="currentColor" className="shrink-0 text-amber-400" aria-label="採用" />}
               </button>
             ))}
           </div>
@@ -100,6 +101,17 @@ export function LinksField({ ids, single }: { ids: string[]; single: Item | unde
           onClick={() => void unlinkItems(ids)}
         >
           <Link2Off size={13} /> 紐づけを外す
+        </button>
+        {/* One of the children is picked: the idea that is going ahead (a thumbnail, say). */}
+        <button
+          className={btn}
+          disabled={!on || !single?.parentId}
+          title={
+            !on ? "設定で親子関係を有効にしてください" : single?.parentId ? "紐づけた項目のうち、これに決めたものの印" : "紐づけた項目（子）を 1 件選んでください"
+          }
+          onClick={() => single && void toggleAdopted(single.id)}
+        >
+          <Star size={13} fill={single?.adopted ? "currentColor" : "none"} /> {single?.adopted ? "採用を外す" : "採用にする"}
         </button>
       </div>
     </div>

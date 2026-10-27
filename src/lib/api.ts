@@ -267,6 +267,8 @@ export interface Item {
   inTray: boolean;
   /** The item this one is linked to as a child (docs/LINKS.md); null = not a child. */
   parentId: string | null;
+  /** The child picked among its parent's children (採用); at most one per parent. */
+  adopted: boolean;
   /** A parent in a list only because a child of it matches (docs/LINKS.md): "中に該当あり". */
   viaChild?: boolean;
   /** A parent's row (links on): the children listed with it (`groupItems`), shown under it while opened (▸). */
@@ -409,6 +411,7 @@ export interface LinkPlacement {
   id: string;
   parentId: string | null;
   folderId: string | null;
+  adopted: boolean;
 }
 
 export type SortKey = "importedAt" | "name" | "size" | "dimensions" | "rating" | "manual";
@@ -714,6 +717,8 @@ export const api = {
   unlinkItems: (ids: string[]) => invoke<LinkPlacement[]>("unlink_items", { ids }),
   restoreLinks: (placements: LinkPlacement[]) => invoke<void>("restore_links", { placements }),
   countLinks: () => invoke<number>("count_links"),
+  /** Picks a child as the adopted one of its parent's children (or takes the pick back). */
+  setAdopted: (id: string, on: boolean) => invoke<void>("set_adopted", { id, on }),
   /** Off removes every link; resolves to how many. */
   setLinksEnabled: (on: boolean) => invoke<number>("set_links_enabled", { on }),
   reorderInFolder: (folderId: string, ids: string[], before: string | null) =>

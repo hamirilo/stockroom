@@ -234,6 +234,7 @@ pub fn run() {
             restore_links,
             count_links,
             set_links_enabled,
+            set_adopted,
             remove_from_folder,
             list_tags,
             add_tags,
