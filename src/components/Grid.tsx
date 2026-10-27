@@ -142,6 +142,25 @@ function LinkMark({ item, inline = false }: { item: Item; inline?: boolean }) {
   );
 }
 
+/**
+ * What a row needs to be dropped onto for linking (docs/LINKS.md): `link` is its id when the
+ * dragged items can be linked to it (links on, the stock, not a child), `over` while one is over it.
+ */
+function useLinkDrop(item: Item) {
+  const link = useStore((s) =>
+    s.librarySettings.links &&
+    s.mode === "stock" &&
+    s.view.kind !== "trash" &&
+    s.view.kind !== "similar" &&
+    !item.parentId &&
+    !item.childMember
+      ? item.id
+      : undefined,
+  );
+  const over = useStore((s) => s.dropTarget === `link:${item.id}`);
+  return { link, over };
+}
+
 export type CellProps = {
   item: Item;
   index: number;
@@ -278,6 +297,7 @@ const Cell = memo(function Cell({
   flags,
 }: CellProps) {
   const detail = info.dims || info.rating || info.meta;
+  const { link, over } = useLinkDrop(item);
   return (
     <div
       className={`group relative flex flex-col items-center transition-[opacity,transform] duration-200 ${
@@ -288,11 +308,12 @@ const Cell = memo(function Cell({
       onDoubleClick={() => useStore.getState().openViewer(index)}
       onContextMenu={(e) => showItemMenu(e, item, index)}
       data-drop={reorderable ? `item:${item.id}` : undefined}
+      data-link={link}
     >
       <div
         className={`relative flex items-center justify-center overflow-hidden rounded-lg bg-raised transition-shadow duration-150 ${
           selected ? "sel-ring" : focused ? "" : "hover:ring-2 hover:ring-white/15"
-        } ${focused ? "focus-ring" : ""}`}
+        } ${focused ? "focus-ring" : ""} ${over ? "outline-[3px] outline-accent" : ""}`}
         style={{ width, height }}
       >
         <Thumb item={item} fit={fit} />
@@ -368,17 +389,19 @@ const ListRow = memo(function ListRow({
   similar,
   flags,
 }: CellProps) {
+  const { link, over } = useLinkDrop(item);
   return (
     <div
       className={`relative flex items-center gap-3 rounded-md px-2 text-xs transition-opacity duration-200 ${rowSelection(
         selected,
         focused,
-      )} ${dimmed ? "opacity-35" : ""}`}
+      )} ${dimmed ? "opacity-35" : ""} ${over ? "bg-accent/30 outline-2 outline-accent" : ""}`}
       style={{ width, height, paddingLeft: item.childMember ? 32 : undefined }}
       onPointerDown={(e) => onItemPointerDown(e, item, index)}
       onDoubleClick={() => useStore.getState().openViewer(index)}
       onContextMenu={(e) => showItemMenu(e, item, index)}
       data-drop={reorderable ? `item:${item.id}` : undefined}
+      data-link={link}
       data-axis="y"
     >
       <ChangePulse id={item.id} className="rounded-md" />
