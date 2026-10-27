@@ -32,6 +32,7 @@ import {
   exportList,
   moveToLastFolder,
   linkedIn,
+  toggleAdopted,
   unlinkItems,
   onShelf,
   openLibraryDialog,
@@ -481,6 +482,15 @@ export const COMMANDS: Command[] = [
     title: "紐づけを外す",
     enabled: (s) => live(s) && linksOn(s) && linkedIn(sel(s)).length > 0,
     run: (s) => void unlinkItems(sel(s)),
+  },
+  {
+    id: "item.adopt",
+    title: "採用にする",
+    label: (s) => (selItems(s)[0]?.adopted ? "採用を外す" : "採用にする"),
+    // One child at a time: the one picked among its parent's children.
+    enabled: (s) => live(s) && linksOn(s) && sel(s).length === 1 && !!selItems(s)[0]?.parentId,
+    checked: (s) => !!selItems(s)[0]?.adopted,
+    run: (s) => void toggleAdopted(sel(s)[0]),
   },
   { id: "folder.new", title: "新しいフォルダ", keys: ["Mod+Shift+N"], run: () => void createFolderHere() },
   {

@@ -322,6 +322,8 @@ interface State {
   setUsedModes: (modes: ItemKind[]) => void;
   /** Reflects the links setting (already stored by `api.setLinksEnabled`) and lists again. */
   setLinks: (on: boolean) => void;
+  /** What a parent in the trash does to its children; saved with the library. */
+  setLinksTrash: (v: "with" | "keep") => void;
   /** Hides (or shows again) sidebar entries of a mode, in `scope` (default: the one in effect). */
   setSidebarHidden: (mode: Mode, ids: string[], scope?: SidebarScope) => void;
   /** The library gets its own sidebar entries, or follows the app's again. */
@@ -994,6 +996,10 @@ export const useStore = create<State>((set, get) => ({
   setLinks: (links) => {
     set({ librarySettings: { ...get().librarySettings, links }, openParents: NO_PARENTS });
     get().refresh();
+  },
+  setLinksTrash: (linksTrash) => {
+    set({ librarySettings: { ...get().librarySettings, linksTrash } });
+    saveLibrarySetting("linksTrash", linksTrash === "with" ? null : linksTrash);
   },
   setUsedModes: (modes) => {
     const used = KINDS.map((k) => k.kind).filter((k) => modes.includes(k));

@@ -176,6 +176,8 @@ function LibraryPage() {
   const used = useStore(useShallow(usedModes));
   const setUsedModes = useStore((s) => s.setUsedModes);
   const links = useStore((s) => s.librarySettings.links);
+  const linksTrash = useStore((s) => s.librarySettings.linksTrash);
+  const setLinksTrash = useStore((s) => s.setLinksTrash);
   const [size, setSize] = useState<number | null>(null);
   useEffect(() => {
     if (library) api.librarySize().then(setSize, () => setSize(null));
@@ -266,6 +268,19 @@ function LibraryPage() {
           親子の紐づけを使う
         </Check>
       </Section>
+      {links && (
+        <Section title="親をゴミ箱に入れたとき">
+          <RadioRows
+            name="linksTrash"
+            value={linksTrash}
+            options={[
+              { value: "with", label: "子も一緒にゴミ箱へ", hint: "復元も一緒です" },
+              { value: "keep", label: "子は残す", hint: "子はふつうの項目に戻り、親のフォルダに残ります（元に戻すと紐づけも戻ります）" },
+            ]}
+            onChange={setLinksTrash}
+          />
+        </Section>
+      )}
       {dropped.length > 0 && (
         <p className="mt-2 rounded-md bg-raised px-2.5 py-1.5 text-xs text-dim">
           {dropped.map((k) => `${k.label} ${kinds[k.kind]} 件`).join("、")}

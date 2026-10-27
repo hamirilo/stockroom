@@ -23,6 +23,8 @@ export interface LibrarySettings {
   patterns: string[];
   /** Parent–child links are used (docs/LINKS.md); off unless turned on. Written by Rust (`set_links_enabled`). */
   links: boolean;
+  /** What putting a parent in the trash does to its children (docs/LINKS.md): "with" = they go along. */
+  linksTrash: "with" | "keep";
 }
 
 /** Sidebar entries hidden, per mode (ids of `SIDEBAR_ENTRIES`). */
@@ -30,7 +32,7 @@ export type SidebarHidden = Partial<Record<Mode, string[]>>;
 
 const ALL_KINDS = KINDS.map((k) => k.kind);
 
-export const DEFAULT_LIBRARY_SETTINGS: LibrarySettings = { modes: ALL_KINDS, lastMode: null, lastKinds: [], hidden: {}, sidebarOwn: false, patterns: [], links: false };
+export const DEFAULT_LIBRARY_SETTINGS: LibrarySettings = { modes: ALL_KINDS, lastMode: null, lastKinds: [], hidden: {}, sidebarOwn: false, patterns: [], links: false, linksTrash: "with" };
 
 /** Sidebar entries that can be hidden. "すべて" and "ゴミ箱" always stay. */
 export const SIDEBAR_ENTRIES: { id: string; label: string; modes?: Mode[] }[] = [
@@ -87,6 +89,7 @@ export function parseLibrarySettings(raw: Record<string, unknown>): LibrarySetti
     sidebarOwn,
     patterns: strings(raw.specimenPatterns).filter((t) => t.trim()),
     links: raw.links === true,
+    linksTrash: raw.linksTrash === "keep" ? "keep" : "with",
   };
 }
 

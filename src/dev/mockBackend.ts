@@ -24,10 +24,12 @@ type MockItem = Omit<
   | "durationMs"
   | "inTray"
   | "parentId"
+  | "adopted"
 > & {
   hue: number;
   /** The parent of a linked child (docs/LINKS.md). */
   parentId?: string | null;
+  adopted?: boolean;
   sourceUrl?: string;
   fontFamily?: string;
   fontWeight?: number;
@@ -527,6 +529,7 @@ const view = (it: MockItem): Item => {
     durationMs: it.durationMs ?? null,
     inTray: tray.has(it.id),
     parentId: it.parentId ?? null,
+    adopted: it.adopted ?? false,
     preview: null,
     folderId,
     tagIds,
@@ -722,6 +725,7 @@ function withLinked(ids: string[]): string[] {
 /** Where a child stands, for the undo (db.rs `Placement`). */
 const placementOf = (id: string) => ({
   id,
+  adopted: items.find((x) => x.id === id)?.adopted ?? false,
   parentId: items.find((x) => x.id === id)?.parentId ?? null,
   folderId: folders.find((f) => inFolder(id, f.id))?.id ?? null,
 });
@@ -970,6 +974,15 @@ function handle(cmd: string, a: any): unknown {
       items.find((i) => i.id === a.id)!.name = a.name;
       return;
     case "trash_items":
+      // "keep": the children of a trashed parent are freed instead of going along (docs/LINKS.md).
+      if (librarySettings.linksTrash === "keep") {
+        items
+          .filter((i) => i.parentId && a.ids.includes(i.parentId) && !a.ids.includes(i.id))
+          .forEach((i) => {
+            i.parentId = null;
+            i.adopted = false;
+          });
+      }
       items
         .filter((i) => a.ids.includes(i.id) || (i.parentId && a.ids.includes(i.parentId)))
         .forEach((i) => (i.deletedAt ??= Date.now()));
@@ -1388,6 +1401,7 @@ function handle(cmd: string, a: any): unknown {
         if (items.some((i) => i.parentId === c.id)) continue;
         moved.push(placementOf(id));
         c.parentId = parent.id;
+        c.adopted = false;
         setFolder(id, folders.find((f) => inFolder(parent.id, f.id))?.id ?? null);
       }
       return moved;
@@ -1399,6 +1413,7 @@ function handle(cmd: string, a: any): unknown {
         if (!c?.parentId) continue;
         out.push(placementOf(id));
         c.parentId = null;
+        c.adopted = false;
       }
       return out;
     }
@@ -1407,9 +1422,17 @@ function handle(cmd: string, a: any): unknown {
         const c = items.find((i) => i.id === p.id);
         if (!c) continue;
         c.parentId = p.parentId;
+        c.adopted = p.adopted;
         setFolder(p.id, p.folderId);
       }
       return;
+    case "set_adopted": {
+      const c = items.find((i) => i.id === a.id);
+      if (!c?.parentId) return;
+      if (a.on) items.filter((i) => i.parentId === c.parentId).forEach((i) => (i.adopted = false));
+      c.adopted = a.on;
+      return;
+    }
     case "count_links":
       return items.filter((i) => i.parentId).length;
     case "set_links_enabled": {
@@ -1418,7 +1441,10 @@ function handle(cmd: string, a: any): unknown {
         return 0;
       }
       const n = items.filter((i) => i.parentId).length;
-      items.forEach((i) => (i.parentId = null));
+      items.forEach((i) => {
+        i.parentId = null;
+        i.adopted = false;
+      });
       delete librarySettings.links;
       return n;
     }

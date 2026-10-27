@@ -1479,6 +1479,12 @@ pub fn restore_links(state: State<AppState>, placements: Vec<db::Placement>) -> 
     with_lib(&state, |lib| db::restore_links(&lib.conn, &placements).map_err(err))
 }
 
+/// Picks (or unpicks) a child as the adopted one of its parent's children.
+#[tauri::command]
+pub fn set_adopted(state: State<AppState>, id: String, on: bool) -> CmdResult<()> {
+    with_lib(&state, |lib| db::set_adopted(&lib.conn, &id, on).map_err(err))
+}
+
 /// How many links the library has (the confirmation for turning links off).
 #[tauri::command]
 pub fn count_links(state: State<AppState>) -> CmdResult<i64> {
