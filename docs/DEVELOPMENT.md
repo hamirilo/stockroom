@@ -76,7 +76,7 @@ extension/              Chrome 拡張（Manifest V3、ビルド不要）。ア�
 2. ビルドが終わったら、下書きリリースの本文に**変更点を書く**（下の「リリースノート」）。ワークフローが入れる本文はインストーラの 1 行だけなので、書かないと何が変わったか分からない
 3. 下書きリリースを **Publish**
 
-アプリ内アップデートは `releases/latest/download/latest.json` を見るので、**Publish するまで配信されない**（下書きのうちは旧バージョンのまま）。リリースには次が添付される。
+アプリ内アップデートは `releases/latest/download/latest.json` を見るので（v0.31.1 までは旧名の `2204601/stockroom` を見ていて、GitHub の転送で `hamirilo/stockroom` に届く。この転送が切れると古い版に更新が届かなくなるので、`2204601` の名前で `stockroom` リポジトリを作り直したりアカウント名を変えたりしない）、**Publish するまで配信されない**（下書きのうちは旧バージョンのまま）。リリースには次が添付される。
 
 - `Stockroom_X.Y.Z_aarch64.dmg` / `-setup.exe`：初回インストール用
 - `Stockroom.app.tar.gz` と `.sig`、`-setup.exe` の `.sig`、`latest.json`：アプリ内アップデート用（tauri-action が生成）
