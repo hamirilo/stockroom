@@ -70,4 +70,5 @@ npm test               # Rust のユニットテスト + 型チェック
 | [TEXT.md](docs/TEXT.md) | テキスト（Markdown・テキスト・CSV）：見る・編集・新規作成・文字コード |
 | [VIDEO.md](docs/VIDEO.md) | 動画（MP4・MOV・WebM）：取り込み・サムネイル・再生 |
 | [EXPORT.md](docs/EXPORT.md) | ライブラリ全体の書き出し（すべてのファイルをフォルダ構成どおりに） |
+| [BOOKMARKS.md](docs/BOOKMARKS.md) | URL（ブックマーク）：決めたことと未決定の点（計画） |
 | [ROADMAP.md](docs/ROADMAP.md) | 今後の予定 |
