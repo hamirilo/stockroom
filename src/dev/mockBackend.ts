@@ -23,8 +23,11 @@ type MockItem = Omit<
   | "fontPsName"
   | "durationMs"
   | "inTray"
+  | "parentId"
 > & {
   hue: number;
+  /** The parent of a linked child (docs/LINKS.md). */
+  parentId?: string | null;
   sourceUrl?: string;
   fontFamily?: string;
   fontWeight?: number;
@@ -523,6 +526,7 @@ const view = (it: MockItem): Item => {
     fontPsName: it.fontPsName ?? null,
     durationMs: it.durationMs ?? null,
     inTray: tray.has(it.id),
+    parentId: it.parentId ?? null,
     preview: null,
     folderId,
     tagIds,
@@ -684,7 +688,54 @@ function facets(q: ItemQuery) {
   };
 }
 
+/** With links on, a matching child brings its parent into the list, `viaChild` (db.rs `add_parents`). */
+function withParentsOf(list: Item[], q: ItemQuery): Item[] {
+  if (!q.withParents || librarySettings.links !== true || ["trash", "tray", "similar"].includes(q.view.kind)) return list;
+  const present = new Set(list.map((i) => i.id));
+  const added = new Set<string>();
+  const out: Item[] = [];
+  for (const it of list) {
+    const p = it.parentId && !present.has(it.parentId) && !added.has(it.parentId)
+      ? items.find((x) => x.id === it.parentId && x.deletedAt === null)
+      : undefined;
+    if (p) {
+      added.add(p.id);
+      out.push({ ...view(p), viaChild: true });
+    }
+    out.push(it);
+  }
+  return out;
+}
+
+/** `ids` as a folder change treats them: a child moves only with its parent, a parent takes its children (db.rs `with_linked`). */
+function withLinked(ids: string[]): string[] {
+  const out: string[] = [];
+  for (const id of ids) {
+    const it = items.find((x) => x.id === id);
+    if (!it || (it.parentId && !ids.includes(it.parentId))) continue;
+    if (!out.includes(id)) out.push(id);
+    for (const c of items) if (c.parentId === id && !out.includes(c.id)) out.push(c.id);
+  }
+  return out;
+}
+
+/** Where a child stands, for the undo (db.rs `Placement`). */
+const placementOf = (id: string) => ({
+  id,
+  parentId: items.find((x) => x.id === id)?.parentId ?? null,
+  folderId: folders.find((f) => inFolder(id, f.id))?.id ?? null,
+});
+
+function setFolder(id: string, folderId: string | null) {
+  [...itemFolders.keys()].filter((k) => k.startsWith(`${id}|`)).forEach((k) => itemFolders.delete(k));
+  if (folderId) link(id, folderId);
+}
+
 function query(q: ItemQuery): Item[] {
+  return withParentsOf(queryRows(q), q);
+}
+
+function queryRows(q: ItemQuery): Item[] {
   let r = matched(q);
   const v = q.view;
   // Pinned items lead every list, latest pin first.
@@ -919,19 +970,25 @@ function handle(cmd: string, a: any): unknown {
       items.find((i) => i.id === a.id)!.name = a.name;
       return;
     case "trash_items":
-      items.filter((i) => a.ids.includes(i.id)).forEach((i) => (i.deletedAt ??= Date.now()));
+      items
+        .filter((i) => a.ids.includes(i.id) || (i.parentId && a.ids.includes(i.parentId)))
+        .forEach((i) => (i.deletedAt ??= Date.now()));
       return;
     case "restore_items":
-      items.filter((i) => a.ids.includes(i.id)).forEach((i) => (i.deletedAt = null));
+      items
+        .filter((i) => a.ids.includes(i.id) || (i.parentId && a.ids.includes(i.parentId)))
+        .forEach((i) => (i.deletedAt = null));
       return;
     case "delete_items":
     case "empty_trash": {
       const del = cmd === "empty_trash" ? items.filter((i) => i.deletedAt !== null).map((i) => i.id) : a.ids;
       for (const d of del) items.splice(items.findIndex((i) => i.id === d), 1);
+      // Deleting a parent for good frees its children.
+      for (const i of items) if (i.parentId && del.includes(i.parentId)) i.parentId = null;
       return;
     }
     case "video_codecs":
-      return { video: "H.264", audio: "AAC" };
+      return { video: "H.264", audio: "AAC", frameRate: 29.97 };
     case "reveal_item":
     case "open_items":
       return;
@@ -1314,8 +1371,56 @@ function handle(cmd: string, a: any): unknown {
     case "move_to_folder": {
       // Only the items of the folder's mode go in.
       const mode = folders.find((f) => f.id === a.folderId)?.mode;
-      a.ids.filter((i: string) => modeOfItem(i) === mode).forEach((i: string) => link(i, a.folderId));
+      withLinked(a.ids)
+        .filter((i: string) => modeOfItem(i) === mode)
+        .forEach((i: string) => link(i, a.folderId));
       return;
+    }
+    // Parent–child links (docs/LINKS.md; db.rs link_items and friends).
+    case "link_items": {
+      if (librarySettings.links !== true) throw "親子関係が無効です。設定で有効にしてください。";
+      const parent = items.find((i) => i.id === a.parentId);
+      if (!parent || parent.parentId || parent.deletedAt !== null || modeOf(parent.kind) !== "stock") return [];
+      const moved = [];
+      for (const id of a.ids as string[]) {
+        const c = items.find((i) => i.id === id);
+        if (!c || c.id === parent.id || c.deletedAt !== null || modeOf(c.kind) !== "stock") continue;
+        if (items.some((i) => i.parentId === c.id)) continue;
+        moved.push(placementOf(id));
+        c.parentId = parent.id;
+        setFolder(id, folders.find((f) => inFolder(parent.id, f.id))?.id ?? null);
+      }
+      return moved;
+    }
+    case "unlink_items": {
+      const out = [];
+      for (const id of a.ids as string[]) {
+        const c = items.find((i) => i.id === id);
+        if (!c?.parentId) continue;
+        out.push(placementOf(id));
+        c.parentId = null;
+      }
+      return out;
+    }
+    case "restore_links":
+      for (const p of a.placements as ReturnType<typeof placementOf>[]) {
+        const c = items.find((i) => i.id === p.id);
+        if (!c) continue;
+        c.parentId = p.parentId;
+        setFolder(p.id, p.folderId);
+      }
+      return;
+    case "count_links":
+      return items.filter((i) => i.parentId).length;
+    case "set_links_enabled": {
+      if (a.on) {
+        librarySettings.links = true;
+        return 0;
+      }
+      const n = items.filter((i) => i.parentId).length;
+      items.forEach((i) => (i.parentId = null));
+      delete librarySettings.links;
+      return n;
     }
     case "reorder_in_folder": {
       const order = [...itemFolders.entries()]
@@ -1329,7 +1434,7 @@ function handle(cmd: string, a: any): unknown {
       return;
     }
     case "remove_from_folder":
-      a.ids.forEach((i: string) => itemFolders.delete(`${i}|${a.folderId}`));
+      withLinked(a.ids).forEach((i: string) => itemFolders.delete(`${i}|${a.folderId}`));
       return;
     case "list_tags":
       return [...tags]

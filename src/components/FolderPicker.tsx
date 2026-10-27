@@ -35,7 +35,8 @@ function flatten(folders: Folder[]): Row[] {
 
 export function FolderPicker() {
   const mode = useStore((s) => s.picker);
-  if (!mode) return null;
+  // "parent" is the ParentPicker's.
+  if (!mode || mode === "parent") return null;
   return <PickerDialog mode={mode} />;
 }
 

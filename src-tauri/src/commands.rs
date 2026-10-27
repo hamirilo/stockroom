@@ -1453,6 +1453,44 @@ pub fn move_to_folder(state: State<AppState>, ids: Vec<String>, folder_id: Strin
     with_lib(&state, |lib| db::move_to_folder(&lib.conn, &ids, &folder_id).map_err(err))
 }
 
+// ---------------------------------------------------------------- links (docs/LINKS.md)
+
+/// Makes `ids` children of `parent_id`, moving them to its folder. Returns where they
+/// stood, for the undo (`restore_links`).
+#[tauri::command]
+pub fn link_items(state: State<AppState>, parent_id: String, ids: Vec<String>) -> CmdResult<Vec<db::Placement>> {
+    with_lib(&state, |lib| {
+        if !db::links_enabled(&lib.conn).map_err(err)? {
+            return Err("親子関係が無効です。設定で有効にしてください。".into());
+        }
+        db::link_items(&lib.conn, &parent_id, &ids).map_err(err)
+    })
+}
+
+/// Takes `ids` out of their parents; returns what they were, for the undo.
+#[tauri::command]
+pub fn unlink_items(state: State<AppState>, ids: Vec<String>) -> CmdResult<Vec<db::Placement>> {
+    with_lib(&state, |lib| db::unlink_items(&lib.conn, &ids).map_err(err))
+}
+
+/// Puts children back as `link_items` / `unlink_items` found them.
+#[tauri::command]
+pub fn restore_links(state: State<AppState>, placements: Vec<db::Placement>) -> CmdResult<()> {
+    with_lib(&state, |lib| db::restore_links(&lib.conn, &placements).map_err(err))
+}
+
+/// How many links the library has (the confirmation for turning links off).
+#[tauri::command]
+pub fn count_links(state: State<AppState>) -> CmdResult<i64> {
+    with_lib(&state, |lib| db::count_links(&lib.conn).map_err(err))
+}
+
+/// Turns links on or off; off removes them all and returns how many.
+#[tauri::command]
+pub fn set_links_enabled(state: State<AppState>, on: bool) -> CmdResult<i64> {
+    with_lib(&state, |lib| db::set_links_enabled(&lib.conn, on).map_err(err))
+}
+
 /// Drops a folder under `parent_id`, in front of sibling `before` (None = last).
 #[tauri::command]
 pub fn place_folder(

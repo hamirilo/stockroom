@@ -247,6 +247,9 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     cmd("item.moveToLast"),
     cmd("item.newFolder"),
     cmd("item.unfile"),
+    sep(),
+    cmd("item.link"),
+    cmd("item.unlink"),
   ]);
 
   const view = submenu("表示", [
