@@ -891,7 +891,7 @@ function handle(cmd: string, a: any): unknown {
       return;
     }
     case "video_codecs":
-      return { video: "H.264", audio: "AAC" };
+      return { video: "H.264", audio: "AAC", frameRate: 29.97 };
     case "reveal_item":
     case "open_items":
       return;
