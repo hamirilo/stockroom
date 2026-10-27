@@ -190,6 +190,11 @@ export const fontFeatureLabel = (k: string) => FONT_FEATURES.find((x) => x.key =
 export const fontCategoryOf = (item: Pick<Item, "fontCategory" | "fontCategoryUser">) =>
   item.fontCategoryUser ?? item.fontCategory ?? "none";
 
+export interface VideoCodecs {
+  video: string | null;
+  audio: string | null;
+}
+
 export interface Item {
   id: string;
   kind: ItemKind;
@@ -565,6 +570,8 @@ export const api = {
   deleteItems: (ids: string[]) => invoke<void>("delete_items", { ids }),
   emptyTrash: () => invoke<void>("empty_trash"),
   revealItem: (id: string) => invoke<void>("reveal_item", { id }),
+  /** A video's codecs, read from its headers (null = not found). */
+  videoCodecs: (id: string) => invoke<VideoCodecs>("video_codecs", { id }),
   openItems: (ids: string[]) => invoke<void>("open_items", { ids }),
   setRating: (ids: string[], rating: number) => invoke<void>("set_rating", { ids, rating }),
   setFavorite: (ids: string[], on: boolean) => invoke<void>("set_favorite", { ids, on }),

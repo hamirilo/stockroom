@@ -93,9 +93,9 @@ export const MODE_LAYOUTS: Record<Mode, Layout[]> = {
 
 /** Groupings of each mode. */
 export const MODE_GROUPS: Record<Mode, GroupBy[]> = {
-  stock: ["none", "kind", "rating", "tag", "folder"],
+  stock: ["none", "kind", "year", "month", "rating", "tag", "folder"],
   // Fonts are always one row per family (▸ opens its styles), so no family grouping.
-  font: ["none", "category", "script", "rating", "tag", "folder"],
+  font: ["none", "category", "script", "year", "month", "rating", "tag", "folder"],
 };
 
 /** What the grid shows under each thumbnail. */
@@ -589,7 +589,7 @@ function arrange(s: {
 }
 
 /** Groupings by what only library items have (docs/SYSTEM_FONTS.md). */
-export const LIBRARY_GROUPS: GroupBy[] = ["rating", "tag", "folder"];
+export const LIBRARY_GROUPS: GroupBy[] = ["year", "month", "rating", "tag", "folder"];
 
 /** The grouping in effect: none for the installed fonts' list when it is by rating, tag or folder. */
 export const shownGroupBy = (s: { view: View; groupBy: GroupBy }): GroupBy =>

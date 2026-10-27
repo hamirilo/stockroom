@@ -44,6 +44,28 @@ pub fn probe(path: &Path, ext: &str) -> Info {
     }
 }
 
+/// The codecs of a video's first picture and sound tracks, as people name them
+/// ("H.264", "AAC"). None = no such track, or the file's headers say nothing.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Codecs {
+    pub video: Option<String>,
+    pub audio: Option<String>,
+}
+
+/// Reads the codecs of the video at `path` from its headers (nothing is
+/// decoded). Never fails: a file that can't be read gives no codecs.
+pub fn codecs(path: &Path, ext: &str) -> Codecs {
+    let Ok(mut f) = File::open(path) else { return Codecs::default() };
+    match ext {
+        "webm" => {
+            let mut head = Vec::new();
+            let _ = (&mut f).take(WEBM_HEAD).read_to_end(&mut head);
+            webm_codecs(&head)
+        }
+        _ => read_moov(&mut f).map_or_else(Codecs::default, |moov| mp4_codecs(&moov)),
+    }
+}
+
 // ------------------------------------------------------------------ MP4 / MOV
 
 /// The `moov` box is read whole, up to this size (it holds the sample tables
@@ -54,7 +76,12 @@ const MOOV_MAX: u64 = 64 << 20;
 /// `moov`, then reads the length from `mvhd` and the picture size from the
 /// largest `tkhd`.
 fn mp4_info(f: &mut File) -> Info {
-    let Ok(total) = f.metadata().map(|m| m.len()) else { return Info::default() };
+    read_moov(f).map_or_else(Info::default, |moov| moov_info(&moov))
+}
+
+/// The payload of the file's `moov` box, if it has one within `MOOV_MAX`.
+fn read_moov(f: &mut File) -> Option<Vec<u8>> {
+    let total = f.metadata().map(|m| m.len()).ok()?;
     let mut pos = 0u64;
     while pos + 8 <= total {
         let mut h = [0u8; 16];
@@ -84,11 +111,11 @@ fn mp4_info(f: &mut File) -> Info {
             if f.read_exact(&mut buf).is_err() {
                 break;
             }
-            return moov_info(&buf);
+            return Some(buf);
         }
         pos += size;
     }
-    Info::default()
+    None
 }
 
 /// The boxes inside `data` as (type, payload).
@@ -159,6 +186,64 @@ fn tkhd_size(b: &[u8]) -> Option<(u32, u32)> {
     let matrix = at - 36;
     let sideways = be32(b, matrix)? == 0 && be32(b, matrix + 4)? != 0;
     Some(if sideways { (h, w) } else { (w, h) })
+}
+
+/// Codecs from the `moov` payload: per `trak`, the handler (`hdlr`: video /
+/// sound) and the format of the first sample entry in `stsd`.
+fn mp4_codecs(moov: &[u8]) -> Codecs {
+    let mut out = Codecs::default();
+    for (kind, trak) in boxes(moov) {
+        if &kind != b"trak" {
+            continue;
+        }
+        let Some((_, mdia)) = boxes(trak).into_iter().find(|(k, _)| k == b"mdia") else { continue };
+        let mdia = boxes(mdia);
+        let handler = mdia.iter().find(|(k, _)| k == b"hdlr").and_then(|(_, b)| b.get(8..12));
+        let format = mdia
+            .iter()
+            .find(|(k, _)| k == b"minf")
+            .and_then(|(_, minf)| boxes(minf).into_iter().find(|(k, _)| k == b"stbl"))
+            .and_then(|(_, stbl)| boxes(stbl).into_iter().find(|(k, _)| k == b"stsd"))
+            // version / flags, entry count, then the first entry: size, format.
+            .and_then(|(_, stsd)| stsd.get(12..16));
+        let (Some(handler), Some(format)) = (handler, format) else { continue };
+        match handler {
+            b"vide" if out.video.is_none() => out.video = Some(mp4_codec_name(format)),
+            b"soun" if out.audio.is_none() => out.audio = Some(mp4_codec_name(format)),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Names a sample-entry format (QuickTime / ISO BMFF four-character code).
+fn mp4_codec_name(format: &[u8]) -> String {
+    let known = match format {
+        b"avc1" | b"avc3" => "H.264",
+        b"hvc1" | b"hev1" => "HEVC (H.265)",
+        b"dvh1" | b"dvhe" => "Dolby Vision (HEVC)",
+        b"av01" => "AV1",
+        b"vp09" => "VP9",
+        b"vp08" => "VP8",
+        b"mp4v" => "MPEG-4 Visual",
+        b"apch" | b"apcn" | b"apcs" | b"apco" | b"ap4h" | b"ap4x" => "Apple ProRes",
+        b"jpeg" | b"mjpa" => "Motion JPEG",
+        b"mp4a" => "AAC",
+        b"ac-3" => "Dolby Digital (AC-3)",
+        b"ec-3" => "Dolby Digital Plus (E-AC-3)",
+        b"alac" => "Apple Lossless (ALAC)",
+        b"Opus" | b"opus" => "Opus",
+        b"fLaC" => "FLAC",
+        b".mp3" | b"mp3 " => "MP3",
+        b"lpcm" | b"sowt" | b"twos" | b"in24" | b"in32" | b"fl32" | b"fl64" => "PCM",
+        _ => "",
+    };
+    if known.is_empty() {
+        // Unknown: the code itself says more than nothing.
+        let raw = String::from_utf8_lossy(format).trim().to_string();
+        return if raw.is_empty() { "不明".into() } else { raw };
+    }
+    known.into()
 }
 
 // ---------------------------------------------------------------------- WebM
@@ -240,6 +325,75 @@ fn webm_walk(d: &[u8], out: &mut Webm) {
     }
 }
 
+/// Codecs from a WebM file's head: the `CodecID` (e.g. "V_VP9") of the first
+/// video and the first audio track.
+fn webm_codecs(head: &[u8]) -> Codecs {
+    const SEGMENT: u32 = 0x1853_8067;
+    const TRACKS: u32 = 0x1654_AE6B;
+    const ENTRY: u32 = 0xAE;
+    const TRACK_TYPE: u32 = 0x83;
+    const CODEC_ID: u32 = 0x86;
+    // The elements inside one `ENTRY`: (track type, codec id).
+    fn entry(d: &[u8]) -> (u64, String) {
+        let (mut kind, mut codec) = (0, String::new());
+        let mut at = 0;
+        while let Some((id, size, body)) = ebml_head(d, at) {
+            let end = size.map_or(d.len(), |s| body.saturating_add(s as usize)).min(d.len());
+            let data = &d[body.min(end)..end];
+            match id {
+                TRACK_TYPE => kind = ebml_uint(data),
+                CODEC_ID => codec = String::from_utf8_lossy(data).trim_end_matches('\0').to_string(),
+                _ => {}
+            }
+            if end <= at {
+                break;
+            }
+            at = end;
+        }
+        (kind, codec)
+    }
+    fn walk(d: &[u8], out: &mut Codecs) {
+        let mut at = 0;
+        while let Some((id, size, body)) = ebml_head(d, at) {
+            let end = size.map_or(d.len(), |s| body.saturating_add(s as usize)).min(d.len());
+            let data = &d[body.min(end)..end];
+            match id {
+                SEGMENT | TRACKS => walk(data, out),
+                ENTRY => match entry(data) {
+                    (1, c) if out.video.is_none() => out.video = Some(webm_codec_name(&c)),
+                    (2, c) if out.audio.is_none() => out.audio = Some(webm_codec_name(&c)),
+                    _ => {}
+                },
+                _ => {}
+            }
+            if end <= at {
+                break;
+            }
+            at = end;
+        }
+    }
+    let mut out = Codecs::default();
+    walk(head, &mut out);
+    out
+}
+
+fn webm_codec_name(id: &str) -> String {
+    match id {
+        "V_VP8" => "VP8",
+        "V_VP9" => "VP9",
+        "V_AV1" => "AV1",
+        "V_MPEG4/ISO/AVC" => "H.264",
+        "V_MPEGH/ISO/HEVC" => "HEVC (H.265)",
+        "A_OPUS" => "Opus",
+        "A_VORBIS" => "Vorbis",
+        "A_FLAC" => "FLAC",
+        "A_AAC" => "AAC",
+        "" => "不明",
+        other => other,
+    }
+    .into()
+}
+
 fn webm_info(head: &[u8]) -> Info {
     let mut w = Webm::default();
     webm_walk(head, &mut w);
@@ -304,10 +458,32 @@ pub mod tests {
     }
 
     #[test]
+    fn mp4_codecs_of_each_track() {
+        let track = |handler: &[u8; 4], format: &[u8; 4]| {
+            let mut hdlr = vec![0u8; 8];
+            hdlr.extend_from_slice(handler);
+            let mut stsd = vec![0u8; 4];
+            stsd.extend_from_slice(&1u32.to_be_bytes());
+            stsd.extend_from_slice(&16u32.to_be_bytes());
+            stsd.extend_from_slice(format);
+            let stbl = bx(b"stbl", &bx(b"stsd", &stsd));
+            bx(b"trak", &bx(b"mdia", &[bx(b"hdlr", &hdlr), bx(b"minf", &stbl)].concat()))
+        };
+        let moov = [track(b"vide", b"hvc1"), track(b"soun", b"mp4a")].concat();
+        assert_eq!(
+            mp4_codecs(&moov),
+            Codecs { video: Some("HEVC (H.265)".into()), audio: Some("AAC".into()) }
+        );
+        let moov = track(b"vide", b"zzzz");
+        assert_eq!(mp4_codecs(&moov), Codecs { video: Some("zzzz".into()), audio: None });
+    }
+
+    #[test]
     fn broken_files_give_nothing() {
         assert_eq!(probe_bytes(b"not a video", "mp4"), Info::default());
         assert_eq!(probe_bytes(&[], "webm"), Info::default());
         assert_eq!(probe(Path::new("/no/such/file.mp4"), "mp4"), Info::default());
+        assert_eq!(codecs(Path::new("/no/such/file.mp4"), "mp4"), Codecs::default());
     }
 
     fn el(id: &[u8], body: &[u8]) -> Vec<u8> {
@@ -324,5 +500,14 @@ pub mod tests {
         let segment = [&[0x18, 0x53, 0x80, 0x67, 0xFF][..], &info, &tracks].concat();
         let i = probe_bytes(&[el(&[0x1A, 0x45, 0xDF, 0xA3], &[]), segment].concat(), "webm");
         assert_eq!((i.width, i.height, i.duration_ms), (640, 360, Some(2500)));
+    }
+
+    #[test]
+    fn webm_codecs_of_each_track() {
+        let entry = |kind: u8, codec: &[u8]| el(&[0xAE], &[el(&[0x83], &[kind]), el(&[0x86], codec)].concat());
+        let tracks = el(&[0x16, 0x54, 0xAE, 0x6B], &[entry(1, b"V_VP9"), entry(2, b"A_OPUS")].concat());
+        let segment = [&[0x18, 0x53, 0x80, 0x67, 0xFF][..], &tracks].concat();
+        let c = webm_codecs(&[el(&[0x1A, 0x45, 0xDF, 0xA3], &[]), segment].concat());
+        assert_eq!(c, Codecs { video: Some("VP9".into()), audio: Some("Opus".into()) });
     }
 }

@@ -5,9 +5,9 @@
 // section, so layouts and navigation keep working on plain indices.
 import { FONT_CATEGORIES, FONT_SCRIPTS, fontCategoryOf, KINDS, type Folder, type Item, type Tag } from "./api";
 
-export type GroupBy = "none" | "kind" | "category" | "script" | "rating" | "tag" | "folder";
+export type GroupBy = "none" | "kind" | "category" | "script" | "rating" | "tag" | "folder" | "year" | "month";
 
-export const GROUP_BYS: GroupBy[] = ["none", "kind", "category", "script", "rating", "tag", "folder"];
+export const GROUP_BYS: GroupBy[] = ["none", "kind", "category", "script", "rating", "tag", "folder", "year", "month"];
 
 export interface Section {
   /** Index of the first item, and one past the last. */
@@ -112,6 +112,21 @@ function build(buckets: { items: Item[]; title: string; color?: string | null; r
   return { items, sections };
 }
 
+/** Sections by the month (or year) an item was added, newest first; local time. */
+function byDate(rows: Item[], by: "year" | "month") {
+  const buckets = new Map<string, Item[]>();
+  for (const i of rows) {
+    const d = new Date(i.importedAt);
+    const key = by === "year" ? `${d.getFullYear()}年` : `${d.getFullYear()}年${d.getMonth() + 1}月`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(i);
+  }
+  const newest = (list: Item[]) => Math.max(...list.map((i) => i.importedAt));
+  return [...buckets]
+    .sort((a, b) => newest(b[1]) - newest(a[1]))
+    .map(([title, items]) => ({ items, title }));
+}
+
 /**
  * Regroups `items` (already sorted) by `by`. Inside a section the order is
  * kept. With tags an item appears under each of its tags (a family under
@@ -176,6 +191,9 @@ export function groupItems(items: Item[], by: GroupBy, tags: Tag[], folders: Fol
         { items: rows.filter((r) => of.get(r)!.size === 0), title: "タグなし" },
       ]);
     }
+    case "year":
+    case "month":
+      return grouped(byDate(rows, by));
     case "folder":
       return grouped([
         ...folderPaths(folders).map(({ folder, path }) => ({
