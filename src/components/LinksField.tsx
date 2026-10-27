@@ -1,4 +1,5 @@
-// The details panel's "紐づけ" section (docs/LINKS.md): the item's parent or
+// The details panel's "紐づけ" section body (docs/LINKS.md; the heading is the
+// Inspector's collapsible section): the item's parent or
 // children, and the link / unlink buttons. With links off it stays, greyed,
 // and says where to turn them on (docs/UI.md: don't move the controls around).
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -40,8 +41,7 @@ export function LinksField({ ids, single }: { ids: string[]; single: Item | unde
   const unlinkable = on ? linkedIn(ids).length : 0;
 
   return (
-    <div className="mt-4">
-      <div className="mb-1.5 text-xs font-semibold text-dim">紐づけ</div>
+    <div>
       {!on && (
         <p className="mb-2 text-xs text-dim">
           親子関係は無効です。

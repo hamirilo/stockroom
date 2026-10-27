@@ -2,6 +2,8 @@ import { colorHex } from "../lib/colors";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
+  ChevronDown,
+  ChevronRight,
   Folder as FolderIcon,
   Heart,
   Layers,
@@ -187,6 +189,60 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+const SECTION_KEY = "inspector.section.";
+
+/**
+ * A collapsible group (整理, 紐づけ, メモ, ファイル情報). Only the user opens or
+ * closes it (docs/UI.md); the choice is remembered. Closed, the right side of
+ * the heading says what is inside.
+ */
+function Section({
+  id,
+  title,
+  summary,
+  defaultOpen = false,
+  children,
+}: {
+  id: string;
+  title: string;
+  summary?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(() => {
+    try {
+      const v = localStorage.getItem(SECTION_KEY + id);
+      return v === null ? defaultOpen : v === "1";
+    } catch {
+      return defaultOpen;
+    }
+  });
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    try {
+      localStorage.setItem(SECTION_KEY + id, next ? "1" : "0");
+    } catch {
+      /* best effort */
+    }
+  };
+  return (
+    <div className="border-t border-line last:border-b">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-1.5 rounded px-1 py-2.5 text-left text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        {title}
+        {!open && summary && <span className="ml-auto min-w-0 truncate pl-3 font-normal text-dim">{summary}</span>}
+      </button>
+      {open && <div className="pr-1 pb-3 pl-[22px]">{children}</div>}
+    </div>
+  );
+}
+
 function Chip({
   children,
   onRemove,
@@ -304,6 +360,7 @@ export function FlagButton({
   hint,
   onClick,
   activeClass,
+  compact,
 }: {
   state: boolean | null;
   icon: React.ReactNode;
@@ -311,24 +368,35 @@ export function FlagButton({
   hint: string;
   onClick: () => void;
   activeClass: string;
+  /** Icon only (the label is the tooltip); a mixed selection has a dashed border. */
+  compact?: boolean;
 }) {
+  const mixed = state === null;
   return (
     <button
       onClick={onClick}
-      title={hint}
-      className={`flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border text-xs ${
-        state ? activeClass : state === null ? "border-line text-dim hover:bg-white/5" : "border-line hover:bg-white/5"
+      title={mixed ? `${hint}（混在）` : hint}
+      aria-label={mixed ? `${label}（混在）` : label}
+      aria-pressed={mixed ? "mixed" : state}
+      className={`flex h-8 items-center justify-center gap-1.5 rounded-md border text-xs ${
+        compact ? "w-9 shrink-0" : "flex-1"
+      } ${
+        state
+          ? activeClass
+          : mixed
+            ? "border-dashed border-line text-dim hover:bg-white/5"
+            : "border-line hover:bg-white/5"
       }`}
     >
       {icon}
-      {label}
-      {state === null && <span className="text-[10px] text-dim">（混在）</span>}
+      {!compact && label}
+      {!compact && mixed && <span className="text-[10px] text-dim">（混在）</span>}
     </button>
   );
 }
 
 /** Favourite, pin and tray buttons for `ids` (state read from the loaded items). */
-export function FlagButtons({ ids, items }: { ids: string[]; items: Item[] }) {
+export function FlagButtons({ ids, items, compact }: { ids: string[]; items: Item[]; compact?: boolean }) {
   const sel = items.filter((i) => ids.includes(i.id));
   const state = (flag: (i: Item) => boolean): boolean | null => {
     const n = sel.filter(flag).length;
@@ -337,10 +405,22 @@ export function FlagButtons({ ids, items }: { ids: string[]; items: Item[] }) {
   const fav = state((i) => i.favorite);
   const pin = state((i) => i.pinnedAt !== null);
   const tray = state((i) => i.inTray);
+  const shelf = (
+    <FlagButton
+      compact={compact}
+      state={tray}
+      icon={<Layers size={14} />}
+      label={tray ? "シェルフにあります" : "シェルフに追加"}
+      hint={tray ? "シェルフから外す（キー B）" : "シェルフ（詳細パネルのタブ）に置いて、比べる・まとめて出力・書き出し（キー B）"}
+      activeClass="border-emerald-500/60 bg-emerald-500/15 text-emerald-400"
+      onClick={() => toggleTray(ids)}
+    />
+  );
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-2">
+    <div className={compact ? "flex gap-1" : "flex flex-col gap-2"}>
+      <div className={compact ? "contents" : "flex gap-2"}>
         <FlagButton
+          compact={compact}
           state={fav}
           icon={<Heart size={14} fill={fav ? "currentColor" : "none"} />}
           label={fav ? "お気に入り" : "お気に入りに追加"}
@@ -349,6 +429,7 @@ export function FlagButtons({ ids, items }: { ids: string[]; items: Item[] }) {
           onClick={() => toggleFavorite(ids, { quiet: true })}
         />
         <FlagButton
+          compact={compact}
           state={pin}
           icon={<Pin size={14} fill={pin ? "currentColor" : "none"} />}
           label={pin ? "ピン留め中" : "ピン留め"}
@@ -357,16 +438,7 @@ export function FlagButtons({ ids, items }: { ids: string[]; items: Item[] }) {
           onClick={() => togglePinned(ids, { quiet: true })}
         />
       </div>
-      <div className="flex">
-        <FlagButton
-          state={tray}
-          icon={<Layers size={14} />}
-          label={tray ? "シェルフにあります" : "シェルフに追加"}
-          hint={tray ? "シェルフから外す（キー B）" : "シェルフ（詳細パネルのタブ）に置いて、比べる・まとめて出力・書き出し（キー B）"}
-          activeClass="border-emerald-500/60 bg-emerald-500/15 text-emerald-400"
-          onClick={() => toggleTray(ids)}
-        />
-      </div>
+      {compact ? shelf : <div className="flex">{shelf}</div>}
     </div>
   );
 }
@@ -393,6 +465,8 @@ export function Inspector() {
     [items, selected],
   );
   const renameSeq = useStore((s) => s.renameItemSeq);
+  const linksOn = useStore((s) => s.librarySettings.links);
+  const rawItems = useStore((s) => s.rawItems);
   // Common rating of the selection, or null when mixed.
   const rating = useMemo(() => {
     const rs = new Set(items.filter((i) => selected.has(i.id)).map((i) => i.rating));
@@ -439,6 +513,24 @@ export function Inspector() {
   const countSuffix = (c: number) => (n > 1 && c < n ? ` (${c}/${n})` : "");
   const unusedFolders = folders.filter((f) => !info.folders.some((x) => x.id === f.id && x.count === n));
 
+  // What each closed section says on its heading.
+  const childCount = single ? rawItems.filter((i) => i.parentId === single.id).length : 0;
+  const linksSummary = !linksOn ? "無効" : single?.parentId ? "親あり" : childCount ? `子 ${childCount} 件` : "なし";
+  const organizeSummary = `${info.tags.length ? `タグ ${info.tags.length}` : "タグなし"} · ${
+    info.folders.length === 0
+      ? "未分類"
+      : info.folders.length === 1
+        ? folderPath(folders, info.folders[0].id)
+        : `${info.folders.length} フォルダ`
+  }`;
+  const facts = single
+    ? [
+        sizeLabel(single),
+        single.kind !== "bookmark" && `${single.ext.toUpperCase()} · ${formatBytes(single.size)}`,
+        single.kind === "video" && single.durationMs != null && durationLabel(single.durationMs),
+      ].filter(Boolean)
+    : [];
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
       {single ? (
@@ -462,44 +554,19 @@ export function Inspector() {
             onSave={(v) => run(() => api.renameItem(single.id, v))}
             className="mt-3 w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold outline-none hover:border-line focus:border-accent"
           />
-          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-1 text-xs">
-            <dt className="text-dim">{single.kind === "image" || single.kind === "video" ? "サイズ" : "種類"}</dt>
-            <dd className="tabular-nums">
-              {sizeLabel(single)}
-            </dd>
-            {single.kind !== "bookmark" && (
-              <>
-                <dt className="text-dim">形式</dt>
-                <dd>
-                  {single.ext.toUpperCase()} · {formatBytes(single.size)}
-                </dd>
-              </>
-            )}
-            {single.kind === "video" && single.durationMs != null && (
-              <>
-                <dt className="text-dim">再生時間</dt>
-                <dd className="tabular-nums">{durationLabel(single.durationMs)}</dd>
-              </>
-            )}
-            {single.kind === "video" && <VideoCodecRows item={single} />}
-            {single.kind === "font" && <FontDetails item={single} />}
-            <dt className="text-dim">追加日</dt>
-            <dd>{new Date(single.importedAt).toLocaleString("ja-JP")}</dd>
-            {single.sourceUrl && (
-              <>
-                <dt className="text-dim">{single.kind === "bookmark" ? "URL" : "元のページ"}</dt>
-                <dd className="min-w-0">
-                  <button
-                    className="block max-w-full truncate text-left text-accent hover:underline"
-                    title={single.sourceUrl}
-                    onClick={() => openUrl(single.sourceUrl!).catch((e) => useStore.getState().toast(String(e), true))}
-                  >
-                    {urlLabel(single.sourceUrl)}
-                  </button>
-                </dd>
-              </>
-            )}
-          </dl>
+          <div className="px-1 text-xs text-dim tabular-nums">{facts.join(" · ")}</div>
+          {single.sourceUrl && (
+            <div className="mt-1 flex min-w-0 gap-2 px-1 text-xs">
+              <span className="shrink-0 text-dim">{single.kind === "bookmark" ? "URL" : "元のページ"}</span>
+              <button
+                className="min-w-0 truncate text-left text-accent hover:underline"
+                title={single.sourceUrl}
+                onClick={() => openUrl(single.sourceUrl!).catch((e) => useStore.getState().toast(String(e), true))}
+              >
+                {urlLabel(single.sourceUrl)}
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <div className="rounded-lg bg-raised p-4 text-center">
@@ -514,93 +581,128 @@ export function Inspector() {
         </Field>
       )}
 
+      {/* Rating and the flags are one row, icons only (the tooltip says which). */}
       {!isTrash && (
-        <Field label="評価">
+        <div className="mt-3 flex items-center justify-between gap-2 px-1">
           <RatingStars value={rating} onChange={(n) => setRating(ids, n, { quiet: true })} />
-          <div className="mt-2.5">
-            <FlagButtons ids={ids} items={items} />
-          </div>
-        </Field>
+          <FlagButtons ids={ids} items={items} compact />
+        </div>
       )}
 
-      <Field label="タグ">
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {info.tags.map((t) => (
-            <Chip key={t.id} color={t.color} onRemove={() => run(() => api.removeTag(ids, t.id))}>
-              {t.name}
-              {countSuffix(t.count)}
-            </Chip>
-          ))}
-        </div>
-        <TagInput
-          exclude={tagIds}
-          onAdd={(names) => {
-            useStore.getState().rememberTags(names);
-            run(() => api.addTags(ids, names));
-          }}
-        />
-      </Field>
-
-      <Field label="フォルダ">
-        <div className="flex flex-col gap-1.5">
-          {info.folders.length === 0 && <span className="text-dim">未分類</span>}
-          {info.folders.map((f) => (
-            <Chip
-              key={f.id}
-              color={folders.find((x) => x.id === f.id)?.color}
-              onRemove={() => run(() => api.removeFromFolder(ids, f.id))}
-            >
-              <FolderIcon size={12} className="mr-1 inline text-dim" />
-              {folderPath(folders, f.id)}
-              {countSuffix(f.count)}
-            </Chip>
-          ))}
-        </div>
-        {adding ? (
-          <select
-            autoFocus
-            defaultValue=""
-            onBlur={() => setAdding(false)}
-            onChange={(e) => {
-              setAdding(false);
-              if (e.target.value) run(() => api.moveToFolder(ids, e.target.value));
-            }}
-            className="mt-2 h-8 w-full rounded-md border border-line bg-bg px-2 outline-none"
-          >
-            <option value="">移動先のフォルダを選択…</option>
-            {unusedFolders.map((f) => (
-              <option key={f.id} value={f.id}>
-                {folderPath(folders, f.id)}
-              </option>
+      <div className="mt-3">
+        <Section id="organize" title="整理" summary={organizeSummary} defaultOpen>
+          <div className="mb-2 flex flex-wrap gap-1.5 empty:hidden">
+            {info.tags.map((t) => (
+              <Chip key={t.id} color={t.color} onRemove={() => run(() => api.removeTag(ids, t.id))}>
+                {t.name}
+                {countSuffix(t.count)}
+              </Chip>
             ))}
-          </select>
-        ) : (
-          folders.length > 0 && (
-            <button
-              onClick={() => setAdding(true)}
-              className="mt-2 flex items-center gap-1 text-xs text-dim hover:text-fg"
-            >
-              <Plus size={13} /> フォルダへ移動
-            </button>
-          )
-        )}
-      </Field>
-
-      {/* Stock only (fonts have families); not in the trash. */}
-      {!isTrash && stock && <LinksField ids={ids} single={single} />}
-
-      {single && (
-        <Field label="メモ">
-          <SavedText
-            key={single.id + ":note"}
-            multiline
-            value={single.note}
-            placeholder="メモを入力"
-            onSave={(v) => run(() => api.setNote(single.id, v))}
-            className="w-full resize-y rounded-md border border-line bg-bg p-2 outline-none focus:border-accent"
+          </div>
+          <TagInput
+            exclude={tagIds}
+            onAdd={(names) => {
+              useStore.getState().rememberTags(names);
+              run(() => api.addTags(ids, names));
+            }}
           />
-        </Field>
-      )}
+          <div className="mt-3 flex flex-col gap-1.5">
+            {info.folders.length === 0 && <span className="text-dim">未分類</span>}
+            {info.folders.map((f) => (
+              <Chip
+                key={f.id}
+                color={folders.find((x) => x.id === f.id)?.color}
+                onRemove={() => run(() => api.removeFromFolder(ids, f.id))}
+              >
+                <FolderIcon size={12} className="mr-1 inline text-dim" />
+                {folderPath(folders, f.id)}
+                {countSuffix(f.count)}
+              </Chip>
+            ))}
+          </div>
+          {adding ? (
+            <select
+              autoFocus
+              defaultValue=""
+              onBlur={() => setAdding(false)}
+              onChange={(e) => {
+                setAdding(false);
+                if (e.target.value) run(() => api.moveToFolder(ids, e.target.value));
+              }}
+              className="mt-2 h-8 w-full rounded-md border border-line bg-bg px-2 outline-none"
+            >
+              <option value="">移動先のフォルダを選択…</option>
+              {unusedFolders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {folderPath(folders, f.id)}
+                </option>
+              ))}
+            </select>
+          ) : (
+            folders.length > 0 && (
+              <button
+                onClick={() => setAdding(true)}
+                className="mt-2 flex items-center gap-1 text-xs text-dim hover:text-fg"
+              >
+                <Plus size={13} /> フォルダへ移動
+              </button>
+            )
+          )}
+        </Section>
+
+        {/* Stock only (fonts have families); not in the trash. */}
+        {!isTrash && stock && (
+          <Section id="links" title="紐づけ" summary={linksSummary}>
+            <LinksField ids={ids} single={single} />
+          </Section>
+        )}
+
+        {single && (
+          <Section id="note" title="メモ" summary={single.note.trim() ? single.note.trim().split("\n")[0] : "なし"}>
+            <SavedText
+              key={single.id + ":note"}
+              multiline
+              value={single.note}
+              placeholder="メモを入力"
+              onSave={(v) => run(() => api.setNote(single.id, v))}
+              className="w-full resize-y rounded-md border border-line bg-bg p-2 outline-none focus:border-accent"
+            />
+          </Section>
+        )}
+
+        {single && (
+          <Section
+            id="file"
+            title="ファイル情報"
+            summary={new Date(single.importedAt).toLocaleDateString("ja-JP")}
+            // A font's details (family, weight …) are what it is: open until the user closes them.
+            defaultOpen={single.kind === "font"}
+          >
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+              <dt className="text-dim">{single.kind === "image" || single.kind === "video" ? "サイズ" : "種類"}</dt>
+              <dd className="tabular-nums">{sizeLabel(single)}</dd>
+              {single.kind !== "bookmark" && (
+                <>
+                  <dt className="text-dim">形式</dt>
+                  <dd>
+                    {single.ext.toUpperCase()} · {formatBytes(single.size)}
+                  </dd>
+                </>
+              )}
+              {single.kind === "video" && single.durationMs != null && (
+                <>
+                  <dt className="text-dim">再生時間</dt>
+                  <dd className="tabular-nums">{durationLabel(single.durationMs)}</dd>
+                </>
+              )}
+              {single.kind === "video" && <VideoCodecRows item={single} />}
+              {single.kind === "font" && <FontDetails item={single} />}
+              <dt className="text-dim">追加日</dt>
+              <dd>{new Date(single.importedAt).toLocaleString("ja-JP")}</dd>
+            </dl>
+          </Section>
+        )}
+      </div>
 
       {/* Elsewhere these are in the row on top and its "…" menu. */}
       {isTrash && (
