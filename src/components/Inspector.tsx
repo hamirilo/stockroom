@@ -22,7 +22,9 @@ import {
   api,
   formatBytes,
   isSystemId,
+  bitRateLabel,
   durationLabel,
+  frameRateLabel,
   sizeLabel,
   type Folder,
   type Item,
@@ -155,15 +157,16 @@ function hostOf(url: string): string {
   }
 }
 
-/** A video's picture and sound codecs, read from the file when the panel shows it. */
-function VideoCodecRows({ id }: { id: string }) {
+/** A video's codecs, frame rate and bit rate, read from the file when the panel shows it. */
+function VideoCodecRows({ item }: { item: Item }) {
+  const id = item.id;
   const [codecs, setCodecs] = useState<VideoCodecs | null>(null);
   useEffect(() => {
     let current = true;
     setCodecs(null);
     api.videoCodecs(id).then(
       (c) => current && setCodecs(c),
-      () => current && setCodecs({ video: null, audio: null }),
+      () => current && setCodecs({ video: null, audio: null, frameRate: null }),
     );
     return () => {
       current = false;
@@ -175,6 +178,10 @@ function VideoCodecRows({ id }: { id: string }) {
       <dd>{codecs ? (codecs.video ?? "不明") : "…"}</dd>
       <dt className="text-dim">音声</dt>
       <dd>{codecs ? (codecs.audio ?? "なし") : "…"}</dd>
+      <dt className="text-dim">フレームレート</dt>
+      <dd className="tabular-nums">{codecs ? (codecs.frameRate ? frameRateLabel(codecs.frameRate) : "不明") : "…"}</dd>
+      <dt className="text-dim" title="ファイル全体（映像と音声）の平均">ビットレート</dt>
+      <dd className="tabular-nums">{item.durationMs ? bitRateLabel(item.size, item.durationMs) : "不明"}</dd>
     </>
   );
 }
@@ -477,7 +484,7 @@ export function Inspector() {
                 <dd className="tabular-nums">{durationLabel(single.durationMs)}</dd>
               </>
             )}
-            {single.kind === "video" && <VideoCodecRows id={single.id} />}
+            {single.kind === "video" && <VideoCodecRows item={single} />}
             {single.kind === "font" && <FontDetails item={single} />}
             <dt className="text-dim">追加日</dt>
             <dd>{new Date(single.importedAt).toLocaleString("ja-JP")}</dd>
