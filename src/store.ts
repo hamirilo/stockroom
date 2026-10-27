@@ -159,7 +159,7 @@ export interface ExportRequest {
 
 /**
  * The settings screen's pages: the app's (一般 … Claude), then the open
- * library's (概要, サイドバー). See docs/SETTINGS.md.
+ * library's (概要, 種類, 親子の紐づけ, サイドバー, フォルダの共有). See docs/SETTINGS.md.
  */
 export type SettingsTab =
   | "general"
@@ -167,6 +167,8 @@ export type SettingsTab =
   | "extension"
   | "claude"
   | "library"
+  | "libraryKinds"
+  | "libraryLinks"
   | "librarySidebar"
   | "libraryShare";
 
