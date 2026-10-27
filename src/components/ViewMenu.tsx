@@ -34,6 +34,8 @@ export const GROUPS: { key: GroupBy; label: string; hint: string }[] = [
   { key: "kind", label: "種類", hint: "画像・ファイル・テキストに分ける" },
   { key: "category", label: "書体", hint: "明朝・ゴシック・丸ゴシック…に分ける" },
   { key: "script", label: "言語", hint: "日本語・欧文・中国語・韓国語に分ける" },
+  { key: "year", label: "年", hint: "追加した年ごとに分ける（新しい順）" },
+  { key: "month", label: "月", hint: "追加した年月ごとに分ける（新しい順）" },
   { key: "rating", label: "評価", hint: "★5 から未評価まで" },
   { key: "tag", label: "タグ", hint: "複数のタグがあるものは各タグに出る" },
   { key: "folder", label: "フォルダ", hint: "「すべて」やサブフォルダ表示で便利" },
