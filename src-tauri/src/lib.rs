@@ -150,6 +150,7 @@ pub fn run() {
             delete_items,
             empty_trash,
             reveal_item,
+            video_codecs,
             open_items,
             set_rating,
             set_favorite,

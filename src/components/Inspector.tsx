@@ -28,6 +28,7 @@ import {
   type Item,
   type SelectionInfo,
   type Tag,
+  type VideoCodecs,
 } from "../lib/api";
 import { FontCategorySelect, FontDetails } from "../features/fonts/FontDetails";
 import { SystemFontPanel } from "../features/fonts/SystemFontPanel";
@@ -152,6 +153,30 @@ function hostOf(url: string): string {
   } catch {
     return url;
   }
+}
+
+/** A video's picture and sound codecs, read from the file when the panel shows it. */
+function VideoCodecRows({ id }: { id: string }) {
+  const [codecs, setCodecs] = useState<VideoCodecs | null>(null);
+  useEffect(() => {
+    let current = true;
+    setCodecs(null);
+    api.videoCodecs(id).then(
+      (c) => current && setCodecs(c),
+      () => current && setCodecs({ video: null, audio: null }),
+    );
+    return () => {
+      current = false;
+    };
+  }, [id]);
+  return (
+    <>
+      <dt className="text-dim">映像</dt>
+      <dd>{codecs ? (codecs.video ?? "不明") : "…"}</dd>
+      <dt className="text-dim">音声</dt>
+      <dd>{codecs ? (codecs.audio ?? "なし") : "…"}</dd>
+    </>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -452,6 +477,7 @@ export function Inspector() {
                 <dd className="tabular-nums">{durationLabel(single.durationMs)}</dd>
               </>
             )}
+            {single.kind === "video" && <VideoCodecRows id={single.id} />}
             {single.kind === "font" && <FontDetails item={single} />}
             <dt className="text-dim">追加日</dt>
             <dd>{new Date(single.importedAt).toLocaleString("ja-JP")}</dd>

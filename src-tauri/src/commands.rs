@@ -646,6 +646,13 @@ pub fn reveal_item(state: State<AppState>, id: String) -> CmdResult<()> {
     tauri_plugin_opener::reveal_item_in_dir(path).map_err(err)
 }
 
+/// The codecs of a video, read from the file's headers (docs/VIDEO.md).
+#[tauri::command]
+pub fn video_codecs(state: State<AppState>, id: String) -> CmdResult<crate::videos::Codecs> {
+    let (item, path) = item_paths(&state, &[id])?.pop().ok_or("動画が見つかりません")?;
+    Ok(crate::videos::codecs(&path, &item.ext))
+}
+
 /// Opens items in the OS default app.
 #[tauri::command]
 pub fn open_items(state: State<AppState>, ids: Vec<String>) -> CmdResult<()> {

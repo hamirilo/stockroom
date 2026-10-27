@@ -11,6 +11,7 @@
 | 取り込み | ファイルを丸ごとメモリに読まない。ディスクからハッシュを取り（重複判定）、そのままコピーする（`import.rs` の `process_video`、`library::copy_file`）。数 GB でも落ちない |
 | サムネイル | OS の 1 コマ（macOS は Quick Look）。取れなければ種類のカード。**Windows は未対応でカードのまま**（シェルのサムネイル API は今後） |
 | 長さ・縦横 | ファイル自身のヘッダから読む（`videos/mod.rs` の `probe`：MP4/MOV は `mvhd`・`tkhd`、WebM は EBML）。ffmpeg は同梱しない。長さは `items.duration_ms`（step 24）、縦横は `width` / `height` |
+| コーデック | 情報パネルの「映像」「音声」に出す。ファイルのヘッダ（MP4/MOV は `stsd` のフォーマット、WebM は `CodecID`）から名前を引く（`videos::codecs`、コマンド `video_codecs`）。DB には持たず、パネルを開いたときにファイルから読む。ヘッダが読めなければ「不明」、音声トラックが無ければ「なし」。ビットレート・フレームレートは未対応 |
 | 再生 | ビューアの `<video>`（`features/videos/VideoView.tsx`）。Web ビューが読める形式だけ。再生できなければサムネイルと「既定のアプリで開く」 |
 | CSP | `media-src 'self' asset: http://asset.localhost` を足した（`tauri.conf.json`。ユーザー承認済み） |
 | 一覧 | サムネイルの右下に再生時間。ホバーのコマ送りは後回し |

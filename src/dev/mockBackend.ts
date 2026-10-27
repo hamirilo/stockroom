@@ -890,6 +890,8 @@ function handle(cmd: string, a: any): unknown {
       for (const d of del) items.splice(items.findIndex((i) => i.id === d), 1);
       return;
     }
+    case "video_codecs":
+      return { video: "H.264", audio: "AAC" };
     case "reveal_item":
     case "open_items":
       return;
