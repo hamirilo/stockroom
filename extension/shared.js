@@ -296,6 +296,110 @@ export async function saveImage(url, { tabId, frameId, pageUrl, title } = {}) {
   return sendToApp(blob, fileName(url, blob.type, title), pageUrl);
 }
 
+/** What the page says about itself. Runs in the page (chrome.scripting), so it can't use anything outside. */
+function readPage() {
+  const meta = (sel) => document.querySelector(sel)?.getAttribute("content")?.replace(/\s+/g, " ").trim() || "";
+  const abs = (u) => {
+    try {
+      return new URL(u, document.baseURI).href;
+    } catch {
+      return "";
+    }
+  };
+  // The biggest icon the page names; /favicon.ico when it names none.
+  const icons = [...document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]')].map((l) => ({
+    href: abs(l.getAttribute("href") || ""),
+    size: Math.max(0, ...(l.getAttribute("sizes") || "").split(/\s+/).map((s) => parseInt(s, 10) || 0)),
+  }));
+  icons.sort((a, b) => b.size - a.size);
+  return {
+    title: document.title.replace(/\s+/g, " ").trim() || meta('meta[property="og:title"]'),
+    description: meta('meta[property="og:description"]') || meta('meta[name="description"]'),
+    image: abs(meta('meta[property="og:image"]') || meta('meta[name="twitter:image"]')),
+    favicons: [...icons.map((i) => i.href).filter(Boolean), abs("/favicon.ico")],
+  };
+}
+
+function toBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+/**
+ * Downloads a picture the page named and redraws it at most `maxSide` px
+ * (PNG, or JPEG for photographs) as a data: URL. Null when it can't be had or
+ * read (an SVG, say); the bookmark is kept without it.
+ */
+async function pictureData(url, maxSide, type) {
+  if (!/^https?:/.test(url)) return null;
+  try {
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    if (blob.size > 12 * 1024 * 1024) return null;
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const canvas = new OffscreenCanvas(Math.max(1, Math.round(bitmap.width * scale)), Math.max(1, Math.round(bitmap.height * scale)));
+    const ctx = canvas.getContext("2d");
+    if (type === "image/jpeg") {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const out = await canvas.convertToBlob({ type, quality: 0.85 });
+    return `data:${type};base64,${toBase64(await out.arrayBuffer())}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Keeps the page of `tab` as a bookmark: its title and description, its
+ * favicon and its eyecatch (og:image), read here in the browser (with its
+ * cookies and proxy settings) and sent to the app, which fetches nothing.
+ * Returns the app's answer ({ imported, duplicates }).
+ */
+export async function saveBookmark(tab) {
+  if (!/^https?:/.test(tab.url ?? "")) throw new AppError("この種類のページはブックマークできません", 0);
+  let page = { title: tab.title ?? "", description: "", image: "", favicons: [] };
+  try {
+    const [{ result } = {}] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readPage });
+    if (result) page = result;
+  } catch {
+    /* the page can't be scripted: the tab's own title and address still do */
+  }
+  const image = page.image ? await pictureData(page.image, 1024, "image/jpeg") : null;
+  let favicon = null;
+  for (const href of page.favicons.slice(0, 3)) {
+    favicon = await pictureData(href, 64, "image/png");
+    if (favicon) break;
+  }
+  const dest = await getDestination();
+  const body = JSON.stringify({
+    url: tab.url,
+    title: page.title || tab.title || "",
+    description: page.description,
+    favicon,
+    image,
+    folder: dest.folderId || null,
+    tags: dest.tags,
+  });
+  try {
+    return await call("/bookmark", { method: "POST", body });
+  } catch (e) {
+    // The chosen folder was deleted in the app: forget it so the next save works.
+    if (e.status === 400 && dest.folderId) await setDestination({ folderId: null });
+    throw e;
+  }
+}
+
+/** "保存しました" / "すでにあります" for a bookmark result. */
+export function bookmarkMessage(res) {
+  return res.imported ? "ブックマークに保存しました" : "すでにブックマークにあります";
+}
+
 /** "保存しました" / "すでにあります" for an import result. */
 export function savedMessage(res) {
   return res.imported ? "Stockroom に保存しました" : "すでに Stockroom にあります";

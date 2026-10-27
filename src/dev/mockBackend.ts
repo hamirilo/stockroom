@@ -266,6 +266,34 @@ function seed() {
       hue: (i * 83 + 200) % 360,
     });
   }
+  // Bookmarks (docs/BOOKMARKS.md): a URL with the page's title; the description is the memo.
+  for (const [i, [title, url, note]] of ([
+    ["Tauri 2.0 ドキュメント", "https://v2.tauri.app/", "クロスプラットフォームのデスクトップアプリを作るためのフレームワーク"],
+    ["食肉の相場情報", "https://www.example.com/market/beef", ""],
+    ["example.com", "https://example.com/", ""],
+  ] as const).entries()) {
+    items.push({
+      id: id(),
+      kind: "bookmark",
+      name: title,
+      fileName: `${title}.url`,
+      ext: "url",
+      width: 0,
+      height: 0,
+      size: 60,
+      thumb: "",
+      note,
+      rating: 0,
+      importedAt: Date.now() - 5_000 + i,
+      deletedAt: null,
+      favorite: false,
+      pinnedAt: null,
+      rotation: 0,
+      flipped: false,
+      hue: (i * 97 + 20) % 360,
+      sourceUrl: url,
+    });
+  }
   // Texts: Markdown, plain text, CSV (docs/TEXT.md), 0 × 0 like files.
   const texts: [string, string][] = [
     [
@@ -388,6 +416,14 @@ function videoSvg(it: MockItem) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`;
 }
 
+/** A bookmark's card: the title and the host (bookmarks/mod.rs draws the real one). */
+function bookmarkSvg(it: MockItem) {
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const host = (it.sourceUrl ?? "").replace(/^https?:\/\/(www\.)?/, "").split("/")[0];
+  const s = `<svg xmlns="http://www.w3.org/2000/svg" width="384" height="384"><rect width="100%" height="100%" fill="#f6f7f9"/><circle cx="48" cy="48" r="20" fill="hsl(${it.hue},55%,50%)"/><text x="28" y="158" font-family="sans-serif" font-size="22" font-weight="600" fill="#1f2328">${esc(it.name.slice(0, 18))}</text><text x="28" y="356" font-family="sans-serif" font-size="16" fill="#6b7280">${esc(host)}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`;
+}
+
 /** A text's thumbnail: its first lines on a page with the type (texts/mod.rs draws the real one). */
 function textSvg(it: MockItem) {
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -440,7 +476,7 @@ function svg(it: MockItem, scale: number, oriented = false) {
 /** The mock image drawn to PNG data, as the real command hands it out. */
 async function sheetImage(it: MockItem, maxSide: number): Promise<ArrayBuffer> {
   const img = new Image();
-  img.src = it.kind === "font" ? fontSvg(it) : it.kind === "file" ? fileSvg(it) : it.kind === "text" ? textSvg(it) : it.kind === "video" ? videoSvg(it) : svg(it, 1, true);
+  img.src = it.kind === "font" ? fontSvg(it) : it.kind === "file" ? fileSvg(it) : it.kind === "text" ? textSvg(it) : it.kind === "video" ? videoSvg(it) : it.kind === "bookmark" ? bookmarkSvg(it) : svg(it, 1, true);
   await img.decode();
   const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   const canvas = document.createElement("canvas");
@@ -461,7 +497,9 @@ const view = (it: MockItem): Item => {
         ? textSvg(it)
         : it.kind === "video"
           ? "data:video/mp4;base64,"
-          : svg(it, 1);
+          : it.kind === "bookmark"
+            ? bookmarkSvg(it)
+            : svg(it, 1);
   const folderId = folders.find((f) => inFolder(it.id, f.id))?.id ?? null;
   const tagIds = tags.filter((t) => hasTag(it.id, t.id)).map((t) => t.id);
   const thumbPath =
@@ -473,7 +511,9 @@ const view = (it: MockItem): Item => {
           ? textSvg(it)
           : it.kind === "video"
             ? videoSvg(it)
-            : svg(it, 3, true);
+            : it.kind === "bookmark"
+              ? bookmarkSvg(it)
+              : svg(it, 3, true);
   return {
     ...it,
     sourceUrl: it.sourceUrl ?? null,
@@ -892,7 +932,7 @@ function handle(cmd: string, a: any): unknown {
         pinned: of(live()).filter((i) => i.pinnedAt !== null).length,
         tray: of(live()).filter((i) => tray.has(i.id)).length,
         kinds: Object.fromEntries(
-          (["image", "font", "file", "text", "video"] as const)
+          (["image", "font", "file", "text", "video", "bookmark"] as const)
             .map((k) => [k, live().filter((i) => i.kind === k).length])
             .filter(([, n]) => n),
         ),
@@ -1009,6 +1049,41 @@ function handle(cmd: string, a: any): unknown {
       it.body = a.text;
       it.size = new TextEncoder().encode(a.text).length;
       return { encoding: "UTF-8", encodingChanged: false };
+    }
+    case "create_bookmark": {
+      const m = /^https?:\/\/[^\s/]+[^\s#]*/i.exec(String(a.url).trim());
+      if (!m) throw "http:// か https:// で始まる URL を入れてください";
+      const url = m[0].replace(/\/+$/, "");
+      const found = items.find((i) => i.kind === "bookmark" && i.sourceUrl?.replace(/\/+$/, "") === url);
+      if (found) {
+        found.deletedAt = null;
+        return { id: found.id, duplicate: true };
+      }
+      const host = url.replace(/^https?:\/\/(www\.)?/i, "").split(/[/?]/)[0];
+      const it: MockItem = {
+        id: id(),
+        kind: "bookmark",
+        name: host,
+        fileName: `${host}.url`,
+        ext: "url",
+        width: 0,
+        height: 0,
+        size: url.length + 30,
+        thumb: "",
+        note: "",
+        rating: 0,
+        importedAt: Date.now(),
+        deletedAt: null,
+        favorite: false,
+        pinnedAt: null,
+        rotation: 0,
+        flipped: false,
+        hue: 200,
+        sourceUrl: url,
+      };
+      items.push(it);
+      if (a.folderId && folders.find((f) => f.id === a.folderId)?.mode === "stock") link(it.id, a.folderId);
+      return { id: it.id, duplicate: false };
     }
     case "create_text": {
       const ext = String(a.name).split(".").pop()!.toLowerCase();

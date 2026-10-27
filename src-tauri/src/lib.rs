@@ -1,4 +1,5 @@
 pub mod appdirs;
+pub mod bookmarks;
 pub mod changes;
 pub mod commands;
 pub mod db;
@@ -174,6 +175,7 @@ pub fn run() {
             texts::commands::read_text,
             texts::commands::save_text,
             texts::commands::create_text,
+            bookmarks::commands::create_bookmark,
             copy_items,
             export::export_items,
             export::export_library,

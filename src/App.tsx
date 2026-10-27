@@ -15,6 +15,7 @@ import { Toasts } from "./components/Toasts";
 import { SelectionBar } from "./components/SelectionBar";
 import { ImageCompare } from "./components/ImageCompare";
 import { CompareView } from "./features/fonts/CompareView";
+import { pasteBookmark, pastedUrl } from "./features/bookmarks/actions";
 import { pasteText } from "./features/texts/actions";
 import { ActionHud } from "./components/ActionHud";
 import { Toolbar } from "./components/Toolbar";
@@ -185,9 +186,13 @@ export default function App() {
         importClipboardFiles(files);
         return;
       }
-      // Words alone become a new text (docs/TEXT.md).
+      // A URL alone becomes a bookmark (docs/BOOKMARKS.md); other words a new text (docs/TEXT.md).
       const text = e.clipboardData?.getData("text/plain") ?? "";
-      if (text.trim()) {
+      const url = pastedUrl(text);
+      if (url) {
+        e.preventDefault();
+        void pasteBookmark(url);
+      } else if (text.trim()) {
         e.preventDefault();
         void pasteText(text);
       }

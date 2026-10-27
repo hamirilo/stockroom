@@ -8,6 +8,7 @@ import {
   FileText,
   NotebookText,
   Video,
+  Bookmark,
   FolderInput,
   FolderOpen,
   Image as ImageIcon,
@@ -43,6 +44,7 @@ const KIND_ICON: Record<Mode | ItemKind, React.ReactNode> = {
   file: <FileText size={14} />,
   text: <NotebookText size={14} />,
   video: <Video size={14} />,
+  bookmark: <Bookmark size={14} />,
 };
 
 type Page = { id: SettingsTab; label: string; icon: React.ReactNode };

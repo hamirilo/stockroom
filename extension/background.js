@@ -1,6 +1,6 @@
 // Service worker: right-click menu, Alt+right-click saves (from content.js)
 // and the screenshot / image list actions shared with the popup.
-import { fileName, saveImage, savedMessage, sendToApp } from "./shared.js";
+import { bookmarkMessage, fileName, saveBookmark, saveImage, savedMessage, sendToApp } from "./shared.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
@@ -10,6 +10,7 @@ chrome.runtime.onInstalled.addListener(() => {
       title: "このページの画像を一覧して保存…",
       contexts: ["page", "image", "link", "selection"],
     });
+    chrome.contextMenus.create({ id: "bookmark", title: "このページをブックマークに保存", contexts: ["page"] });
     chrome.contextMenus.create({
       id: "capture",
       title: "スクリーンショット（見えている範囲）を Stockroom に保存",
@@ -28,6 +29,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     openImageList(tab);
   } else if (info.menuItemId === "capture") {
     saveWithFeedback(tab, () => capture(tab));
+  } else if (info.menuItemId === "bookmark") {
+    saveWithFeedback(tab, () => saveBookmark(tab), bookmarkMessage);
   }
 });
 
@@ -41,6 +44,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   } else if (msg?.type === "capture" && msg.tab) {
     // From the popup, which closes as soon as the screenshot is taken.
     saveWithFeedback(msg.tab, () => capture(msg.tab));
+  } else if (msg?.type === "bookmark" && msg.tab) {
+    saveWithFeedback(msg.tab, () => saveBookmark(msg.tab), bookmarkMessage);
   } else if (msg?.type === "list-images" && msg.tab) {
     openImageList(msg.tab);
   }
@@ -59,12 +64,12 @@ function openImageList(tab) {
 }
 
 /** Runs a save, telling the user how it went in the page and on the toolbar icon. */
-async function saveWithFeedback(tab, save) {
+async function saveWithFeedback(tab, save, message = savedMessage) {
   const slow = setTimeout(() => toast(tab.id, "Stockroom に保存中…", "busy"), 600);
   try {
     const res = await save();
     clearTimeout(slow);
-    toast(tab.id, savedMessage(res), "ok");
+    toast(tab.id, message(res), "ok");
     badge(tab.id, "✓", "#2e9d5b");
   } catch (e) {
     clearTimeout(slow);

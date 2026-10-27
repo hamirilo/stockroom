@@ -24,6 +24,7 @@ import { FontView } from "../features/fonts/FontView";
 import { FontMark } from "../features/fonts/ShelfChip";
 import { FileView } from "../features/files/FileView";
 import { VideoView } from "../features/videos/VideoView";
+import { BookmarkView } from "../features/bookmarks/BookmarkView";
 import { TextView } from "../features/texts/TextView";
 import { FlagButtons } from "./Inspector";
 import { RatingStars } from "./RatingStars";
@@ -271,8 +272,8 @@ export function Viewer() {
           <span className="text-xs text-white/40 tabular-nums">
             {sizeLabel(item)}
           </span>
-          {(item.kind === "file" || item.kind === "text" || item.kind === "video") && (
-            <button className={tool} title="既定のアプリで開く" onClick={() => openSelection([item.id])}>
+          {(item.kind === "file" || item.kind === "text" || item.kind === "video" || item.kind === "bookmark") && (
+            <button className={tool} title={item.kind === "bookmark" ? "ブラウザで開く" : "既定のアプリで開く"} onClick={() => openSelection([item.id])}>
               <ExternalLink size={15} />
             </button>
           )}
@@ -339,6 +340,8 @@ export function Viewer() {
             <TextView key={item.id} item={item} />
           ) : item.kind === "video" ? (
             <VideoView item={item} />
+          ) : item.kind === "bookmark" ? (
+            <BookmarkView item={item} />
           ) : (
             <div
               ref={boxRef}

@@ -71,4 +71,5 @@ npm test               # Rust のユニットテスト + 型チェック
 | [VIDEO.md](docs/VIDEO.md) | 動画（MP4・MOV・WebM）：取り込み・サムネイル・再生 |
 | [LINKS.md](docs/LINKS.md) | 親子の紐づけ：動画にサムネイル案を付ける、ライブラリごとに有効・無効 |
 | [EXPORT.md](docs/EXPORT.md) | ライブラリ全体の書き出し（すべてのファイルをフォルダ構成どおりに） |
+| [BOOKMARKS.md](docs/BOOKMARKS.md) | ブックマーク（URL）：拡張機能から保存・貼り付け・重複の扱い（リンク切れの確認は保留） |
 | [ROADMAP.md](docs/ROADMAP.md) | 今後の予定 |
