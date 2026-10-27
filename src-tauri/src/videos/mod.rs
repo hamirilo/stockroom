@@ -45,11 +45,14 @@ pub fn probe(path: &Path, ext: &str) -> Info {
 }
 
 /// The codecs of a video's first picture and sound tracks, as people name them
-/// ("H.264", "AAC"). None = no such track, or the file's headers say nothing.
-#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize)]
+/// ("H.264", "AAC"), and the picture track's frame rate (average, frames per
+/// second). None = no such track, or the file's headers say nothing.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Codecs {
     pub video: Option<String>,
     pub audio: Option<String>,
+    pub frame_rate: Option<f64>,
 }
 
 /// Reads the codecs of the video at `path` from its headers (nothing is
@@ -208,12 +211,36 @@ fn mp4_codecs(moov: &[u8]) -> Codecs {
             .and_then(|(_, stsd)| stsd.get(12..16));
         let (Some(handler), Some(format)) = (handler, format) else { continue };
         match handler {
-            b"vide" if out.video.is_none() => out.video = Some(mp4_codec_name(format)),
+            b"vide" if out.video.is_none() => {
+                out.video = Some(mp4_codec_name(format));
+                out.frame_rate = mp4_frame_rate(&mdia);
+            }
             b"soun" if out.audio.is_none() => out.audio = Some(mp4_codec_name(format)),
             _ => {}
         }
     }
     out
+}
+
+/// Average frames per second of a video track (the boxes of its `mdia`): the
+/// samples counted in `stts` over their total time, in `mdhd` time units.
+/// None for a fragmented file (its `stts` is empty).
+fn mp4_frame_rate(mdia: &[([u8; 4], &[u8])]) -> Option<f64> {
+    let mdhd = mdia.iter().find(|(k, _)| k == b"mdhd")?.1;
+    let scale = if *mdhd.first()? == 1 { be32(mdhd, 20)? } else { be32(mdhd, 12)? };
+    let stts = boxes(mdia.iter().find(|(k, _)| k == b"minf")?.1)
+        .into_iter()
+        .find(|(k, _)| k == b"stbl")
+        .and_then(|(_, stbl)| boxes(stbl).into_iter().find(|(k, _)| k == b"stts"))?
+        .1;
+    let entries = be32(stts, 4)? as usize;
+    let (mut samples, mut time) = (0u64, 0u64);
+    for i in 0..entries {
+        let (count, delta) = (u64::from(be32(stts, 8 + i * 8)?), u64::from(be32(stts, 12 + i * 8)?));
+        samples += count;
+        time += count * delta;
+    }
+    (scale > 0 && samples > 1 && time > 0).then(|| samples as f64 * f64::from(scale) / time as f64)
 }
 
 /// Names a sample-entry format (QuickTime / ISO BMFF four-character code).
@@ -333,15 +360,17 @@ fn webm_codecs(head: &[u8]) -> Codecs {
     const ENTRY: u32 = 0xAE;
     const TRACK_TYPE: u32 = 0x83;
     const CODEC_ID: u32 = 0x86;
-    // The elements inside one `ENTRY`: (track type, codec id).
-    fn entry(d: &[u8]) -> (u64, String) {
-        let (mut kind, mut codec) = (0, String::new());
+    const DEFAULT_DURATION: u32 = 0x23_E383;
+    // The elements inside one `ENTRY`: (track type, codec id, frame duration in ns).
+    fn entry(d: &[u8]) -> (u64, String, u64) {
+        let (mut kind, mut codec, mut frame_ns) = (0, String::new(), 0);
         let mut at = 0;
         while let Some((id, size, body)) = ebml_head(d, at) {
             let end = size.map_or(d.len(), |s| body.saturating_add(s as usize)).min(d.len());
             let data = &d[body.min(end)..end];
             match id {
                 TRACK_TYPE => kind = ebml_uint(data),
+                DEFAULT_DURATION => frame_ns = ebml_uint(data),
                 CODEC_ID => codec = String::from_utf8_lossy(data).trim_end_matches('\0').to_string(),
                 _ => {}
             }
@@ -350,7 +379,7 @@ fn webm_codecs(head: &[u8]) -> Codecs {
             }
             at = end;
         }
-        (kind, codec)
+        (kind, codec, frame_ns)
     }
     fn walk(d: &[u8], out: &mut Codecs) {
         let mut at = 0;
@@ -360,8 +389,11 @@ fn webm_codecs(head: &[u8]) -> Codecs {
             match id {
                 SEGMENT | TRACKS => walk(data, out),
                 ENTRY => match entry(data) {
-                    (1, c) if out.video.is_none() => out.video = Some(webm_codec_name(&c)),
-                    (2, c) if out.audio.is_none() => out.audio = Some(webm_codec_name(&c)),
+                    (1, c, ns) if out.video.is_none() => {
+                        out.video = Some(webm_codec_name(&c));
+                        out.frame_rate = (ns > 0).then(|| 1e9 / ns as f64);
+                    }
+                    (2, c, _) if out.audio.is_none() => out.audio = Some(webm_codec_name(&c)),
                     _ => {}
                 },
                 _ => {}
@@ -472,10 +504,29 @@ pub mod tests {
         let moov = [track(b"vide", b"hvc1"), track(b"soun", b"mp4a")].concat();
         assert_eq!(
             mp4_codecs(&moov),
-            Codecs { video: Some("HEVC (H.265)".into()), audio: Some("AAC".into()) }
+            Codecs { video: Some("HEVC (H.265)".into()), audio: Some("AAC".into()), frame_rate: None }
         );
         let moov = track(b"vide", b"zzzz");
-        assert_eq!(mp4_codecs(&moov), Codecs { video: Some("zzzz".into()), audio: None });
+        assert_eq!(mp4_codecs(&moov), Codecs { video: Some("zzzz".into()), ..Default::default() });
+    }
+
+    #[test]
+    fn mp4_frame_rate_from_stts() {
+        let mut mdhd = vec![0u8; 24];
+        mdhd[12..16].copy_from_slice(&30_000u32.to_be_bytes());
+        let mut stts = vec![0u8; 4];
+        stts.extend_from_slice(&2u32.to_be_bytes());
+        for (count, delta) in [(100u32, 1001u32), (50, 1001)] {
+            stts.extend_from_slice(&count.to_be_bytes());
+            stts.extend_from_slice(&delta.to_be_bytes());
+        }
+        let minf = bx(b"minf", &bx(b"stbl", &bx(b"stts", &stts)));
+        let mdia_body = [bx(b"mdhd", &mdhd), minf].concat();
+        let fps = mp4_frame_rate(&boxes(&mdia_body)).unwrap();
+        assert!((fps - 29.97).abs() < 0.01, "{fps}");
+        // A fragmented file has no samples in `stts`.
+        let empty = bx(b"minf", &bx(b"stbl", &bx(b"stts", &[0u8; 8])));
+        assert_eq!(mp4_frame_rate(&boxes(&[bx(b"mdhd", &mdhd), empty].concat())), None);
     }
 
     #[test]
@@ -504,10 +555,10 @@ pub mod tests {
 
     #[test]
     fn webm_codecs_of_each_track() {
-        let entry = |kind: u8, codec: &[u8]| el(&[0xAE], &[el(&[0x83], &[kind]), el(&[0x86], codec)].concat());
+        let entry = |kind: u8, codec: &[u8]| el(&[0xAE], &[el(&[0x83], &[kind]), el(&[0x86], codec), el(&[0x23, 0xE3, 0x83], &40_000_000u32.to_be_bytes())].concat());
         let tracks = el(&[0x16, 0x54, 0xAE, 0x6B], &[entry(1, b"V_VP9"), entry(2, b"A_OPUS")].concat());
         let segment = [&[0x18, 0x53, 0x80, 0x67, 0xFF][..], &tracks].concat();
         let c = webm_codecs(&[el(&[0x1A, 0x45, 0xDF, 0xA3], &[]), segment].concat());
-        assert_eq!(c, Codecs { video: Some("VP9".into()), audio: Some("Opus".into()) });
+        assert_eq!(c, Codecs { video: Some("VP9".into()), audio: Some("Opus".into()), frame_rate: Some(25.0) });
     }
 }

@@ -193,6 +193,8 @@ export const fontCategoryOf = (item: Pick<Item, "fontCategory" | "fontCategoryUs
 export interface VideoCodecs {
   video: string | null;
   audio: string | null;
+  /** Average frames per second of the picture track. */
+  frameRate: number | null;
 }
 
 export interface Item {
@@ -259,6 +261,15 @@ export interface Item {
   group?: number;
   /** Similar view only: differing hash bits (of 64) from the group's best copy. */
   distance?: number;
+}
+
+/** "29.97 fps": the rate with up to two decimals. */
+export const frameRateLabel = (fps: number) => `${+fps.toFixed(2)} fps`;
+
+/** Average bit rate of the whole file ("8.4 Mbps"), from its size and length. */
+export function bitRateLabel(bytes: number, durationMs: number): string {
+  const bps = (bytes * 8) / (durationMs / 1000);
+  return bps >= 1e6 ? `${+(bps / 1e6).toFixed(1)} Mbps` : `${Math.round(bps / 1e3)} kbps`;
 }
 
 /** "1200 × 800", or the kind for items without a pixel size. */
