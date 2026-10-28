@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "ui-mock",
-      "runtimeExecutable": "npx",
+      "runtimeExecutable": "bunx",
       "runtimeArgs": ["vite", "--port", "1430", "--strictPort"],
       "port": 1430
     }

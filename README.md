@@ -42,9 +42,9 @@
 前提：Node.js 22+、Rust（stable）、[Tauri の前提環境](https://tauri.app/start/prerequisites/)
 
 ```bash
-npm install
-npm run tauri dev      # アプリを起動
-npm test               # Rust のユニットテスト + 型チェック
+bun install
+bun run tauri dev      # アプリを起動
+bun run test           # Rust のユニットテスト + 型チェック
 ```
 
 ブラウザ用のモック・構成・リリースの手順は [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。
