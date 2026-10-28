@@ -2,6 +2,8 @@ import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
   ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
   CopyCheck,
   FolderInput,
   FolderSearch,
@@ -351,6 +353,7 @@ export function Toolbar() {
             {desc ? <ArrowDownWideNarrow size={15} /> : <ArrowUpNarrowWide size={15} />}
           </button>
           <GroupMenu />
+          {mode === "stock" && <ParentsToggle />}
           <Divider />
           <LayoutSwitch />
           <DisplayMenu />
@@ -359,6 +362,36 @@ export function Toolbar() {
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * Opens every linked parent's children under it, or closes them all (docs/LINKS.md).
+ * Always shown in the stock mode; disabled when nothing is linked, so it doesn't move.
+ */
+function ParentsToggle() {
+  const links = useStore((s) => s.librarySettings.links);
+  const parents = useStore(useShallow((s) => s.items.filter((i) => i.childIds).map((i) => i.id)));
+  const openParents = useStore((s) => s.openParents);
+  const none = !links || parents.length === 0;
+  const allOpen = !none && parents.every((id) => openParents.has(id));
+  const run = () => command(allOpen ? "view.closeParents" : "view.openParents").run(useStore.getState());
+  return (
+    <button
+      title={
+        none
+          ? "紐づけた項目をすべて開く／閉じる（この一覧に紐づけた項目はありません）"
+          : allOpen
+            ? "紐づけた項目をすべて閉じる"
+            : "紐づけた項目をすべて開く"
+      }
+      aria-label="紐づけた項目をすべて開く／閉じる"
+      disabled={none}
+      onClick={run}
+      className="flex h-7 w-8 shrink-0 items-center justify-center rounded-md border border-line enabled:hover:bg-white/5 disabled:opacity-40"
+    >
+      {allOpen ? <ChevronsDownUp size={15} /> : <ChevronsUpDown size={15} />}
+    </button>
   );
 }
 

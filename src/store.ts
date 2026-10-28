@@ -93,9 +93,9 @@ export const MODE_LAYOUTS: Record<Mode, Layout[]> = {
 
 /** Groupings of each mode. */
 export const MODE_GROUPS: Record<Mode, GroupBy[]> = {
-  stock: ["none", "kind", "year", "month", "rating", "tag", "folder"],
+  stock: ["none", "kind", "month", "rating", "tag", "folder"],
   // Fonts are always one row per family (▸ opens its styles), so no family grouping.
-  font: ["none", "category", "script", "year", "month", "rating", "tag", "folder"],
+  font: ["none", "category", "script", "month", "rating", "tag", "folder"],
 };
 
 /** What the grid shows under each thumbnail. */
@@ -488,7 +488,8 @@ const loadLayout = (mode: Mode): Layout => {
 const loadGroupBy = (mode: Mode): GroupBy => {
   const keys = mode === "stock" ? ["groupBy:stock", "groupBy:all", "groupBy:image", "groupBy"] : [`groupBy:${mode}`];
   const saved = keys.map(load).find((v) => v !== null);
-  return MODE_GROUPS[mode].find((g) => g === saved) ?? "none";
+  // "year" was merged into "month" (年月).
+  return MODE_GROUPS[mode].find((g) => g === (saved === "year" ? "month" : saved)) ?? "none";
 };
 
 /** Conditions only images have (shape, pixel size), cleared when the list isn't of images alone. */
@@ -620,7 +621,7 @@ function linksFold(s: {
 }
 
 /** Groupings by what only library items have (docs/SYSTEM_FONTS.md). */
-export const LIBRARY_GROUPS: GroupBy[] = ["year", "month", "rating", "tag", "folder"];
+export const LIBRARY_GROUPS: GroupBy[] = ["month", "rating", "tag", "folder"];
 
 /** The grouping in effect: none for the installed fonts' list when it is by rating, tag or folder. */
 export const shownGroupBy = (s: { view: View; groupBy: GroupBy }): GroupBy =>
