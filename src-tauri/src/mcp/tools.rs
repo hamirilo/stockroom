@@ -249,6 +249,20 @@ pub fn list() -> Value {
             "annotations": writes(),
         },
         {
+            "name": "make_parent",
+            "title": "親にする",
+            "description": "子の id を親子の親にする（親子の入れ替え）。いまの親とほかの子は、その下の子になる。フォルダは変わらない。親にした項目の採用は外れ、ほかの子の採用はそのまま",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "親にする子の id" },
+                    "dry_run": dry_run_schema()
+                },
+                "required": ["id"]
+            },
+            "annotations": writes(),
+        },
+        {
             "name": "set_adopted",
             "title": "採用にする",
             "description": "子の 1 つを「採用」にする（親ごとに 1 つ。ほかの子の採用は外れる）。adopted を false にすると採用を外す",
@@ -327,6 +341,7 @@ pub fn call(host: &dyn Host, name: &str, args: &Value) -> ToolOutput {
         }
         "link_items" => parse(args).and_then(|a: LinkArgs| write(host, a.dry_run, |c, u| link_items(c, u, &a))),
         "unlink_items" => parse(args).and_then(|a: UnfileArgs| write(host, a.dry_run, |c, u| unlink_items(c, u, &a.target))),
+        "make_parent" => parse(args).and_then(|a: IdArgs| write(host, a.dry_run, |c, u| make_parent(c, u, &a.id))),
         "set_adopted" => parse(args).and_then(|a: AdoptArgs| write(host, a.dry_run, |c, u| set_adopted(c, u, &a))),
         "rename_items" => parse(args).and_then(|a: RenameArgs| write(host, a.dry_run, |c, u| rename_items(c, u, &a.items))),
         "set_note" => parse(args).and_then(|a: NoteArgs| write(host, a.dry_run, |c, u| set_notes(c, u, &a.items))),
@@ -1005,6 +1020,23 @@ fn unlink_items(conn: &Connection, undo: &mut Undo, target: &Target) -> Result<O
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
+struct IdArgs {
+    id: String,
+    dry_run: bool,
+}
+
+fn make_parent(conn: &Connection, undo: &mut Undo, id: &str) -> Result<Outcome, String> {
+    need_links(conn)?;
+    let id = resolve(conn, &[id.to_owned()])?.remove(0);
+    let n = changes::make_parent(conn, undo, &id).map_err(e)?;
+    if n == 0 {
+        return Err(format!("{} は子ではありません（親にできるのは、紐づけた子だけです）。何も変えていません", short(&id)));
+    }
+    Ok(Outcome { summary: format!("「{}」を親にしました（{} 件が子になりました）", item_name(conn, &id)?, n - 1), details: vec![] })
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
 struct AdoptArgs {
     id: String,
     adopted: Option<bool>,
@@ -1278,8 +1310,25 @@ mod tests {
             assert!(after.iter().all(|i| i.parent_id.is_none()), "the links are gone");
         }
 
-        // A parent given to unlink frees all of its children.
+        // A child takes its parent's place, and the change is undone as a whole.
         run(&host, "link_items", json!({ "parent": short(0), "ids": [short(1), short(2)] }));
+        let (err, _) = run(&host, "make_parent", json!({ "id": short(0) }));
+        assert!(err, "a parent isn't a child");
+        let (err, text) = run(&host, "make_parent", json!({ "id": short(1) }));
+        assert!(!err && text.contains("「t1.png」を親にしました（2 件が子になりました）"), "{text}");
+        let swap_id = host.changes.lock().unwrap().last().unwrap().id;
+        {
+            let mut g = conn(&host);
+            let lib = g.as_mut().unwrap();
+            let parent_of = |lib: &Library, n: usize| {
+                db::get_items(&lib.conn, &[ids[n].clone()]).unwrap().remove(0).parent_id
+            };
+            assert_eq!((parent_of(lib, 0), parent_of(lib, 2)), (Some(ids[1].clone()), Some(ids[1].clone())));
+            changes::undo(&mut lib.conn, swap_id).unwrap();
+            assert_eq!((parent_of(lib, 0), parent_of(lib, 1)), (None, Some(ids[0].clone())));
+        }
+
+        // A parent given to unlink frees all of its children.
         let (err, text) = run(&host, "unlink_items", json!({ "ids": [short(0)] }));
         assert!(!err && text.contains("2 件の紐づけを外しました"), "{text}");
     }

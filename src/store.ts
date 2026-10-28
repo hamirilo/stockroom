@@ -350,6 +350,8 @@ interface State {
   toggleFamily: (family: string) => void;
   /** Opens or closes a parent's children under its row (stock, links on). */
   toggleParent: (id: string) => void;
+  /** Opens every parent's children in the list, or closes them all. */
+  setAllParents: (open: boolean) => void;
   setSpecimenFallback: (on: boolean) => void;
   toggleInspector: () => void;
   setPanelTab: (tab: PanelTab) => void;
@@ -519,7 +521,8 @@ export function activeConditions(s: {
     (f.shapes.length ? 1 : 0) +
     (f.minWidth != null || f.maxWidth != null || f.minHeight != null || f.maxHeight != null ? 1 : 0) +
     (f.importedAfter != null || f.importedBefore != null ? 1 : 0) +
-    (f.minSize != null || f.maxSize != null ? 1 : 0)
+    (f.minSize != null || f.maxSize != null ? 1 : 0) +
+    (f.parentsOnly ? 1 : 0)
   );
 }
 
@@ -657,7 +660,8 @@ export type ConditionKey =
   | "fontScripts"
   | "fontCategories"
   | "fontWeights"
-  | "fontFeatures";
+  | "fontFeatures"
+  | "parents";
 
 /** What clearing each condition sets. */
 export const CLEARED: Record<ConditionKey, { minRating?: 0; tagFilter?: number[]; filter?: Partial<Filter> }> = {
@@ -672,6 +676,7 @@ export const CLEARED: Record<ConditionKey, { minRating?: 0; tagFilter?: number[]
   fontCategories: { filter: { fontCategories: [] } },
   fontWeights: { filter: { fontWeights: [] } },
   fontFeatures: { filter: { fontFeatures: [] } },
+  parents: { filter: { parentsOnly: false } },
 };
 
 type QueryState = Pick<
@@ -1149,6 +1154,11 @@ export const useStore = create<State>((set, get) => ({
     const open = new Set(get().openParents);
     if (!open.delete(id)) open.add(id);
     set(rearrange(get(), { openParents: open }));
+  },
+  setAllParents: (open) => {
+    const here = new Set(get().rawItems.map((i) => i.id));
+    const parents = open ? get().rawItems.flatMap((i) => (i.parentId && here.has(i.parentId) ? [i.parentId] : [])) : [];
+    set(rearrange(get(), { openParents: parents.length ? new Set(parents) : NO_PARENTS }));
   },
   toggleFamily: (family) => {
     const open = new Set(get().openFamilies);

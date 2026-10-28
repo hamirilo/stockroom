@@ -290,6 +290,7 @@ export function FilterRow() {
           <DimsCondition {...common} />
           <DateCondition {...common} />
           <SizeCondition {...common} />
+          <LinksCondition {...common} />
         </>
       ) : (
         <>
@@ -522,6 +523,40 @@ function KindMenu({ open, kinds, picked, pick }: { open: boolean; kinds: ItemKin
         </Option>
       ))}
     </>
+  );
+}
+
+/**
+ * Parents only (docs/LINKS.md). Last in the row, so the others stay put whether
+ * the library uses links or not; with links off it's there only to be cleared.
+ */
+function LinksCondition({ cond, locked, onLocked }: CondProps) {
+  const links = useStore((s) => s.librarySettings.links);
+  const setFilter = useStore((s) => s.setFilter);
+  const on = !!cond.filter.parentsOnly;
+  const notForSystem = useNotForSystem("親子の紐づけ");
+  if (!links && !on) return null;
+  return (
+    <Pill
+      {...notForSystem}
+      label="紐づけ"
+      value={on ? "子を持つものだけ" : ""}
+      locked={locked}
+      onLocked={onLocked}
+      onClear={() => setFilter(CLEARED.parents.filter!)}
+      width="w-48"
+    >
+      {(open, close) => <LinksMenu open={open} on={on} pick={(parentsOnly) => (setFilter({ parentsOnly }), close())} />}
+    </Pill>
+  );
+}
+
+function LinksMenu({ open, on, pick }: { open: boolean; on: boolean; pick: (v: boolean) => void }) {
+  const facets = useFacets("parents", open);
+  return (
+    <Option single on={on} count={facets ? facets.parents : null} onClick={() => pick(!on)}>
+      子を持つものだけ
+    </Option>
   );
 }
 

@@ -3,9 +3,9 @@
 // children, and the link / unlink buttons. With links off it stays, greyed,
 // and says where to turn them on (docs/UI.md: don't move the controls around).
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Link2, Link2Off, Star } from "lucide-react";
+import { ArrowUpFromLine, Link2, Link2Off, Star } from "lucide-react";
 import { useMemo } from "react";
-import { linkedIn, toggleAdopted, unlinkItems } from "../lib/actions";
+import { linkedIn, makeParent, toggleAdopted, unlinkItems } from "../lib/actions";
 import type { Item } from "../lib/api";
 import { useStore } from "../store";
 
@@ -101,6 +101,21 @@ export function LinksField({ ids, single }: { ids: string[]; single: Item | unde
           onClick={() => void unlinkItems(ids)}
         >
           <Link2Off size={13} /> 紐づけを外す
+        </button>
+        {/* A child and its parent change places (the other children go under it too). */}
+        <button
+          className={btn}
+          disabled={!on || !single?.parentId}
+          title={
+            !on
+              ? "設定で親子関係を有効にしてください"
+              : single?.parentId
+                ? "これを親にして、いまの親とほかの子をこの下に付け替える"
+                : "紐づけた項目（子）を 1 件選んでください"
+          }
+          onClick={() => single && void makeParent(single.id)}
+        >
+          <ArrowUpFromLine size={13} /> 親にする
         </button>
         {/* One of the children is picked: the idea that is going ahead (a thumbnail, say). */}
         <button

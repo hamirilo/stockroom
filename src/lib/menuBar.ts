@@ -250,7 +250,22 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     sep(),
     cmd("item.link"),
     cmd("item.unlink"),
+    cmd("item.makeParent"),
     cmd("item.adopt"),
+    // Videos only (docs/VIDEO.md), greyed out unless one is selected.
+    ...(mode === "stock" && usedModes(s).includes("video")
+      ? [
+          sep(),
+          submenu("サムネイル", [
+            cmd("item.thumbFile"),
+            cmd("item.thumbClipboard"),
+            cmd("item.thumbSelected"),
+            cmd("item.thumbAdopted"),
+            sep(),
+            cmd("item.thumbReset"),
+          ]),
+        ]
+      : []),
   ]);
 
   const view = submenu("表示", [
@@ -303,6 +318,8 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
       ),
     ]),
     cmd("view.subfolders"),
+    // Stock only, where links are (greyed out with them off).
+    ...(mode === "stock" ? [cmd("view.openParents"), cmd("view.closeParents")] : []),
     sep(),
     cmd("view.zoomIn"),
     cmd("view.zoomOut"),

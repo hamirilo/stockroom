@@ -150,6 +150,18 @@ pub fn unlink(conn: &Connection, undo: &mut Undo, ids: &[String]) -> DbResult<us
     Ok(n)
 }
 
+/// Makes the child `id` the parent of its family (`db::make_parent`); returns
+/// how many links changed (0: it isn't a child).
+pub fn make_parent(conn: &Connection, undo: &mut Undo, id: &str) -> DbResult<usize> {
+    let was = db::make_parent(conn, id)?;
+    let n = was.len();
+    undo.links.extend(was.into_iter().map(|before| {
+        let after_parent = (before.id != id).then(|| id.to_owned());
+        LinkChange { before, after_parent }
+    }));
+    Ok(n)
+}
+
 /// Picks (or unpicks) the adopted child; returns how many items' marks changed
 /// (picking one takes the mark off its siblings).
 pub fn adopt(conn: &Connection, undo: &mut Undo, id: &str, on: bool) -> DbResult<usize> {

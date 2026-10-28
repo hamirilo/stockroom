@@ -11,6 +11,8 @@
 //! from the disk (import.rs `process_video`). They take no part in the
 //! look-alike search.
 
+pub mod thumb;
+
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;

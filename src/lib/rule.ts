@@ -98,5 +98,6 @@ export function describeRule(rule: Rule, tags: Tag[]): string[] {
   if (date) out.push(`追加日: ${date}`);
   const size = describeSize(f);
   if (size) out.push(`容量: ${size}`);
+  if (f.parentsOnly) out.push("子を持つものだけ");
   return out;
 }

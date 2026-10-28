@@ -2,7 +2,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, EMPTY_FILTER, isSystemId, kindLabel, kindOfExt, libraryIds, type DuplicateEffect, type Item, type ItemKind, type LibraryInfo, type LinkPlacement, type Mode, type OrientOp, type View } from "./api";
+import { api, EMPTY_FILTER, isSystemId, kindLabel, kindOfExt, libraryIds, type DuplicateEffect, type Item, type ItemKind, type LibraryInfo, type LinkPlacement, type Mode, type OrientOp, type VideoThumbSource, type View } from "./api";
 import { itemsNoun, kindsNoun, MODES, modeLabel } from "./modes";
 import { fontApi } from "../features/fonts/api";
 import {
@@ -487,6 +487,20 @@ export async function linkItems(parentId: string, ids: string[]) {
   const parent = st().rawItems.find((i) => i.id === parentId);
   if (!st().openParents.has(parentId)) st().toggleParent(parentId);
   st().toast(`${moved.length} 件を「${parent?.name ?? "親"}」に紐づけました`, false, undoLinks(moved));
+}
+
+/**
+ * Makes the child `id` the parent of its family: its parent and the other children
+ * go under it, in the same folder. One undo puts them all back.
+ */
+export async function makeParent(id: string) {
+  const item = st().rawItems.find((i) => i.id === id);
+  if (!item?.parentId) return;
+  let was: LinkPlacement[] = [];
+  if (!(await st().run(async () => void (was = await api.makeParent(id))))) return;
+  if (!was.length) return;
+  if (!st().openParents.has(id)) st().toggleParent(id);
+  st().toast(`「${item.name}」を親にしました（${was.length - 1} 件が子になりました）`, false, undoLinks(was));
 }
 
 /** Picks the selected child as the adopted one of its parent's children, or takes the pick back (docs/LINKS.md). */
@@ -1099,4 +1113,32 @@ export async function undoChanges(ids: number[], root: string | undefined) {
     detail: skipped ? `${skipped} 件はその後に変更されていたため、そのままにしました` : undefined,
     kind: "success",
   });
+}
+
+// ------------------------------------------- a video's own thumbnail (docs/VIDEO.md)
+
+/** Image files a thumbnail can be made from (formats.rs `decode`). */
+const THUMB_EXTS = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif", "avif", "svg"];
+
+/** Gives the video `id` a thumbnail of the user's, from `source`. */
+export async function setVideoThumb(id: string, source: VideoThumbSource) {
+  const item = st().rawItems.find((i) => i.id === id);
+  if (!(await st().run(() => api.setVideoThumb(id, source)))) return;
+  // Back to the frame is the undo when that is what it had; a picture set before isn't kept.
+  st().toast(
+    `「${item?.name ?? "動画"}」のサムネイルを変えました`,
+    false,
+    item && !item.ownThumb ? { label: "元に戻す", onClick: () => resetVideoThumb(id) } : undefined,
+  );
+}
+
+/** Picks an image file and makes it the video's thumbnail. */
+export async function pickVideoThumb(id: string) {
+  const path = await open({ title: "サムネイルにする画像を選択", filters: [{ name: "画像", extensions: THUMB_EXTS }] });
+  if (typeof path === "string") await setVideoThumb(id, { from: "file", path });
+}
+
+/** Puts the frame from the OS back. */
+export async function resetVideoThumb(id: string) {
+  if (await st().run(() => api.resetVideoThumb(id))) st().toast("サムネイルを動画のコマに戻しました");
 }
