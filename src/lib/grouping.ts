@@ -5,9 +5,9 @@
 // section, so layouts and navigation keep working on plain indices.
 import { FONT_CATEGORIES, FONT_SCRIPTS, fontCategoryOf, KINDS, type Folder, type Item, type Tag } from "./api";
 
-export type GroupBy = "none" | "kind" | "category" | "script" | "rating" | "tag" | "folder" | "year" | "month";
+export type GroupBy = "none" | "kind" | "category" | "script" | "rating" | "tag" | "folder" | "month";
 
-export const GROUP_BYS: GroupBy[] = ["none", "kind", "category", "script", "rating", "tag", "folder", "year", "month"];
+export const GROUP_BYS: GroupBy[] = ["none", "kind", "category", "script", "rating", "tag", "folder", "month"];
 
 export interface Section {
   /** Index of the first item, and one past the last. */
@@ -138,12 +138,12 @@ function build(buckets: { items: Item[]; title: string; color?: string | null; r
   return { items, sections };
 }
 
-/** Sections by the month (or year) an item was added, newest first; local time. */
-function byDate(rows: Item[], by: "year" | "month") {
+/** Sections by the year and month an item was added, newest first; local time. */
+function byDate(rows: Item[]) {
   const buckets = new Map<string, Item[]>();
   for (const i of rows) {
     const d = new Date(i.importedAt);
-    const key = by === "year" ? `${d.getFullYear()}年` : `${d.getFullYear()}年${d.getMonth() + 1}月`;
+    const key = `${d.getFullYear()}年${d.getMonth() + 1}月`;
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key)!.push(i);
   }
@@ -230,9 +230,8 @@ export function groupItems(
         { items: rows.filter((r) => of.get(r)!.size === 0), title: "タグなし" },
       ]);
     }
-    case "year":
     case "month":
-      return grouped(byDate(rows, by));
+      return grouped(byDate(rows));
     case "folder":
       return grouped([
         ...folderPaths(folders).map(({ folder, path }) => ({
