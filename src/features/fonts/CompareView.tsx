@@ -183,11 +183,11 @@ export function CompareView() {
           <span className="text-dim">{left > 0 ? `あと ${left} 件置けます` : "シェルフはいっぱいです"}</span>
           <div className="ml-auto flex items-center gap-1.5">
             <span className="text-dim">背景</span>
-            <div role="group" aria-label="背景" className="flex h-6 overflow-hidden rounded-md border border-edge bg-control">
+            <div role="group" aria-label="背景" className="flex h-6 rounded-md track">
               {[
                 { on: !light, label: "暗", value: false },
                 { on: light, label: "明", value: true },
-              ].map((b, i) => (
+              ].map((b) => (
                 <button
                   key={b.label}
                   aria-pressed={b.on}
@@ -195,7 +195,7 @@ export function CompareView() {
                     setLight(b.value);
                     persist("compareLight", String(b.value));
                   }}
-                  className={`px-2 ${i > 0 ? "border-l border-line" : ""} ${b.on ? "bg-chosen text-fg" : "text-fg/85 hover:bg-white/12"}`}
+                  className={`rounded px-2 ${b.on ? "thumb" : "text-fg/85 hover:bg-hover hover:text-fg"}`}
                 >
                   {b.label}
                 </button>
@@ -238,7 +238,7 @@ export function CompareView() {
                   title={patternText(ASPECT_PATTERN[a])}
                   onClick={() => toggleAspect(a)}
                   className={`h-6 rounded-full border px-2.5 ${
-                    on ? "border-tonal-edge bg-tonal text-on-tonal" : "border-edge bg-control text-fg/85 hover:bg-white/12"
+                    on ? "border-transparent bg-tonal text-on-tonal" : "ghost text-fg/85"
                   }`}
                 >
                   {a}

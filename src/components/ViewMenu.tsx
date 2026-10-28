@@ -105,9 +105,9 @@ function Dropdown({
       <button
         title={title}
         onClick={() => setOpen((o) => !o)}
-        className={`flex h-7 items-center gap-1.5 rounded-md border px-2 whitespace-nowrap hover:bg-white/12 ${
-          open ? "bg-white/14" : "bg-control"
-        } ${active ? "border-accent text-accent" : "border-edge"}`}
+        className={`flex h-7 items-center gap-1.5 rounded-md px-2 whitespace-nowrap ghost ${open ? "bg-press" : ""} ${
+          active ? "text-accent" : ""
+        }`}
       >
         {button}
       </button>
@@ -141,16 +141,16 @@ export function LayoutSwitch() {
     ...LAYOUTS.filter((l) => l.key === layout && !primary.includes(l.key)),
   ];
   return (
-    <div className="flex h-7 shrink-0 items-stretch overflow-hidden rounded-md border border-edge bg-control">
-      {shown.map((l, i) => (
+    <div className="flex h-7 shrink-0 items-stretch rounded-md track">
+      {shown.map((l) => (
         <button
           key={l.key}
           title={`${l.label}：${l.hint}`}
           aria-label={l.label}
           aria-pressed={layout === l.key}
           onClick={() => setLayout(l.key)}
-          className={`flex w-8 items-center justify-center ${i > 0 ? "border-l border-line" : ""} ${
-            layout === l.key ? "bg-chosen text-fg" : "text-fg/85 hover:bg-white/12"
+          className={`flex w-7 items-center justify-center rounded ${
+            layout === l.key ? "thumb" : "text-fg/85 hover:bg-hover hover:text-fg"
           }`}
         >
           {l.icon}
@@ -181,8 +181,8 @@ export function GroupMenu() {
       {/* Narrow: a native select over a label, like the sort order next to it. */}
       <label
         title={isSimilar ? "グループ分け（重複の候補では使えません）" : `グループ分け：${current.hint}`}
-        className={`relative hidden h-full items-center gap-1.5 rounded-md border border-edge bg-control pr-2 pl-2.5 whitespace-nowrap @max-3xl:flex ${
-          isSimilar ? "off bg-transparent" : "hover:bg-white/12 focus-within:border-accent"
+        className={`relative hidden h-full items-center gap-1.5 rounded-md pr-2 pl-2.5 whitespace-nowrap @max-3xl:flex ${
+          isSimilar ? "off" : "ghost focus-within:border-accent"
         }`}
       >
         <span className="text-dim @max-md:hidden">グループ</span>
@@ -203,8 +203,8 @@ export function GroupMenu() {
           ))}
         </select>
       </label>
-      <div role="group" aria-label="グループ分け" className="flex h-full items-stretch overflow-hidden rounded-md border border-edge bg-control @max-3xl:hidden">
-        {groups.map((g, i) => {
+      <div role="group" aria-label="グループ分け" className="flex h-full items-stretch rounded-md track @max-3xl:hidden">
+        {groups.map((g) => {
           const on = groupBy === g.key && !isSimilar;
           return (
             <button
@@ -219,8 +219,8 @@ export function GroupMenu() {
                     : `${g.label}：${g.hint}`
               }
               onClick={() => setGroupBy(g.key)}
-              className={`px-2 whitespace-nowrap disabled:off ${i > 0 ? "border-l border-line" : ""} ${
-                on ? "bg-chosen font-medium text-fg" : "text-fg/85 enabled:hover:bg-white/12"
+              className={`rounded px-2 whitespace-nowrap disabled:off ${
+                on ? "thumb font-medium" : "text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
               }`}
             >
               {g.label}

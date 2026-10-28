@@ -623,7 +623,7 @@ function ModeSwitch() {
         title={`表示する種類（${shown.map((m) => comboText(`Mod+${MODES.indexOf(m) + 1}`)).join(" / ")}）`}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`flex h-9 w-full items-center gap-2 rounded-md border border-edge bg-control px-2.5 text-left hover:bg-white/12 ${
+        className={`flex h-9 w-full items-center gap-2 rounded-md border border-frame px-2.5 text-left hover:bg-hover ${
           open ? "bg-white/5" : ""
         }`}
       >

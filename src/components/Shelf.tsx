@@ -21,7 +21,7 @@ import { useMenu } from "./ContextMenu";
 import { startPointerDrag } from "./DragLayer";
 
 const button =
-  "flex h-6 shrink-0 items-center justify-center gap-1 rounded-md border border-edge bg-control px-2 whitespace-nowrap enabled:hover:bg-white/12 disabled:off disabled:bg-transparent";
+  "flex h-6 shrink-0 items-center justify-center gap-1 rounded-md px-2 whitespace-nowrap ghost disabled:off";
 
 export function Shelf() {
   const shelf = useStore((s) => s.shelf);

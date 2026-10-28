@@ -63,13 +63,13 @@ function Segmented<T extends string | number>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex rounded-md border border-edge bg-control p-0.5">
+    <div className="flex rounded-md track">
       {options.map((o) => (
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
           className={`flex-1 rounded px-2 py-1 whitespace-nowrap ${
-            value === o.value ? "bg-chosen text-fg" : "text-fg/85 hover:bg-white/12"
+            value === o.value ? "thumb" : "text-fg/85 hover:bg-hover hover:text-fg"
           }`}
         >
           {o.label}

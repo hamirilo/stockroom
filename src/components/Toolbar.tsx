@@ -237,7 +237,7 @@ export function Toolbar() {
               title="残す1枚を確認してから、残りをゴミ箱へ移動"
               disabled={groups.length === 0}
               onClick={() => reviewDuplicates(keepPlan(groups, keepPick))}
-              className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-edge bg-control px-3 whitespace-nowrap enabled:hover:bg-white/12 disabled:off disabled:bg-transparent @max-3xl:px-2"
+              className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 whitespace-nowrap ghost disabled:off @max-3xl:px-2"
             >
               <CopyCheck size={15} /> <span className="@max-3xl:hidden">まとめて整理…</span>
             </button>
@@ -250,25 +250,25 @@ export function Toolbar() {
                 setReloading(true);
                 void reloadSystemFonts().finally(() => setReloading(false));
               }}
-              className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-edge bg-control px-3 whitespace-nowrap enabled:hover:bg-white/12 disabled:off disabled:bg-transparent @max-3xl:px-2"
+              className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 whitespace-nowrap ghost disabled:off @max-3xl:px-2"
             >
               <RefreshCw size={15} className={reloading ? "animate-spin" : ""} />
               <span className="@max-3xl:hidden">読み込み直す</span>
             </button>
           ) : (
-            // One bordered group, like the other controls.
-            <div className="flex h-8 shrink-0 items-stretch overflow-hidden rounded-md border border-edge bg-control">
+            // One framed group: the two ways to add (docs/UI.md「色」).
+            <div className="flex h-8 shrink-0 items-stretch overflow-hidden rounded-md border border-frame">
               <button
                 title={`${addNoun}を追加`}
                 onClick={importFilesDialog}
-                className="flex items-center gap-1.5 px-2.5 whitespace-nowrap hover:bg-white/5"
+                className="flex items-center gap-1.5 px-2.5 whitespace-nowrap hover:bg-hover active:bg-press"
               >
                 <ImagePlus size={15} /> <span className="@max-3xl:hidden">追加</span>
               </button>
               <button
                 title="フォルダから追加"
                 onClick={importFolderDialog}
-                className="flex w-8 items-center justify-center border-l border-line hover:bg-white/5"
+                className="flex w-8 items-center justify-center border-l border-frame hover:bg-hover active:bg-press"
               >
                 <FolderInput size={15} />
               </button>
@@ -318,9 +318,11 @@ export function Toolbar() {
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           {/* Native select for the menu, laid over a label sized to the current
               choice so long names aren't clipped and the arrow matches the UI. */}
+          {/* The order and its direction: one setting, so one framed group. */}
+          <div className="flex h-7 shrink-0 items-stretch overflow-hidden rounded-md border border-frame focus-within:border-accent">
           <label
             title="並び順"
-            className="relative flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-edge bg-control pr-2 pl-2.5 whitespace-nowrap hover:bg-white/12 focus-within:border-accent"
+            className="relative flex items-center gap-1.5 pr-2 pl-2.5 whitespace-nowrap hover:bg-hover"
           >
             {manual ? "手動" : sortLabel}
             <ChevronDown size={14} className="text-dim" />
@@ -348,10 +350,11 @@ export function Toolbar() {
             title={manual ? "手動の並びは昇順のみ" : desc ? "降順" : "昇順"}
             disabled={manual}
             onClick={() => setSort(sort, !desc)}
-            className="flex h-7 w-8 shrink-0 items-center justify-center rounded-md border border-edge bg-control enabled:hover:bg-white/12 disabled:off disabled:bg-transparent"
+            className="flex w-8 items-center justify-center border-l border-frame enabled:hover:bg-hover enabled:active:bg-press disabled:off"
           >
             {desc ? <ArrowDownWideNarrow size={15} /> : <ArrowUpNarrowWide size={15} />}
           </button>
+          </div>
           <GroupMenu />
           {mode === "stock" && <ParentsToggle />}
           <Divider />
@@ -390,10 +393,10 @@ function ParentsToggle() {
       disabled={none}
       onClick={run}
       // Named, so it says what it is; open shows as pressed (the tonal face), the icon turned (docs/UI.md「色」).
-      className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 whitespace-nowrap disabled:off disabled:bg-transparent ${
+      className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 whitespace-nowrap disabled:off ${
         allOpen
-          ? "border-tonal-edge bg-tonal text-on-tonal enabled:hover:brightness-110"
-          : "border-edge bg-control enabled:hover:bg-white/12"
+          ? "border-transparent bg-tonal text-on-tonal enabled:hover:brightness-110"
+          : "ghost"
       }`}
     >
       {allOpen ? <ChevronsDownUp size={15} /> : <ChevronsUpDown size={15} />}
@@ -437,8 +440,8 @@ function InspectorToggle({ className }: { className: string }) {
     <button
       title={`詳細パネルを${inspectorOpen ? "閉じる" : "開く"}（⌘/Ctrl+I）`}
       onClick={toggleInspector}
-      className={`h-8 w-8 shrink-0 items-center justify-center rounded-md border hover:bg-white/12 ${className} ${
-        inspectorOpen ? "border-edge bg-control" : "border-accent text-accent"
+      className={`h-8 w-8 shrink-0 items-center justify-center rounded-md ghost ${className} ${
+        inspectorOpen ? "" : "text-accent"
       }`}
     >
       {inspectorOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
@@ -459,14 +462,14 @@ function SimilarLevelControl() {
   return (
     <div className="flex items-center gap-2">
       <span className="text-dim">似ている度合い</span>
-      <div className="flex h-6 items-stretch overflow-hidden rounded-md border border-edge bg-control">
-        {LEVELS.map((l, i) => (
+      <div className="flex h-6 items-stretch rounded-md track">
+        {LEVELS.map((l) => (
           <button
             key={l.key}
             title={l.hint}
             onClick={() => setLevel(l.key)}
-            className={`px-2.5 whitespace-nowrap ${i > 0 ? "border-l border-line" : ""} ${
-              level === l.key ? "bg-chosen font-medium text-fg" : "text-fg/85 hover:bg-white/12"
+            className={`rounded px-2.5 whitespace-nowrap ${
+              level === l.key ? "thumb font-medium" : "text-fg/85 hover:bg-hover hover:text-fg"
             }`}
           >
             {l.label}

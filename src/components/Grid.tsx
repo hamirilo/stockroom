@@ -430,7 +430,7 @@ const ListRow = memo(function ListRow({
           <button
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => useStore.getState().pickKeeper(item.id)}
-            className="ml-2 rounded border border-edge bg-control px-1.5 py-0.5 text-[10px] hover:bg-white/12"
+            className="ml-2 rounded px-1.5 py-0.5 text-[10px] ghost"
           >
             これを残す
           </button>
@@ -963,7 +963,7 @@ function SectionBar({
           grouped ? "グループの目次（⌘⌥J）" : "グループ分けを選ぶと使えます"
         }
         onClick={() => setOpen(!open)}
-        className="ml-auto flex min-w-20 items-center justify-center gap-1 rounded-md border border-edge bg-control px-2 py-0.5 hover:bg-white/12 disabled:off disabled:bg-transparent disabled:hover:bg-transparent"
+        className="ml-auto flex min-w-20 items-center justify-center gap-1 rounded-md px-2 py-0.5 ghost disabled:off"
       >
         目次 <ChevronDown size={12} />
       </button>
@@ -1046,7 +1046,7 @@ function GroupHeader({ items, section, keepPick }: { items: Item[]; section: Sec
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => dismissDuplicates(group.map((i) => i.id))}
         title="このグループの画像は別物として扱い、今後は候補に出しません"
-        className="ml-auto rounded-md border border-edge bg-control px-2 py-0.5 hover:bg-white/12"
+        className="ml-auto rounded-md px-2 py-0.5 ghost"
       >
         重複ではない
       </button>
@@ -1054,7 +1054,7 @@ function GroupHeader({ items, section, keepPick }: { items: Item[]; section: Sec
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => reviewDuplicates(keepPlan([group], keepPick))}
         title="残す1枚を確認してから、他をゴミ箱へ移動します"
-        className="rounded-md border border-edge bg-control px-2 py-0.5 hover:bg-white/12"
+        className="rounded-md px-2 py-0.5 ghost"
       >
         このグループを整理…
       </button>

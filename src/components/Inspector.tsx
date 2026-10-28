@@ -150,7 +150,7 @@ function TagInput({ onAdd, exclude }: { onAdd: (names: string[]) => void; exclud
   );
 }
 
-const btn = "h-8 rounded-md border border-edge bg-control hover:bg-white/12";
+const btn = "h-8 rounded-md border border-frame hover:bg-hover active:bg-press";
 
 /** A video's codecs, frame rate and bit rate, read from the file when the panel shows it. */
 function VideoCodecRows({ item }: { item: Item }) {
@@ -385,8 +385,8 @@ export function FlagButton({
         state
           ? activeClass
           : mixed
-            ? "border-dashed border-edge text-dim hover:bg-white/12"
-            : "border-edge bg-control hover:bg-white/12"
+            ? "border-dashed border-edge text-dim hover:bg-hover"
+            : "border-frame hover:bg-hover"
       }`}
     >
       {icon}

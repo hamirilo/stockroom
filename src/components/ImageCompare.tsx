@@ -143,11 +143,11 @@ export function ImageCompare() {
         <span className="min-w-0 flex-1 truncate text-dim">{note}</span>
         <div className="flex shrink-0 items-center gap-1.5">
           <span className="text-dim">背景</span>
-          <div role="group" aria-label="背景" className="flex h-6 overflow-hidden rounded-md border border-edge bg-control">
+          <div role="group" aria-label="背景" className="flex h-6 rounded-md track">
             {[
               { on: !light, label: "暗", value: false },
               { on: light, label: "明", value: true },
-            ].map((b, i) => (
+            ].map((b) => (
               <button
                 key={b.label}
                 aria-pressed={b.on}
@@ -155,7 +155,7 @@ export function ImageCompare() {
                   setLight(b.value);
                   persistLight(b.value);
                 }}
-                className={`px-2 ${i > 0 ? "border-l border-line" : ""} ${b.on ? "bg-chosen text-fg" : "text-fg/85 hover:bg-white/12"}`}
+                className={`rounded px-2 ${b.on ? "thumb" : "text-fg/85 hover:bg-hover hover:text-fg"}`}
               >
                 {b.label}
               </button>
@@ -177,7 +177,7 @@ export function ImageCompare() {
             title="全体を表示（⌘0）"
             disabled={look.k === 1}
             onClick={() => setLook(WHOLE)}
-            className="ml-1 h-6 rounded-md border border-edge bg-control px-2 text-dim enabled:hover:bg-white/12 enabled:hover:text-fg disabled:off disabled:bg-transparent"
+            className="ml-1 h-6 rounded-md px-2 text-dim ghost enabled:hover:text-fg disabled:off"
           >
             全体
           </button>
