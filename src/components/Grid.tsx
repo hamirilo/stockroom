@@ -205,7 +205,7 @@ function FlagOverlay({ item }: { item: Item }) {
       {(item.pinnedAt !== null || trayMark) && (
         <span className="pointer-events-none absolute top-1.5 left-1.5 flex gap-1">
           {item.pinnedAt !== null && (
-            <span title="ピン留め中（一覧の先頭に表示）" className="pointer-events-auto rounded-full bg-accent p-1 text-white shadow">
+            <span title="ピン留め中（一覧の先頭に表示）" className="pointer-events-auto rounded-full bg-accent-fill p-1 text-white shadow">
               <Pin size={11} fill="currentColor" strokeWidth={2} />
             </span>
           )}
@@ -235,7 +235,7 @@ function SelectMark({ item, index, selected }: { item: Item; index: number; sele
       }}
       title={selected ? "選択から外す（⌘+クリック）" : "選択に追加（⌘+クリック）"}
       className={`absolute right-1.5 bottom-1.5 h-5 w-5 items-center justify-center rounded-full border-2 border-white transition-colors ${
-        selected ? "flex bg-accent text-white shadow" : "hidden bg-black/35 group-hover:flex hover:bg-black/60"
+        selected ? "flex bg-accent-fill text-white shadow" : "hidden bg-black/35 group-hover:flex hover:bg-black/60"
       }`}
     >
       {selected && <Check size={12} strokeWidth={3.5} />}
@@ -430,7 +430,7 @@ const ListRow = memo(function ListRow({
           <button
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => useStore.getState().pickKeeper(item.id)}
-            className="ml-2 rounded border border-line px-1.5 py-0.5 text-[10px] hover:bg-white/10"
+            className="ml-2 rounded border border-edge bg-control px-1.5 py-0.5 text-[10px] hover:bg-white/12"
           >
             これを残す
           </button>
@@ -963,7 +963,7 @@ function SectionBar({
           grouped ? "グループの目次（⌘⌥J）" : "グループ分けを選ぶと使えます"
         }
         onClick={() => setOpen(!open)}
-        className="ml-auto flex min-w-20 items-center justify-center gap-1 rounded-md border border-line px-2 py-0.5 hover:bg-white/5 disabled:opacity-40 disabled:hover:bg-transparent"
+        className="ml-auto flex min-w-20 items-center justify-center gap-1 rounded-md border border-edge bg-control px-2 py-0.5 hover:bg-white/12 disabled:off disabled:bg-transparent disabled:hover:bg-transparent"
       >
         目次 <ChevronDown size={12} />
       </button>
@@ -1046,7 +1046,7 @@ function GroupHeader({ items, section, keepPick }: { items: Item[]; section: Sec
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => dismissDuplicates(group.map((i) => i.id))}
         title="このグループの画像は別物として扱い、今後は候補に出しません"
-        className="ml-auto rounded-md border border-line px-2 py-0.5 hover:bg-white/5"
+        className="ml-auto rounded-md border border-edge bg-control px-2 py-0.5 hover:bg-white/12"
       >
         重複ではない
       </button>
@@ -1054,7 +1054,7 @@ function GroupHeader({ items, section, keepPick }: { items: Item[]; section: Sec
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => reviewDuplicates(keepPlan([group], keepPick))}
         title="残す1枚を確認してから、他をゴミ箱へ移動します"
-        className="rounded-md border border-line px-2 py-0.5 hover:bg-white/5"
+        className="rounded-md border border-edge bg-control px-2 py-0.5 hover:bg-white/12"
       >
         このグループを整理…
       </button>
@@ -1089,7 +1089,7 @@ function Empty({
         <p>条件に合う{noun}はありません</p>
         <button
           onClick={() => useStore.getState().clearConditions()}
-          className="rounded-md bg-accent px-3 py-1.5 font-medium text-white hover:brightness-110"
+          className="rounded-md bg-accent-fill px-3 py-1.5 font-medium text-white hover:brightness-110"
         >
           絞り込みをすべて解除
         </button>
@@ -1146,7 +1146,7 @@ function Empty({
       <button
         onPointerDown={(e) => e.stopPropagation()}
         onClick={importFilesDialog}
-        className="rounded-md bg-accent px-4 py-1.5 font-medium text-white hover:brightness-110"
+        className="rounded-md bg-accent-fill px-4 py-1.5 font-medium text-white hover:brightness-110"
       >
         {noun}を選択して追加
       </button>

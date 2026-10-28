@@ -63,13 +63,13 @@ function Segmented<T extends string | number>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex rounded-md border border-line p-0.5">
+    <div className="flex rounded-md border border-edge bg-control p-0.5">
       {options.map((o) => (
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
           className={`flex-1 rounded px-2 py-1 whitespace-nowrap ${
-            value === o.value ? "bg-accent text-white" : "text-dim hover:bg-white/5 hover:text-fg"
+            value === o.value ? "bg-chosen text-fg" : "text-fg/85 hover:bg-white/12"
           }`}
         >
           {o.label}
@@ -89,7 +89,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const selectClass =
-  "h-8 w-full rounded-md border border-line bg-bg px-2 outline-none focus:border-accent";
+  "h-8 w-full rounded-md border border-edge bg-bg px-2 outline-none focus:border-accent";
 
 /** The sheet drawn with the thumbnails, scaled to fit the preview pane. */
 function Preview({ layout: l, opt }: { layout: SheetLayout; opt: SheetOptions }) {
@@ -353,7 +353,7 @@ export function SheetDialog() {
                 placeholder="例：どれがいいですか？"
                 onChange={(e) => set({ title: e.target.value })}
                 onKeyDown={(e) => e.key === "Escape" && !composing(e) && e.currentTarget.blur()}
-                className="h-8 rounded-md border border-line bg-bg px-2 outline-none focus:border-accent"
+                className="h-8 rounded-md border border-edge bg-bg px-2 outline-none focus:border-accent"
               />
             </Field>
             <Field label="番号">
@@ -423,14 +423,14 @@ export function SheetDialog() {
               : "並びは一覧の順です（シェルフからはシェルフの並び。ドラッグで並べ替えできます）"}
           </span>
           <div className="ml-auto flex gap-2">
-            <button onClick={close} disabled={!!busy} className="rounded-md px-3 py-1.5 hover:bg-white/5 disabled:opacity-40">
+            <button onClick={close} disabled={!!busy} className="rounded-md px-3 py-1.5 hover:bg-white/5 disabled:off">
               キャンセル
             </button>
             {!isHtml && (
               <button
                 onClick={onCopy}
                 disabled={!!busy || big || !items.length}
-                className="flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 enabled:hover:bg-white/5 disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-md border border-edge bg-control px-3 py-1.5 enabled:hover:bg-white/12 disabled:off disabled:bg-transparent"
               >
                 <Copy size={14} />
                 画像をコピー
@@ -439,7 +439,7 @@ export function SheetDialog() {
             <button
               onClick={onSave}
               disabled={!!busy || big || !items.length}
-              className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 font-medium text-white enabled:hover:brightness-110 disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-md bg-accent-fill px-3 py-1.5 font-medium text-white enabled:hover:brightness-110 disabled:off disabled:bg-control"
             >
               <Download size={14} />
               保存…

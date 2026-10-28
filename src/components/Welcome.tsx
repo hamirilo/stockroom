@@ -14,10 +14,10 @@ export function Welcome() {
         <p className="mt-1 text-dim">画像はライブラリフォルダにコピーして管理されます</p>
       </div>
       <div className="flex flex-col gap-2">
-        <button onClick={createLibraryDialog} className={`${btn} bg-accent text-white`}>
+        <button onClick={createLibraryDialog} className={`${btn} bg-accent-fill text-white`}>
           <Plus size={16} /> 新しいライブラリを作成
         </button>
-        <button onClick={openLibraryDialog} className={`${btn} border border-line bg-raised`}>
+        <button onClick={openLibraryDialog} className={`${btn} border border-edge bg-control`}>
           <FolderOpen size={16} /> 既存のライブラリを開く
         </button>
       </div>

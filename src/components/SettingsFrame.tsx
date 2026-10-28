@@ -311,8 +311,8 @@ export function RowButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 ${
-        primary ? "bg-accent text-white hover:brightness-110" : "border border-line hover:bg-raised"
+      className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:off ${
+        primary ? "bg-accent-fill text-white hover:brightness-110" : "border border-edge bg-control hover:bg-white/12"
       }`}
     >
       {children}

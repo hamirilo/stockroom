@@ -105,9 +105,9 @@ function Dropdown({
       <button
         title={title}
         onClick={() => setOpen((o) => !o)}
-        className={`flex h-7 items-center gap-1.5 rounded-md border px-2 whitespace-nowrap hover:bg-white/5 ${
-          open ? "bg-white/5" : ""
-        } ${active ? "border-accent/60 text-accent" : "border-line"}`}
+        className={`flex h-7 items-center gap-1.5 rounded-md border px-2 whitespace-nowrap hover:bg-white/12 ${
+          open ? "bg-white/14" : "bg-control"
+        } ${active ? "border-accent text-accent" : "border-edge"}`}
       >
         {button}
       </button>
@@ -141,7 +141,7 @@ export function LayoutSwitch() {
     ...LAYOUTS.filter((l) => l.key === layout && !primary.includes(l.key)),
   ];
   return (
-    <div className="flex h-7 shrink-0 items-stretch overflow-hidden rounded-md border border-line">
+    <div className="flex h-7 shrink-0 items-stretch overflow-hidden rounded-md border border-edge bg-control">
       {shown.map((l, i) => (
         <button
           key={l.key}
@@ -150,7 +150,7 @@ export function LayoutSwitch() {
           aria-pressed={layout === l.key}
           onClick={() => setLayout(l.key)}
           className={`flex w-8 items-center justify-center ${i > 0 ? "border-l border-line" : ""} ${
-            layout === l.key ? "bg-accent/20 text-accent" : "text-dim hover:bg-white/5 hover:text-fg"
+            layout === l.key ? "bg-chosen text-fg" : "text-fg/85 hover:bg-white/12"
           }`}
         >
           {l.icon}
@@ -177,12 +177,12 @@ export function GroupMenu() {
   const current = groups.find((g) => g.key === groupBy) ?? groups[0];
   return (
     <div className="flex h-7 shrink-0 items-center gap-1.5">
-      <span className={`text-dim @max-3xl:hidden ${isSimilar ? "opacity-40" : ""}`}>グループ</span>
+      <span className={`@max-3xl:hidden ${isSimilar ? "text-off" : "text-dim"}`}>グループ</span>
       {/* Narrow: a native select over a label, like the sort order next to it. */}
       <label
         title={isSimilar ? "グループ分け（重複の候補では使えません）" : `グループ分け：${current.hint}`}
-        className={`relative hidden h-full items-center gap-1.5 rounded-md border border-line bg-bg pr-2 pl-2.5 whitespace-nowrap @max-3xl:flex ${
-          isSimilar ? "opacity-40" : "hover:bg-white/5 focus-within:border-accent"
+        className={`relative hidden h-full items-center gap-1.5 rounded-md border border-edge bg-control pr-2 pl-2.5 whitespace-nowrap @max-3xl:flex ${
+          isSimilar ? "off bg-transparent" : "hover:bg-white/12 focus-within:border-accent"
         }`}
       >
         <span className="text-dim @max-md:hidden">グループ</span>
@@ -203,7 +203,7 @@ export function GroupMenu() {
           ))}
         </select>
       </label>
-      <div role="group" aria-label="グループ分け" className="flex h-full items-stretch overflow-hidden rounded-md border border-line @max-3xl:hidden">
+      <div role="group" aria-label="グループ分け" className="flex h-full items-stretch overflow-hidden rounded-md border border-edge bg-control @max-3xl:hidden">
         {groups.map((g, i) => {
           const on = groupBy === g.key && !isSimilar;
           return (
@@ -219,8 +219,8 @@ export function GroupMenu() {
                     : `${g.label}：${g.hint}`
               }
               onClick={() => setGroupBy(g.key)}
-              className={`px-2 whitespace-nowrap disabled:opacity-40 ${i > 0 ? "border-l border-line" : ""} ${
-                on ? "bg-accent font-medium text-white" : "text-dim enabled:hover:bg-white/5 enabled:hover:text-fg"
+              className={`px-2 whitespace-nowrap disabled:off ${i > 0 ? "border-l border-line" : ""} ${
+                on ? "bg-chosen font-medium text-fg" : "text-fg/85 enabled:hover:bg-white/12"
               }`}
             >
               {g.label}
@@ -276,7 +276,7 @@ export function DisplayMenu() {
               value={thumbSize}
               disabled={layout === "list"}
               onChange={(e) => setThumbSize(Number(e.target.value))}
-              className="min-w-0 flex-1 disabled:opacity-40"
+              className="min-w-0 flex-1 disabled:off"
             />
             <span className="w-10 text-right text-dim tabular-nums">{thumbSize}</span>
           </label>

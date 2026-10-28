@@ -74,7 +74,7 @@ export function FileView({ item }: { item: Item }) {
         )}
         <button
           onClick={() => openSelection([item.id])}
-          className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:brightness-110"
+          className="flex items-center gap-2 rounded-md bg-accent-fill px-4 py-2 text-sm font-medium text-white hover:brightness-110"
         >
           <ExternalLink size={15} />
           既定のアプリで開く

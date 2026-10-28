@@ -58,7 +58,7 @@ function ToastCard({ t, paused }: { t: Toast; paused: boolean }) {
                 t.action!.onClick();
                 dismiss(t.id);
               }}
-              className="mt-2 rounded-md bg-accent px-3 py-1 text-xs font-medium text-white hover:brightness-110"
+              className="mt-2 rounded-md bg-accent-fill px-3 py-1 text-xs font-medium text-white hover:brightness-110"
             >
               {t.action.label}
             </button>

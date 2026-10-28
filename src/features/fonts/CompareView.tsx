@@ -183,7 +183,7 @@ export function CompareView() {
           <span className="text-dim">{left > 0 ? `あと ${left} 件置けます` : "シェルフはいっぱいです"}</span>
           <div className="ml-auto flex items-center gap-1.5">
             <span className="text-dim">背景</span>
-            <div role="group" aria-label="背景" className="flex h-6 overflow-hidden rounded-md border border-line">
+            <div role="group" aria-label="背景" className="flex h-6 overflow-hidden rounded-md border border-edge bg-control">
               {[
                 { on: !light, label: "暗", value: false },
                 { on: light, label: "明", value: true },
@@ -195,7 +195,7 @@ export function CompareView() {
                     setLight(b.value);
                     persist("compareLight", String(b.value));
                   }}
-                  className={`px-2 ${i > 0 ? "border-l border-line" : ""} ${b.on ? "bg-accent text-white" : "text-dim hover:bg-white/5"}`}
+                  className={`px-2 ${i > 0 ? "border-l border-line" : ""} ${b.on ? "bg-chosen text-fg" : "text-fg/85 hover:bg-white/12"}`}
                 >
                   {b.label}
                 </button>
@@ -238,7 +238,7 @@ export function CompareView() {
                   title={patternText(ASPECT_PATTERN[a])}
                   onClick={() => toggleAspect(a)}
                   className={`h-6 rounded-full border px-2.5 ${
-                    on ? "border-accent bg-accent text-white" : "border-line text-dim hover:bg-white/5 hover:text-fg"
+                    on ? "border-tonal-edge bg-tonal text-on-tonal" : "border-edge bg-control text-fg/85 hover:bg-white/12"
                   }`}
                 >
                   {a}
@@ -247,7 +247,7 @@ export function CompareView() {
             })}
           </div>
           {editing || own ? (
-            <label className="flex h-6 min-w-40 flex-1 items-center rounded-md border border-line bg-bg focus-within:border-accent">
+            <label className="flex h-6 min-w-40 flex-1 items-center rounded-md border border-edge bg-bg focus-within:border-accent">
               <input
                 autoFocus={editing && !own}
                 value={own}
@@ -404,8 +404,8 @@ function CompareRow({
                 disabled={members.length < 2}
                 onChange={(e) => onStyle(e.target.value)}
                 title={members.length < 2 ? "このファミリーのスタイルは 1 つです" : "比べる太さ"}
-                className={`h-6 rounded-md border px-1.5 disabled:opacity-60 ${
-                  light ? "border-neutral-300 bg-white" : "border-line bg-bg"
+                className={`h-6 rounded-md border px-1.5 ${
+                  light ? "border-neutral-300 bg-white disabled:opacity-60" : "border-edge bg-bg disabled:off"
                 }`}
               >
                 {members.map((m) => (

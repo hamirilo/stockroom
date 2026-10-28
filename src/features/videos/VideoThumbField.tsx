@@ -9,7 +9,7 @@ import type { Item } from "../../lib/api";
 import { useStore } from "../../store";
 
 const btn =
-  "flex h-7 items-center gap-1.5 rounded-md border border-line px-2 text-xs hover:bg-white/5 disabled:pointer-events-none disabled:opacity-40";
+  "flex h-7 items-center gap-1.5 rounded-md border border-edge bg-control px-2 text-xs hover:bg-white/12 disabled:pointer-events-none disabled:off disabled:bg-transparent";
 
 export function VideoThumbField({ item }: { item: Item }) {
   const links = useStore((s) => s.librarySettings.links);

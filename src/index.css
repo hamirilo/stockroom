@@ -8,6 +8,26 @@
   --color-fg: #e6e6e8;
   --color-dim: #9a9ba3;
   --color-accent: #4c8dff;
+  /*
+   * Control colours (docs/UI.md「色」). Dark only for now; a light theme
+   * would swap these values. White at an alpha, so a control reads the same
+   * on the toolbar, a panel or a dialog.
+   */
+  /* A control's face, one step above the surface it sits on. */
+  --color-control: rgb(255 255 255 / 0.08);
+  /* A control's outline: 3:1 against the panel (WCAG 1.4.11). */
+  --color-edge: rgb(255 255 255 / 0.34);
+  /* The chosen segment of a segmented control (neutral, as on macOS). */
+  --color-chosen: rgb(255 255 255 / 0.24);
+  /* A pressed toggle (on), and an active filter. */
+  --color-tonal: #344a73;
+  --color-tonal-edge: #7d9fd8;
+  --color-on-tonal: #d6e3ff;
+  /* Fill under white text (a primary button, a menu's highlighted row): 4.7:1. */
+  --color-accent-fill: #2f6fe0;
+  /* Disabled: text and outline dimmed on their own, never the whole control by opacity. */
+  --color-off: rgb(255 255 255 / 0.5);
+  --color-off-edge: rgb(255 255 255 / 0.14);
   --color-danger: #ef5d5d;
   --color-success: #3ec27f;
 
@@ -312,4 +332,16 @@ textarea {
 }
 :root[data-dragging="copy"] {
   cursor: copy;
+}
+
+/*
+ * Disabled controls (`disabled:off`): the text and the outline go down on
+ * their own, so the label stays readable (5:1) while the control reads as
+ * flat and not pressable. Never the whole control by opacity (docs/UI.md「色」).
+ */
+@utility off {
+  color: var(--color-off);
+  border-color: var(--color-off-edge);
+  cursor: default;
+  filter: none;
 }

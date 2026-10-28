@@ -181,7 +181,7 @@ function Panel({
                     aria-label={b.title}
                     aria-pressed={b.active}
                     onClick={() => run(b.onClick)}
-                    className={`flex h-7 w-7 items-center justify-center rounded hover:bg-accent hover:text-white ${
+                    className={`flex h-7 w-7 items-center justify-center rounded hover:bg-accent-fill hover:text-white ${
                       b.active ? "text-accent" : "text-fg/80"
                     }`}
                   >
@@ -196,7 +196,7 @@ function Panel({
               <button
                 key={i}
                 disabled={it.disabled}
-                className={`${row} ${open?.index === i ? "bg-white/10" : ""} enabled:hover:bg-white/10 disabled:opacity-40`}
+                className={`${row} ${open?.index === i ? "bg-white/10" : ""} enabled:hover:bg-white/10 disabled:off`}
                 onPointerEnter={(e) => !it.disabled && hover(i, e.currentTarget, true)}
                 onClick={(e) => !it.disabled && setOpen({ index: i, rect: e.currentTarget.getBoundingClientRect() })}
               >
@@ -208,7 +208,7 @@ function Panel({
             <button
               key={i}
               disabled={it.disabled}
-              className={`${row} enabled:hover:bg-accent enabled:hover:text-white disabled:opacity-40 ${it.danger ? "text-danger" : ""}`}
+              className={`${row} enabled:hover:bg-accent-fill enabled:hover:text-white disabled:off ${it.danger ? "text-danger" : ""}`}
               onPointerEnter={() => hover(i, null, false)}
               onClick={() => run(it.onClick)}
             >

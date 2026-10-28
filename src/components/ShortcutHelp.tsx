@@ -87,7 +87,7 @@ function Panel() {
         <div className="flex items-center gap-3 border-b border-line px-5 py-3">
           <Keyboard size={16} className="shrink-0 text-accent" />
           <h2 className="text-sm font-semibold whitespace-nowrap">キーボードショートカット</h2>
-          <label className="ml-auto flex h-8 w-64 min-w-0 items-center gap-2 rounded-md border border-line bg-bg px-2 focus-within:border-accent">
+          <label className="ml-auto flex h-8 w-64 min-w-0 items-center gap-2 rounded-md border border-edge bg-bg px-2 focus-within:border-accent">
             <Search size={14} className="shrink-0 text-dim" />
             <input
               autoFocus

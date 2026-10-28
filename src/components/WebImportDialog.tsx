@@ -94,7 +94,7 @@ export function WebImportSettings() {
               <button
                 disabled={busy}
                 onClick={() => act(api.installExtension)}
-                className="flex h-7 items-center gap-1.5 rounded-md border border-line px-2.5 text-xs enabled:hover:bg-white/5 disabled:opacity-40"
+                className="flex h-7 items-center gap-1.5 rounded-md border border-edge bg-control px-2.5 text-xs enabled:hover:bg-white/12 disabled:off disabled:bg-transparent"
               >
                 <FolderOpen size={13} />
                 もう一度用意する
@@ -122,7 +122,7 @@ export function WebImportSettings() {
                 <button
                   disabled={busy}
                   onClick={() => act(api.installExtension)}
-                  className="mb-2 flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 font-medium text-white enabled:hover:brightness-110 disabled:opacity-40"
+                  className="mb-2 flex h-8 items-center gap-1.5 rounded-md bg-accent-fill px-3 font-medium text-white enabled:hover:brightness-110 disabled:off disabled:bg-control"
                 >
                   <FolderOpen size={14} />
                   拡張機能のフォルダを用意して表示
@@ -230,13 +230,13 @@ export function PairDialog() {
           </>
         )}
         <div className="flex justify-center gap-2">
-          <button onClick={() => answer(false)} className="h-9 rounded-md border border-line px-4 hover:bg-white/5">
+          <button onClick={() => answer(false)} className="h-9 rounded-md border border-edge bg-control px-4 hover:bg-white/12">
             許可しない
           </button>
           <button
             autoFocus
             onClick={() => answer(true)}
-            className="h-9 rounded-md bg-accent px-4 font-medium text-white hover:brightness-110"
+            className="h-9 rounded-md bg-accent-fill px-4 font-medium text-white hover:brightness-110"
           >
             許可する
           </button>
@@ -267,7 +267,7 @@ function PathRow({ path }: { path: string }) {
   const [copied, copy] = useCopy();
   return (
     <div className="mt-2">
-      <div className="flex items-center gap-1 rounded-md border border-line bg-bg pl-2">
+      <div className="flex items-center gap-1 rounded-md border border-edge bg-bg pl-2">
         <code className="min-w-0 flex-1 truncate py-1 text-xs" title={path}>
           {path}
         </code>

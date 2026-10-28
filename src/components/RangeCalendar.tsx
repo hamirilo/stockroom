@@ -77,11 +77,11 @@ export function RangeCalendar({ from, to, max = dayStart(new Date()), onChange }
           {month.getFullYear()}年{month.getMonth() + 1}月
         </button>
         <div className="flex">
-          <button className={`${nav} disabled:opacity-30`} title="次の月" disabled={nextDisabled} onClick={() => shift(1)}>
+          <button className={`${nav} disabled:off`} title="次の月" disabled={nextDisabled} onClick={() => shift(1)}>
             <ChevronRight size={14} />
           </button>
           <button
-            className={`${nav} disabled:opacity-30`}
+            className={`${nav} disabled:off`}
             title="次の年"
             disabled={nextYearDisabled}
             onClick={() => shift(12)}
@@ -109,9 +109,9 @@ export function RangeCalendar({ from, to, max = dayStart(new Date()), onChange }
               disabled={disabled}
               onClick={() => pick(d)}
               onPointerEnter={() => setHover(d)}
-              className={`relative h-8 text-xs tabular-nums disabled:cursor-default disabled:opacity-25 ${
+              className={`relative h-8 text-xs tabular-nums disabled:cursor-default disabled:off ${
                 edge
-                  ? "rounded-md bg-accent font-medium text-white"
+                  ? "rounded-md bg-accent-fill font-medium text-white"
                   : inRange
                     ? "bg-accent/25"
                     : disabled

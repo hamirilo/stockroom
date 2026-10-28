@@ -134,7 +134,7 @@ function Dialog({ source, title }: { source: ListSource; title: string }) {
   };
 
   const check = (on: boolean, set: (v: boolean) => void, label: string, hint: string, disabled = false) => (
-    <label className={`flex items-start gap-2.5 py-1 ${disabled ? "opacity-40" : "cursor-pointer"}`}>
+    <label className={`flex items-start gap-2.5 py-1 ${disabled ? "opacity-50" : "cursor-pointer"}`}>
       <input
         type="checkbox"
         className="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)]"
@@ -259,14 +259,14 @@ function Frame({
         <div className="space-y-3 px-5 py-4">{children}</div>
 
         <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-          <button onClick={close} className="h-8 rounded-md border border-line px-3 hover:bg-white/5">
+          <button onClick={close} className="h-8 rounded-md border border-edge bg-control px-3 hover:bg-white/12">
             キャンセル
           </button>
           <button
             autoFocus
             disabled={!ready}
             onClick={run}
-            className="h-8 rounded-md bg-accent px-4 font-medium text-white enabled:hover:brightness-110 disabled:opacity-40"
+            className="h-8 rounded-md bg-accent-fill px-4 font-medium text-white enabled:hover:brightness-110 disabled:off disabled:bg-control"
           >
             {busy ? "書き出し中…" : "書き出し"}
           </button>
@@ -286,14 +286,14 @@ function DestField({ dest, setDest, note }: { dest: string | null; setDest: (d: 
       <div className="mb-1 text-xs text-dim">書き出し先</div>
       <div className="flex items-center gap-2">
         <code
-          className={`min-w-0 flex-1 truncate rounded-md border border-line bg-bg px-2 py-1.5 text-xs ${dest ? "" : "text-dim"}`}
+          className={`min-w-0 flex-1 truncate rounded-md border border-edge bg-bg px-2 py-1.5 text-xs ${dest ? "" : "text-dim"}`}
           title={dest ?? undefined}
         >
           {dest ?? "フォルダを選んでください"}
         </code>
         <button
           onClick={pick}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-line px-3 text-xs hover:bg-white/5"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-edge bg-control px-3 text-xs hover:bg-white/12"
         >
           <FolderOpen size={14} />
           選ぶ…
