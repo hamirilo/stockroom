@@ -213,6 +213,8 @@ interface State {
   specimenFallback: boolean;
   inspectorOpen: boolean;
   sidebarOpen: boolean;
+  /** The list's table of contents (the sections to jump to) is open. Not kept: it closes on its own. */
+  tocOpen: boolean;
   /** Widths of the sidebar and the details panel (px), dragged at their edge. */
   sidebarWidth: number;
   inspectorWidth: number;
@@ -363,6 +365,7 @@ interface State {
   setComparing: (on: boolean) => void;
   setCompareLook: (look: CompareLook | ((l: CompareLook) => CompareLook)) => void;
   toggleSidebar: () => void;
+  setTocOpen: (open: boolean) => void;
   /** Sets a panel's width (kept within its limits, see PANEL_WIDTH). */
   setPanelWidth: (panel: "sidebar" | "inspector", px: number) => void;
   setShowSubfolders: (on: boolean) => void;
@@ -819,6 +822,7 @@ export const useStore = create<State>((set, get) => ({
   thumbSize: loadNumber("thumbSize", 180),
   inspectorOpen: load("inspectorOpen") !== "false",
   sidebarOpen: load("sidebarOpen") !== "false",
+  tocOpen: false,
   sidebarWidth: clampWidth("sidebar", loadNumber("sidebarWidth", PANEL_WIDTH.sidebar.initial)),
   inspectorWidth: clampWidth("inspector", loadNumber("inspectorWidth", PANEL_WIDTH.inspector.initial)),
   showSubfolders: load("showSubfolders") === "true",
@@ -1192,6 +1196,7 @@ export const useStore = create<State>((set, get) => ({
     set({ sidebarOpen });
     persist("sidebarOpen", String(sidebarOpen));
   },
+  setTocOpen: (tocOpen) => set({ tocOpen }),
   setPanelWidth: (panel, px) => {
     const w = clampWidth(panel, px);
     set(panel === "sidebar" ? { sidebarWidth: w } : { inspectorWidth: w });

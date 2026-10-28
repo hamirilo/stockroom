@@ -317,6 +317,7 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
         { checked: (x) => x.desc, enabled: (x) => x.sort !== "manual" },
       ),
     ]),
+    cmd("view.toc"),
     cmd("view.subfolders"),
     // Stock only, where links are (greyed out with them off).
     ...(mode === "stock" ? [cmd("view.openParents"), cmd("view.closeParents")] : []),

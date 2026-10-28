@@ -65,6 +65,7 @@ npm test               # Rust のユニットテスト + 型チェック
 | [NAVIGATION.md](docs/NAVIGATION.md) | サイドバーとツールバーの役割（場所・絞り込み・表示） |
 | [MODES.md](docs/MODES.md) | モードを分ける（ストックとフォント） |
 | [FONT_UI.md](docs/FONT_UI.md) | フォントの画面（見本・グループ分け・シェルフ・比較） |
+| [GROUP_TOC.md](docs/GROUP_TOC.md) | グループ分けの目次（いま見ている区切りの表示と、区切りへのジャンプ） |
 | [COMPARE.md](docs/COMPARE.md) | 画像の比較（シェルフの画像を並べ、一緒に拡大して見比べる） |
 | [SYSTEM_FONTS.md](docs/SYSTEM_FONTS.md) | この端末のフォント（ライブラリに取り込まない読み取り専用の一覧） |
 | [TEXT.md](docs/TEXT.md) | テキスト（Markdown・テキスト・CSV）：見る・編集・新規作成・文字コード |
