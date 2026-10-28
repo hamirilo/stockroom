@@ -37,6 +37,7 @@ import {
 } from "../lib/api";
 import { FontCategorySelect, FontDetails } from "../features/fonts/FontDetails";
 import { SystemFontPanel } from "../features/fonts/SystemFontPanel";
+import { VideoThumbField } from "../features/videos/VideoThumbField";
 import { useStore } from "../store";
 import { composing } from "../lib/ime";
 import { LinksField } from "./LinksField";
@@ -654,6 +655,13 @@ export function Inspector() {
         {!isTrash && stock && (
           <Section id="links" title="紐づけ" summary={linksSummary}>
             <LinksField ids={ids} single={single} />
+          </Section>
+        )}
+
+        {/* One video, not in the trash: its own thumbnail (docs/VIDEO.md). */}
+        {!isTrash && single?.kind === "video" && (
+          <Section id="thumb" title="サムネイル" summary={single.ownThumb ? "設定した画像" : "動画のコマ"}>
+            <VideoThumbField item={single} />
           </Section>
         )}
 

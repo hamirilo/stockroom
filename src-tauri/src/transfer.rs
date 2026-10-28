@@ -121,10 +121,8 @@ fn copy_files(src: &Path, dst: &Path, item: &Item) -> Result<Vec<PathBuf>, Strin
     copy_dir(&library::item_dir(src, &item.id), &dir).map_err(|e| e.to_string())?;
     written.push(dir);
     // Thumbnails and the display copy can be made again; a missing one is fine.
-    let mut extra = vec![
-        Path::new("thumbs").join(&item.thumb),
-        Path::new("thumbs").join(crate::orient::base_thumb(&item.thumb)),
-    ];
+    let mut extra = vec![Path::new("thumbs").join(&item.thumb)];
+    extra.extend(crate::videos::thumb::other_thumbs(item).into_iter().map(|t| Path::new("thumbs").join(t)));
     if let Some(p) = &item.preview {
         extra.push(Path::new("previews").join(p));
     }

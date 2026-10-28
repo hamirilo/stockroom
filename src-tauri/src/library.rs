@@ -221,8 +221,10 @@ pub fn remove_files(root: &Path, removed: &[Item]) {
     for item in removed {
         remove_item_dir(root, &item.id);
         let _ = fs::remove_file(thumb_path(root, item));
-        // The unrotated thumbnail is kept next to a rotated one.
-        let _ = fs::remove_file(root.join("thumbs").join(crate::orient::base_thumb(&item.thumb)));
+        // The unrotated thumbnail is kept next to a rotated one, a video's frame next to its own.
+        for t in crate::videos::thumb::other_thumbs(item) {
+            let _ = fs::remove_file(root.join("thumbs").join(t));
+        }
         if let Some(p) = &item.preview {
             let _ = fs::remove_file(root.join("previews").join(p));
         }

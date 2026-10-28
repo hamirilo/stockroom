@@ -924,7 +924,19 @@ pub struct Filter {
     /// File size range in bytes (inclusive).
     pub min_size: Option<i64>,
     pub max_size: Option<i64>,
+    /// Only parents (docs/LINKS.md): items with children, live ones with live
+    /// children and, in the trash, trashed ones with trashed children. The live
+    /// children of live parents stay too, to be folded under them (▸).
+    pub parents_only: bool,
 }
+
+/// A parent: an item with a child in the same place (both live, or both in the trash).
+const HAS_CHILDREN: &str = "EXISTS (SELECT 1 FROM items c WHERE c.parent_id = items.id
+     AND (c.deleted_at IS NULL) = (items.deleted_at IS NULL))";
+
+/// A live child of a live parent: listed under it.
+const CHILD_OF_LIVE: &str = "(items.deleted_at IS NULL AND EXISTS (SELECT 1 FROM items p
+     WHERE p.id = items.parent_id AND p.deleted_at IS NULL))";
 
 /// A set of conditions. Ad-hoc queries are built from the toolbar state;
 /// smart folders store one as JSON.
@@ -1218,6 +1230,9 @@ fn push_rule(rule: &Rule, wheres: &mut Vec<String>, args: &mut Vec<Box<dyn ToSql
     range("items.imported_at", "<", f.imported_before);
     range("items.size", ">=", f.min_size);
     range("items.size", "<=", f.max_size);
+    if f.parents_only {
+        wheres.push(format!("({HAS_CHILDREN} OR {CHILD_OF_LIVE})"));
+    }
 }
 
 const SUBFOLDERS_CTE: &str = "WITH RECURSIVE sub(id) AS (
@@ -1355,6 +1370,8 @@ pub struct Facets {
     pub font_categories: BTreeMap<String, i64>,
     pub font_weights: BTreeMap<String, i64>,
     pub font_features: BTreeMap<String, i64>,
+    /// Items with children (`Filter::parents_only`).
+    pub parents: i64,
 }
 
 pub fn facet_counts(conn: &Connection, q: &ItemQuery) -> DbResult<Facets> {
@@ -1429,6 +1446,11 @@ pub fn facet_counts(conn: &Connection, q: &ItemQuery) -> DbResult<Facets> {
         .map(|k| (k.to_string(), format!("instr(',' || IFNULL(items.font_features, '') || ',', ',{k},') > 0")))
         .collect();
     f.font_features = sums(&features, fonts)?;
+    f.parents = conn.query_row(
+        &format!("SELECT COUNT(*) FROM items WHERE items.id IN ({matched}) AND {HAS_CHILDREN}"),
+        args.as_slice(),
+        |r| r.get(0),
+    )?;
     Ok(f)
 }
 
@@ -2692,6 +2714,30 @@ pub fn unlink_items(conn: &Connection, ids: &[String]) -> DbResult<Vec<Placement
     Ok(out)
 }
 
+/// Makes the child `id` its family's parent: its parent and its other
+/// children (the trashed ones too) become its children. They are all in one
+/// folder already, so nothing moves. The adopted mark of `id` goes (a parent
+/// has none); the others keep theirs. Returns where each one stood, for the
+/// undo (`restore_links`); empty when `id` isn't a child.
+pub fn make_parent(conn: &Connection, id: &str) -> DbResult<Vec<Placement>> {
+    let parent: Option<String> =
+        conn.query_row("SELECT parent_id FROM items WHERE id = ?1", [id], |r| r.get(0)).optional()?.flatten();
+    let Some(parent) = parent else { return Ok(vec![]) };
+    let siblings: Vec<String> = {
+        let mut stmt = conn.prepare("SELECT id FROM items WHERE parent_id = ?1 AND id != ?2 ORDER BY id")?;
+        let rows = stmt.query_map([&parent, id], |r| r.get(0))?;
+        rows.collect::<DbResult<_>>()?
+    };
+    let mut was = vec![placement(conn, id)?, placement(conn, &parent)?];
+    for s in &siblings {
+        was.push(placement(conn, s)?);
+    }
+    conn.execute("UPDATE items SET parent_id = NULL, adopted = 0 WHERE id = ?1", [id])?;
+    conn.execute("UPDATE items SET parent_id = ?2, adopted = 0 WHERE id = ?1", params![parent, id])?;
+    conn.execute("UPDATE items SET parent_id = ?2 WHERE parent_id = ?1", params![parent, id])?;
+    Ok(was)
+}
+
 /// Puts children back as `link_items` / `unlink_items` found them.
 pub fn restore_links(conn: &Connection, placements: &[Placement]) -> DbResult<()> {
     for p in placements {
@@ -3165,6 +3211,69 @@ mod tests {
         insert_item(&tx, &font, 9).unwrap();
         tx.commit().unwrap();
         assert!(link_items(&conn, "c", &s(&["f"])).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_child_can_take_its_parents_place() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("v", 1), ("a", 2), ("b", 3), ("c", 4), ("x", 5)] {
+            add(&mut conn, id, id, at);
+        }
+        let f = create_folder(&conn, "F", None, Mode::Stock).unwrap();
+        move_to_folder(&conn, &s(&["v"]), &f).unwrap();
+        link_items(&conn, "v", &s(&["a", "b", "c"])).unwrap();
+        set_adopted(&conn, "c", true).unwrap();
+        trash_items(&conn, &s(&["b"])).unwrap();
+        let parent_of = |id: &str| get_items(&conn, &s(&[id])).unwrap().remove(0).parent_id;
+        let adopted = |id: &str| get_items(&conn, &s(&[id])).unwrap().remove(0).adopted;
+
+        // Not a child: nothing happens.
+        assert!(make_parent(&conn, "x").unwrap().is_empty());
+        assert!(make_parent(&conn, "v").unwrap().is_empty());
+
+        let was = make_parent(&conn, "a").unwrap();
+        assert_eq!(parent_of("a"), None);
+        assert_eq!(parent_of("v"), Some("a".into()));
+        // The trashed child goes along too: the old parent can't keep one.
+        assert_eq!((parent_of("b"), parent_of("c")), (Some("a".into()), Some("a".into())));
+        assert!(adopted("c"), "the other children keep their marks");
+        assert_eq!(folder_of_item(&conn, "a"), Some(f.clone()));
+        assert_eq!(folder_of_item(&conn, "v"), Some(f.clone()));
+
+        // The new parent's own mark goes.
+        let was2 = make_parent(&conn, "c").unwrap();
+        assert!(!adopted("c"));
+        assert_eq!(parent_of("a"), Some("c".into()));
+        restore_links(&conn, &was2).unwrap();
+        assert!(adopted("c"));
+        restore_links(&conn, &was).unwrap();
+        assert_eq!(parent_of("v"), None);
+        for id in ["a", "b", "c"] {
+            assert_eq!(parent_of(id), Some("v".into()));
+        }
+    }
+
+    #[test]
+    fn parents_only_lists_the_items_with_children() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("v", 1), ("t", 2), ("w", 3), ("u", 4), ("x", 5)] {
+            add(&mut conn, id, id, at);
+        }
+        link_items(&conn, "v", &s(&["t"])).unwrap();
+        link_items(&conn, "w", &s(&["u"])).unwrap();
+        // A parent whose only child is in the trash isn't one in the list.
+        trash_items(&conn, &s(&["u"])).unwrap();
+        let mut parents = q(View::All);
+        parents.filter.parents_only = true;
+        // The children stay, to go under their parents' rows.
+        assert_eq!(ids(query_items(&conn, &parents).unwrap()), s(&["v", "t"]));
+        assert_eq!(facet_counts(&conn, &q(View::All)).unwrap().parents, 1);
+        // Both in the trash: a parent there.
+        trash_items(&conn, &s(&["w"])).unwrap();
+        parents.view = View::Trash;
+        assert_eq!(ids(query_items(&conn, &parents).unwrap()), s(&["w"]));
     }
 
     #[test]

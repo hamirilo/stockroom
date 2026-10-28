@@ -25,8 +25,11 @@ type MockItem = Omit<
   | "inTray"
   | "parentId"
   | "adopted"
+  | "ownThumb"
 > & {
   hue: number;
+  /** A video's own thumbnail (a data URL), set from another item or a stand-in (videos/thumb.rs). */
+  customThumb?: string;
   /** The parent of a linked child (docs/LINKS.md). */
   parentId?: string | null;
   adopted?: boolean;
@@ -505,7 +508,8 @@ const view = (it: MockItem): Item => {
   const folderId = folders.find((f) => inFolder(it.id, f.id))?.id ?? null;
   const tagIds = tags.filter((t) => hasTag(it.id, t.id)).map((t) => t.id);
   const thumbPath =
-    it.kind === "font"
+    it.customThumb ??
+    (it.kind === "font"
       ? fontSvg(it)
       : it.kind === "file"
         ? fileSvg(it)
@@ -515,7 +519,7 @@ const view = (it: MockItem): Item => {
             ? videoSvg(it)
             : it.kind === "bookmark"
               ? bookmarkSvg(it)
-              : svg(it, 3, true);
+              : svg(it, 3, true));
   return {
     ...it,
     sourceUrl: it.sourceUrl ?? null,
@@ -536,6 +540,7 @@ const view = (it: MockItem): Item => {
     filePath,
     displayPath: filePath,
     thumbPath,
+    ownThumb: !!it.customThumb,
   };
 };
 const inFolder = (i: string, f: string) => itemFolders.has(`${i}|${f}`);
@@ -600,6 +605,13 @@ function applyRule(r: MockItem[], rule: Rule): MockItem[] {
   // Shape and pixel size only apply to images (fonts are 0 × 0), as in db.rs.
   const sized = f.shapes.length || [f.minWidth, f.maxWidth, f.minHeight, f.maxHeight].some((v) => v != null);
   if (sized) r = r.filter((i) => i.kind === "image");
+  // The live children of live parents stay, to go under their rows.
+  if (f.parentsOnly)
+    r = r.filter(
+      (i) =>
+        hasChildren(i) ||
+        (i.deletedAt === null && items.some((p) => p.id === i.parentId && p.deletedAt === null)),
+    );
   if (f.shapes.length) {
     r = r.filter((i) =>
       f.shapes.some((s) =>
@@ -664,6 +676,9 @@ function matched(q: ItemQuery): MockItem[] {
   return r;
 }
 
+/** A parent: a child of it is where it is (both live, or both in the trash; db.rs `HAS_CHILDREN`). */
+const hasChildren = (p: MockItem) => items.some((c) => c.parentId === p.id && (c.deletedAt === null) === (p.deletedAt === null));
+
 /** Counts per value of each filter condition, as db.rs `facet_counts`. */
 function facets(q: ItemQuery) {
   const r = matched(q);
@@ -688,6 +703,7 @@ function facets(q: ItemQuery) {
       fonts.flatMap((i) => (i.fontFeatures ?? []).map((k) => ({ k }))),
       (x) => x.k,
     ),
+    parents: r.filter(hasChildren).length,
   };
 }
 
@@ -1416,6 +1432,40 @@ function handle(cmd: string, a: any): unknown {
         c.adopted = false;
       }
       return out;
+    }
+    // A video's own thumbnail (videos/thumb.rs). A file or the clipboard can't be read here: a stand-in.
+    case "set_video_thumb": {
+      const v = items.find((i) => i.id === a.id);
+      if (!v || v.kind !== "video") throw "サムネイルを変えられるのは動画だけです";
+      const src: { from: string; id?: string } = a.source;
+      const from =
+        src.from === "item"
+          ? items.find((i) => i.id === src.id)
+          : src.from === "adopted"
+            ? items.find((i) => i.parentId === v.id && i.adopted && i.deletedAt === null)
+            : { ...v, kind: "image" as const, hue: (v.hue + 180) % 360 };
+      if (!from) throw src.from === "adopted" ? "採用した子がありません" : "画像が見つかりません";
+      v.customThumb = view(from).thumbPath;
+      return `${v.id}_c${Date.now()}.jpg`;
+    }
+    case "reset_video_thumb": {
+      const v = items.find((i) => i.id === a.id);
+      if (v) delete v.customThumb;
+      return;
+    }
+    case "make_parent": {
+      if (librarySettings.links !== true) throw "親子関係が無効です。設定で有効にしてください。";
+      const c = items.find((i) => i.id === a.id);
+      const old = c?.parentId && items.find((i) => i.id === c.parentId);
+      if (!c || !old) return [];
+      const siblings = items.filter((i) => i.parentId === old.id && i.id !== c.id);
+      const was = [c, old, ...siblings].map((i) => placementOf(i.id));
+      c.parentId = null;
+      c.adopted = false;
+      old.parentId = c.id;
+      old.adopted = false;
+      siblings.forEach((i) => (i.parentId = c.id));
+      return was;
     }
     case "restore_links":
       for (const p of a.placements as ReturnType<typeof placementOf>[]) {

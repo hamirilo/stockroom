@@ -73,6 +73,7 @@ export function systemItem(f: SystemFont): Item {
     // No rendered sample: rows and tiles draw in the font itself.
     thumbPath: "",
     displayPath: f.path,
+    ownThumb: false,
   };
 }
 
@@ -165,6 +166,7 @@ export async function systemFacetCounts(q: ItemQuery): Promise<Facets> {
     fontCategories: count("fontCategories", (f) => [f.category ?? "none"]),
     fontWeights: count("fontWeights", (f) => Object.keys(WEIGHT_RANGES).filter((k) => inWeight(f, k))),
     fontFeatures: count("fontFeatures", (f) => f.features),
+    parents: 0,
   };
 }
 

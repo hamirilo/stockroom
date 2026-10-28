@@ -34,7 +34,7 @@ import {
   type Placement,
 } from "../lib/layouts";
 import { activeConditions, currentFolderId, listKinds, useStore, type ShowInfo } from "../store";
-import { comboText } from "../lib/shortcuts";
+import { comboText, isMac } from "../lib/shortcuts";
 import { ChangePulse } from "./ActionHud";
 import { useMenu, type MenuItem } from "./ContextMenu";
 import { startPointerDrag } from "./DragLayer";
@@ -123,12 +123,13 @@ function LinkMark({ item, inline = false }: { item: Item; inline?: boolean }) {
   if (!n) return null;
   const Chevron = open ? ChevronDown : ChevronRight;
   const label = item.viaChild ? "中に該当あり" : `＋${n}`;
-  const title = `${open ? "紐づけた項目を閉じる" : "紐づけた項目を開く"}（${n} 件${item.viaChild ? "。この親自体は条件に合いません" : ""}）`;
+  const title = `${open ? "紐づけた項目を閉じる" : "紐づけた項目を開く"}（${n} 件${item.viaChild ? "。この親自体は条件に合いません" : ""}。${isMac ? "⌥" : "Alt"}+クリックですべて）`;
   return (
     <button
       onPointerDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
-      onClick={() => useStore.getState().toggleParent(item.id)}
+      // ⌥-click: every parent of the list, as in Finder.
+      onClick={(e) => (e.altKey ? useStore.getState().setAllParents(!open) : useStore.getState().toggleParent(item.id))}
       title={title}
       className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] leading-none tabular-nums ${
         inline
@@ -536,13 +537,29 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
       ],
     },
     { label: "タグ", submenu: [commandItem("item.copyTags"), commandItem("item.pasteTags")] },
+    // A video, or a video and an image (docs/VIDEO.md).
+    ...(ids.some((id) => byId.get(id)?.kind === "video")
+      ? [
+          {
+            label: "サムネイル",
+            submenu: [
+              commandItem("item.thumbFile"),
+              commandItem("item.thumbClipboard"),
+              commandItem("item.thumbSelected"),
+              commandItem("item.thumbAdopted"),
+              { separator: true as const },
+              commandItem("item.thumbReset"),
+            ],
+          },
+        ]
+      : []),
     // Stock only; with links off the rows stay, greyed, and say why (docs/UI.md).
     ...(s.mode === "stock"
       ? [
           {
             label: "紐づけ",
             submenu: s.librarySettings.links
-              ? [commandItem("item.link"), commandItem("item.unlink"), commandItem("item.adopt")]
+              ? [commandItem("item.link"), commandItem("item.unlink"), commandItem("item.makeParent"), commandItem("item.adopt")]
               : [{ label: "親子関係が無効です（設定で有効にできます）", onClick: () => {}, disabled: true }],
           },
         ]
