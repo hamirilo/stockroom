@@ -228,6 +228,15 @@ export const COMMANDS: Command[] = [
     run: (s) => s.togglePanelTab("shelf"),
   },
   {
+    id: "view.toc",
+    title: "グループの目次",
+    keys: ["Mod+Alt+J"],
+    // Only where the list is in sections (docs/UI.md: greyed out, not removed).
+    enabled: (s) => s.sections.length > 0,
+    checked: (s) => s.tocOpen,
+    run: (s) => s.setTocOpen(!s.tocOpen),
+  },
+  {
     id: "view.zoomIn",
     title: "拡大",
     label: (s) => (s.mode === "font" && s.layout === "specimen" ? "文字を大きく" : "拡大"),

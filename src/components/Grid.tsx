@@ -811,7 +811,16 @@ export function Grid() {
   }, []);
 
   const Comp = kind === "list" ? ListRow : kind === "specimen" ? SpecimenRow : fontTiles ? FontTile : Cell;
+  // The section being read: the last one whose band has reached the top.
+  const current = Math.max(0, placement.headers.filter((h) => h.y - PAD <= viewport.top + 4).length - 1);
+  const jump = (n: number) => {
+    const h = placement.headers[n];
+    if (h) scrollRef.current?.scrollTo({ top: Math.max(0, h.y - PAD) });
+    useStore.getState().setTocOpen(false);
+  };
   return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {items.length > 0 && <SectionBar items={items} sections={sections} current={current} onJump={jump} />}
     <div
       ref={scrollRef}
       className="@container relative min-h-0 flex-1 overflow-y-auto"
@@ -879,6 +888,113 @@ export function Grid() {
                   flags={viewKind !== "similar" && viewKind !== "trash" && viewKind !== "system"}
                 />
               </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+    </div>
+  );
+}
+
+/**
+ * Above the list, outside its scrolling: the section being read, and the
+ * table of contents to jump to any other. One row whether or not the list is
+ * in sections, so nothing below moves (docs/UI.md, docs/GROUP_TOC.md).
+ */
+function SectionBar({
+  items,
+  sections,
+  current,
+  onJump,
+}: {
+  items: Item[];
+  sections: Section[];
+  current: number;
+  onJump: (n: number) => void;
+}) {
+  const open = useStore((s) => s.tocOpen);
+  const setOpen = useStore((s) => s.setTocOpen);
+  const grouped = sections.length > 0;
+  const unit = (list: Item[]) =>
+    list.every((i) => i.kind === "image") ? "枚" : "件";
+  const count = (s: Section) =>
+    `${s.end - s.start} ${unit(items.slice(s.start, s.end))}`;
+  const here = grouped
+    ? sections[Math.min(current, sections.length - 1)]
+    : null;
+  const menu = useRef<HTMLDivElement>(null);
+
+  // Closes on a click elsewhere or Esc; the list keeps its keys meanwhile.
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (
+        e instanceof KeyboardEvent
+          ? e.key === "Escape"
+          : !menu.current?.contains(e.target as Node)
+      )
+        setOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [open, setOpen]);
+  // The sections went away (grouping switched off): nothing to show open.
+  useEffect(() => {
+    if (!grouped && open) setOpen(false);
+  }, [grouped, open, setOpen]);
+
+  return (
+    <div
+      ref={menu}
+      className="relative z-10 flex h-8 shrink-0 items-center gap-2 border-b border-line px-4 text-xs"
+    >
+      <span className="truncate font-semibold">{here?.title ?? "すべて"}</span>
+      <span className="shrink-0 tabular-nums text-dim">
+        {here ? count(here) : `${items.length} ${unit(items)}`}
+      </span>
+      <button
+        disabled={!grouped}
+        title={
+          grouped ? "グループの目次（⌘⌥J）" : "グループ分けを選ぶと使えます"
+        }
+        onClick={() => setOpen(!open)}
+        className="ml-auto flex min-w-20 items-center justify-center gap-1 rounded-md border border-line px-2 py-0.5 hover:bg-white/5 disabled:opacity-40 disabled:hover:bg-transparent"
+      >
+        目次 <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div
+          data-modal
+          className="absolute right-4 top-8 max-h-80 w-60 overflow-y-auto rounded-lg border border-line bg-panel p-1 shadow-xl"
+        >
+          {sections.map((s, n) => {
+            const hex = colorHex(s.color);
+            return (
+              <button
+                key={`${s.start}:${n}`}
+                onClick={() => onJump(n)}
+                className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-white/10 ${n === current ? "bg-white/10 font-semibold" : ""}`}
+              >
+                {hex && (
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ background: hex }}
+                  />
+                )}
+                {s.rating ? (
+                  <Stars n={s.rating} size={12} />
+                ) : (
+                  <span className="truncate">{s.title}</span>
+                )}
+                <span className="ml-auto shrink-0 tabular-nums text-dim">
+                  {count(s)}
+                </span>
+              </button>
             );
           })}
         </div>
