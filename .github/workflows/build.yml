@@ -39,9 +39,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx tsc --noEmit
+      # Bun installs the packages (bun.lock); Vite and the Tauri CLI still run on Node.js.
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit
 
   # Runs alongside `test` rather than after it. A tag build only creates a
   # draft release, so a failing test still stops it from being published.
@@ -65,7 +66,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
+      - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
@@ -75,7 +76,8 @@ jobs:
           # Only main saves (see `on.push`); saving on tags took ~2 min and the
           # cache could never be used again.
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: npm ci
+      # tauri-action sees bun.lock and runs the Tauri CLI through Bun.
+      - run: bun install --frozen-lockfile
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

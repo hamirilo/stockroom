@@ -1,5 +1,5 @@
 // Dev-only in-memory stand-in for the Rust backend, used when the UI is
-// opened in a normal browser (`npm run dev`) instead of inside Tauri.
+// opened in a normal browser (`bun run dev`) instead of inside Tauri.
 // Mirrors the semantics of src-tauri/src/db.rs closely enough for UI work.
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { modeOf, type Folder, type Item, type ItemQuery, type Mode, type Rule, type SimilarLevel, type Tag } from "../lib/api";

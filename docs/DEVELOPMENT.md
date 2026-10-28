@@ -1,17 +1,17 @@
 # 開発
 
-前提：Node.js 22+、Rust（stable）、[Tauri の前提環境](https://tauri.app/start/prerequisites/)
+前提：[Bun](https://bun.sh/)、Node.js 22+（Vite と Tauri の CLI は Node.js で動く）、Rust（stable）、[Tauri の前提環境](https://tauri.app/start/prerequisites/)
 
 ```bash
-npm install
-npm run tauri dev      # アプリを起動
-npm test               # Rust のユニットテスト + 型チェック
-npm run tauri build    # 配布用ビルド（.dmg / -setup.exe。署名鍵が要る、下の「リリース」）
+bun install
+bun run tauri dev      # アプリを起動
+bun run test           # Rust のユニットテスト + 型チェック（`bun test` は Bun のテストランナーなので使わない）
+bun run tauri build    # 配布用ビルド（.dmg / -setup.exe。署名鍵が要る、下の「リリース」）
 ```
 
-- `npm run dev` でブラウザから開くと、Rust 側の代わりにインメモリのモック（`src/dev/mockBackend.ts`）で動く。UI だけ触りたいとき用（インポートは不可）。
+- `bun run dev` でブラウザから開くと、Rust 側の代わりにインメモリのモック（`src/dev/mockBackend.ts`）で動く。UI だけ触りたいとき用（インポートは不可）。
 - 画像・フォント・ファイルの分け方（モード）と、共通基盤と種類ごとのコードの境界は [ARCHITECTURE.md](ARCHITECTURE.md) にまとめてある。
-- テスト用ライブラリの生成：`npm run seed -- /path/to/Test.library 10000`
+- テスト用ライブラリの生成：`bun run seed /path/to/Test.library 10000`
   （1 万枚の取り込み 約 6 秒、検索+並び替えクエリ 約 6ms ／ Apple Silicon・release ビルド）
 - フォルダの共有の開発：`cargo run --manifest-path src-tauri/Cargo.toml --example shareserver -- /path/to/Test.library [フォルダ名]` でアプリなしに共有サーバーを起動し、表示された URL をブラウザで開く（ポートはアプリの 41640 ではなく 41650）。ページは `src-tauri/src/share.html` で、ビルドし直すと反映される
 - ブラウザ拡張の開発：`cargo run --manifest-path src-tauri/Cargo.toml --example webserver -- /path/to/Test.library` でアプリなしに受付サーバーを起動し（`extension/config.json` に接続キーを書く。「アプリと接続」は確認なしで許可する）、Chrome で `extension/` を読み込む。アプリと同時に動かせるよう、ポートはアプリの 41620 ではなく 41630（ほかのポートは `-- <library> <拡張のフォルダ> 41699` のように指定。`config.json` にそのポートが書かれる）。拡張機能のファイルを変えたら `chrome://extensions` で再読み込み
@@ -82,12 +82,12 @@ extension/              Chrome 拡張（Manifest V3、ビルド不要）。ア�
 - `Stockroom_X.Y.Z_aarch64.dmg` / `-setup.exe`：初回インストール用
 - `Stockroom.app.tar.gz` と `.sig`、`-setup.exe` の `.sig`、`latest.json`：アプリ内アップデート用（tauri-action が生成）
 
-更新ファイルの署名鍵は GitHub Actions の Secrets に置く（`TAURI_SIGNING_PRIVATE_KEY`：秘密鍵ファイルの中身、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：パスワード、未設定なら空）。対応する公開鍵は `tauri.conf.json` の `plugins.updater.pubkey`。**秘密鍵を失うと配布済みのアプリに更新を届けられなくなる**ので、必ずバックアップを取る。鍵の作り直しは `npx tauri signer generate -w ~/.tauri/image-library.key`。
+更新ファイルの署名鍵は GitHub Actions の Secrets に置く（`TAURI_SIGNING_PRIVATE_KEY`：秘密鍵ファイルの中身、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：パスワード、未設定なら空）。対応する公開鍵は `tauri.conf.json` の `plugins.updater.pubkey`。**秘密鍵を失うと配布済みのアプリに更新を届けられなくなる**ので、必ずバックアップを取る。鍵の作り直しは `bunx tauri signer generate -w ~/.tauri/image-library.key`。
 
 ローカルで配布用ビルドをするときも署名鍵が要る（`createUpdaterArtifacts` が有効なため）。
 
 ```bash
-TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/image-library.key)" npm run tauri build
+TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/image-library.key)" bun run tauri build
 ```
 
 ### リリースノート
