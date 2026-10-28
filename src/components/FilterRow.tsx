@@ -337,7 +337,8 @@ export function FilterRow() {
               disabled={active === 0}
               onClick={clearConditions}
               title="絞り込みの条件と検索をすべて外す"
-              className="h-7 rounded-md px-2 ghost disabled:off"
+              // Only when there is something to clear; the place is kept so nothing moves (docs/UI.md).
+              className={`h-7 rounded-md px-2 ghost disabled:off ${active === 0 ? "invisible" : ""}`}
             >
               すべて解除
             </button>
@@ -351,7 +352,7 @@ export function FilterRow() {
                   ? "今の条件（このタグも）をスマートフォルダとして保存（⌘⇧⌥N）"
                   : "今の検索と絞り込みの条件をスマートフォルダとして保存（⌘⇧⌥N）"
               }
-              className="flex h-7 items-center gap-1.5 rounded-md px-2 ghost disabled:off"
+              className={`flex h-7 items-center gap-1.5 rounded-md px-2 ghost disabled:off ${active === 0 ? "invisible" : ""}`}
             >
               <FolderSearch size={13} /> 条件を保存
             </button>
@@ -532,37 +533,53 @@ function KindMenu({ open, kinds, picked, pick }: { open: boolean; kinds: ItemKin
   );
 }
 
+type LinkRole = "parent" | "child" | "none";
+const LINK_ROLES: { role: LinkRole; label: string; filter: Partial<Filter> }[] = [
+  { role: "parent", label: "子を持つもの（親）", filter: { parentsOnly: true, childrenOnly: false, unlinkedOnly: false } },
+  { role: "child", label: "子（親に紐づいている）", filter: { parentsOnly: false, childrenOnly: true, unlinkedOnly: false } },
+  { role: "none", label: "紐づけなし", filter: { parentsOnly: false, childrenOnly: false, unlinkedOnly: true } },
+];
+const linkRole = (f: Filter): LinkRole | null => (f.parentsOnly ? "parent" : f.childrenOnly ? "child" : f.unlinkedOnly ? "none" : null);
+
 /**
- * Parents only (docs/LINKS.md). Last in the row, so the others stay put whether
- * the library uses links or not; with links off it's there only to be cleared.
+ * How items are linked (docs/LINKS.md): parents, children, or not linked. Last in the row,
+ * so the others stay put whether the library uses links or not; with links off it's
+ * there only to be cleared.
  */
 function LinksCondition({ cond, locked, onLocked }: CondProps) {
   const links = useStore((s) => s.librarySettings.links);
   const setFilter = useStore((s) => s.setFilter);
-  const on = !!cond.filter.parentsOnly;
+  const role = linkRole(cond.filter);
   const notForSystem = useNotForSystem("親子の紐づけ");
-  if (!links && !on) return null;
+  if (!links && !role) return null;
   return (
     <Pill
       {...notForSystem}
       label="紐づけ"
-      value={on ? "子を持つものだけ" : ""}
+      value={LINK_ROLES.find((r) => r.role === role)?.label.replace(/（.*）/, "") ?? ""}
       locked={locked}
       onLocked={onLocked}
       onClear={() => setFilter(CLEARED.parents.filter!)}
-      width="w-48"
+      width="w-56"
     >
-      {(open, close) => <LinksMenu open={open} on={on} pick={(parentsOnly) => (setFilter({ parentsOnly }), close())} />}
+      {(open, close) => (
+        <LinksMenu open={open} role={role} pick={(r) => (setFilter(r ? LINK_ROLES.find((x) => x.role === r)!.filter : CLEARED.parents.filter!), close())} />
+      )}
     </Pill>
   );
 }
 
-function LinksMenu({ open, on, pick }: { open: boolean; on: boolean; pick: (v: boolean) => void }) {
+function LinksMenu({ open, role, pick }: { open: boolean; role: LinkRole | null; pick: (r: LinkRole | null) => void }) {
   const facets = useFacets("parents", open);
+  const count = (r: LinkRole) => (facets ? { parent: facets.parents, child: facets.children, none: facets.unlinked }[r] : null);
   return (
-    <Option single on={on} count={facets ? facets.parents : null} onClick={() => pick(!on)}>
-      子を持つものだけ
-    </Option>
+    <>
+      {LINK_ROLES.map(({ role: r, label }) => (
+        <Option key={r} single on={role === r} count={count(r)} onClick={() => pick(role === r ? null : r)}>
+          {label}
+        </Option>
+      ))}
+    </>
   );
 }
 

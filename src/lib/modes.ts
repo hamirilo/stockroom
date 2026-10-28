@@ -2,7 +2,7 @@
 // fonts (compared and picked), each with its own folders, tags and smart
 // folders. Images and files are narrowed with the kind filter inside the
 // stock. See docs/MODES.md and docs/ARCHITECTURE.md (モード).
-import { KINDS, kindLabel, modeOf, type Filter, type ItemKind, type Mode, type SmartFolder, type View } from "./api";
+import { KINDS, kindLabel, kindOfExt, modeOf, type Filter, type ItemKind, type Mode, type SmartFolder, type View } from "./api";
 
 export { modeOf, type Mode } from "./api";
 
@@ -66,7 +66,8 @@ export const queryKinds = (s: Pick<KindState, "mode" | "view" | "filter" | "libr
 
 /**
  * Kinds the list on screen can hold: those shown, narrowed further by an
- * open smart folder's rule and the similar view (images only). What applies
+ * open smart folder's rule, the picked file types (JPEG alone is images alone)
+ * and the similar view (images only). What applies
  * to one kind only (an image's shape and pixel size) is offered when this is
  * that kind alone; commands go by the selection too (`appliesTo`).
  */
@@ -76,6 +77,8 @@ export function listKinds(s: KindState): ItemKind[] {
   let kinds = shownKinds(s);
   const rule = v.kind === "smart" ? s.smartFolders.find((f) => f.id === v.id)?.rule.filter.kinds : undefined;
   if (rule?.length) kinds = kinds.filter((k) => rule.includes(k));
+  const exts = s.filter.exts;
+  if (exts.length) kinds = kinds.filter((k) => exts.some((e) => kindOfExt(e) === k));
   return kinds;
 }
 

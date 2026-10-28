@@ -928,6 +928,11 @@ pub struct Filter {
     /// children and, in the trash, trashed ones with trashed children. The live
     /// children of live parents stay too, to be folded under them (▸).
     pub parents_only: bool,
+    /// Only children: items linked to a parent (docs/LINKS.md). Their parents come
+    /// along as "中に該当あり" on the screen's list, as for any condition only a child meets.
+    pub children_only: bool,
+    /// Only items outside every link: no parent, and no child in the same place.
+    pub unlinked_only: bool,
 }
 
 /// A parent: an item with a child in the same place (both live, or both in the trash).
@@ -1233,6 +1238,12 @@ fn push_rule(rule: &Rule, wheres: &mut Vec<String>, args: &mut Vec<Box<dyn ToSql
     if f.parents_only {
         wheres.push(format!("({HAS_CHILDREN} OR {CHILD_OF_LIVE})"));
     }
+    if f.children_only {
+        wheres.push("items.parent_id IS NOT NULL".into());
+    }
+    if f.unlinked_only {
+        wheres.push(format!("(items.parent_id IS NULL AND NOT {HAS_CHILDREN})"));
+    }
 }
 
 const SUBFOLDERS_CTE: &str = "WITH RECURSIVE sub(id) AS (
@@ -1372,6 +1383,9 @@ pub struct Facets {
     pub font_features: BTreeMap<String, i64>,
     /// Items with children (`Filter::parents_only`).
     pub parents: i64,
+    /// Items linked to a parent (`Filter::children_only`) and items outside every link (`Filter::unlinked_only`).
+    pub children: i64,
+    pub unlinked: i64,
 }
 
 pub fn facet_counts(conn: &Connection, q: &ItemQuery) -> DbResult<Facets> {
@@ -1446,11 +1460,16 @@ pub fn facet_counts(conn: &Connection, q: &ItemQuery) -> DbResult<Facets> {
         .map(|k| (k.to_string(), format!("instr(',' || IFNULL(items.font_features, '') || ',', ',{k},') > 0")))
         .collect();
     f.font_features = sums(&features, fonts)?;
-    f.parents = conn.query_row(
-        &format!("SELECT COUNT(*) FROM items WHERE items.id IN ({matched}) AND {HAS_CHILDREN}"),
-        args.as_slice(),
-        |r| r.get(0),
-    )?;
+    let count = |cond: &str| -> DbResult<i64> {
+        Ok(conn.query_row(
+            &format!("SELECT COUNT(*) FROM items WHERE items.id IN ({matched}) AND {cond}"),
+            args.as_slice(),
+            |r| r.get(0),
+        )?)
+    };
+    f.parents = count(HAS_CHILDREN)?;
+    f.children = count("items.parent_id IS NOT NULL")?;
+    f.unlinked = count(&format!("(items.parent_id IS NULL AND NOT {HAS_CHILDREN})"))?;
     Ok(f)
 }
 
@@ -3274,6 +3293,25 @@ mod tests {
         trash_items(&conn, &s(&["w"])).unwrap();
         parents.view = View::Trash;
         assert_eq!(ids(query_items(&conn, &parents).unwrap()), s(&["w"]));
+    }
+
+    #[test]
+    fn children_only_and_unlinked_only_split_the_list_by_link() {
+        let mut conn = mem();
+        links_on(&conn);
+        for (id, at) in [("v", 1), ("t", 2), ("x", 3)] {
+            add(&mut conn, id, id, at);
+        }
+        link_items(&conn, "v", &s(&["t"])).unwrap();
+        let mut children = q(View::All);
+        children.filter.children_only = true;
+        // The child; its parent's row comes with `with_parents`, which only the screen's list sets.
+        assert_eq!(ids(query_items(&conn, &children).unwrap()), s(&["t"]));
+        let mut unlinked = q(View::All);
+        unlinked.filter.unlinked_only = true;
+        assert_eq!(ids(query_items(&conn, &unlinked).unwrap()), s(&["x"]));
+        let f = facet_counts(&conn, &q(View::All)).unwrap();
+        assert_eq!((f.parents, f.children, f.unlinked), (1, 1, 1));
     }
 
     #[test]
