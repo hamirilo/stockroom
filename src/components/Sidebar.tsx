@@ -587,8 +587,9 @@ const MODE_ICON: Record<Mode, React.ReactNode> = {
 
 /**
  * What the app shows (the stock, or the fonts to compare): the sidebar's
- * header, with counts and ⌘1 / ⌘2 (MODES order). Images and files are
- * narrowed in the stock with the kind filter on the toolbar.
+ * header, a segment of the two (docs/UI.md「少なければ 1 つのセグメントに並べる」),
+ * ⌘1 / ⌘2 in MODES order. Which kinds the library uses is in the settings
+ * (種類). Images and files are narrowed in the stock with the kind filter.
  */
 function ModeSwitch() {
   const mode = useStore((s) => s.mode);
@@ -599,76 +600,28 @@ function ModeSwitch() {
     (Object.entries(kinds) as [ItemKind, number | undefined][])
       .filter(([k]) => modeOf(k) === m)
       .reduce((a, [, n]) => a + (n ?? 0), 0);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("pointerdown", away);
-    window.addEventListener("keydown", esc);
-    return () => {
-      window.removeEventListener("pointerdown", away);
-      window.removeEventListener("keydown", esc);
-    };
-  }, [open]);
 
   // A library used for one kind only has nothing to switch to.
   if (shown.length < 2) return <div className="h-2 shrink-0" />;
   return (
-    <div ref={ref} className="relative m-2">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        title={`表示する種類（${shown.map((m) => comboText(`Mod+${MODES.indexOf(m) + 1}`)).join(" / ")}）`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={`flex h-9 w-full items-center gap-2 rounded-md border border-frame px-2.5 text-left hover:bg-hover ${
-          open ? "bg-white/5" : ""
-        }`}
-      >
-        <span className="text-accent">{MODE_ICON[mode]}</span>
-        <span className="font-semibold">{modeLabel(mode)}</span>
-        <span className="text-xs text-dim tabular-nums">{countOf(mode)}</span>
-        <ChevronDown size={14} className={`ml-auto text-dim transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute top-full right-0 left-0 z-40 mt-1 animate-slide-down rounded-lg border border-line bg-raised p-1 shadow-xl"
-        >
-          {shown.map((m) => (
-            <button
-              key={m}
-              role="menuitemradio"
-              aria-checked={mode === m}
-              onClick={() => {
-                setOpen(false);
-                setMode(m);
-              }}
-              className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent-fill hover:text-white ${
-                mode === m ? "text-accent" : ""
-              }`}
-            >
-              {MODE_ICON[m]}
-              <span className="flex-1">{modeLabel(m)}</span>
-              <span className="text-xs tabular-nums opacity-60">{countOf(m)}</span>
-              {/* ⌘1 / ⌘2 follow MODES. */}
-              <span className="w-8 text-right text-xs opacity-50">{comboText(`Mod+${MODES.indexOf(m) + 1}`)}</span>
-            </button>
-          ))}
-          <div className="mx-1.5 my-1 border-t border-line" />
+    <div role="group" aria-label="表示する種類" className="m-2 flex rounded-lg track">
+      {shown.map((m) => {
+        const on = mode === m;
+        return (
           <button
-            onClick={() => {
-              setOpen(false);
-              useStore.getState().openSettings("libraryKinds");
-            }}
-            className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-dim hover:bg-accent-fill hover:text-white"
+            key={m}
+            aria-pressed={on}
+            onClick={() => setMode(m)}
+            title={`${modeLabel(m)}（${countOf(m)} 件・${comboText(`Mod+${MODES.indexOf(m) + 1}`)}）`}
+            className={`flex h-7 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md text-[13px] ${
+              on ? "thumb font-semibold" : "text-fg/80 hover:bg-hover hover:text-fg"
+            }`}
           >
-            使う種類を選ぶ…
+            <span className={on ? "text-accent" : "text-dim"}>{MODE_ICON[m]}</span>
+            <span className="truncate">{modeLabel(m)}</span>
           </button>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }
