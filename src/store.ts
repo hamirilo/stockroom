@@ -526,7 +526,7 @@ export function activeConditions(s: {
     (f.minWidth != null || f.maxWidth != null || f.minHeight != null || f.maxHeight != null ? 1 : 0) +
     (f.importedAfter != null || f.importedBefore != null ? 1 : 0) +
     (f.minSize != null || f.maxSize != null ? 1 : 0) +
-    (f.parentsOnly ? 1 : 0)
+    (f.parentsOnly || f.childrenOnly || f.unlinkedOnly ? 1 : 0)
   );
 }
 
@@ -680,7 +680,7 @@ export const CLEARED: Record<ConditionKey, { minRating?: 0; tagFilter?: number[]
   fontCategories: { filter: { fontCategories: [] } },
   fontWeights: { filter: { fontWeights: [] } },
   fontFeatures: { filter: { fontFeatures: [] } },
-  parents: { filter: { parentsOnly: false } },
+  parents: { filter: { parentsOnly: false, childrenOnly: false, unlinkedOnly: false } },
 };
 
 type QueryState = Pick<

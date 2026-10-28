@@ -340,6 +340,11 @@ function seed() {
   );
   items.slice(0, 30).forEach((it) => link(it.id, animals.id));
   items.slice(30, 36).forEach((it) => link(it.id, folders[1].id));
+  // Linked files (docs/LINKS.md), so the 紐づけ UI can be tried in the browser mock.
+  librarySettings.links = true;
+  for (const [p, n] of [[0, 3], [5, 2], [10, 4], [18, 1]] as const) {
+    items.slice(p + 1, p + 1 + n).forEach((c) => (c.parentId = items[p].id));
+  }
   addTags(items.slice(0, 40).map((i) => i.id), ["参考"]);
   addTags(items.slice(20, 60).map((i) => i.id), ["ブルー", "背景"]);
   // Fonts have folders and tags of their own (docs/MODES.md); "参考" is both modes'.
@@ -612,6 +617,8 @@ function applyRule(r: MockItem[], rule: Rule): MockItem[] {
         hasChildren(i) ||
         (i.deletedAt === null && items.some((p) => p.id === i.parentId && p.deletedAt === null)),
     );
+  if (f.childrenOnly) r = r.filter((i) => !!i.parentId);
+  if (f.unlinkedOnly) r = r.filter((i) => !i.parentId && !hasChildren(i));
   if (f.shapes.length) {
     r = r.filter((i) =>
       f.shapes.some((s) =>
@@ -704,6 +711,8 @@ function facets(q: ItemQuery) {
       (x) => x.k,
     ),
     parents: r.filter(hasChildren).length,
+    children: r.filter((i) => !!i.parentId).length,
+    unlinked: r.filter((i) => !i.parentId && !hasChildren(i)).length,
   };
 }
 

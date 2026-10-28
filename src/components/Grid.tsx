@@ -93,6 +93,24 @@ function Thumb({ item, fit }: { item: Item; fit: "cover" | "contain" }) {
   );
 }
 
+/** Frames behind a parent's thumbnail, as many as it has children (up to 2): a stack reads as "has more". */
+function StackFrames({ item, width, height }: { item: Item; width: number; height: number }) {
+  const n = Math.min(item.childIds?.length ?? 0, 2);
+  if (item.childMember || !n) return null;
+  return (
+    <>
+      {Array.from({ length: n }, (_, k) => (
+        <div
+          key={k}
+          aria-hidden
+          className="pointer-events-none absolute rounded-lg border border-white/15 bg-raised"
+          style={{ width, height, top: (n - k) * 4, left: (n - k) * 4, opacity: 0.9 - k * 0.2 }}
+        />
+      ))}
+    </>
+  );
+}
+
 /**
  * A parent's "＋3" with ▸ / ▾ to open its children under it (links on, docs/LINKS.md);
  * "中に該当あり" when the parent is in the list only because children of it match.
@@ -122,7 +140,7 @@ function LinkMark({ item, inline = false }: { item: Item; inline?: boolean }) {
   const n = item.childIds?.length ?? 0;
   if (!n) return null;
   const Chevron = open ? ChevronDown : ChevronRight;
-  const label = item.viaChild ? "中に該当あり" : `＋${n}`;
+  const label = item.viaChild ? "中に該当あり" : `親 ${n}`;
   const title = `${open ? "紐づけた項目を閉じる" : "紐づけた項目を開く"}（${n} 件${item.viaChild ? "。この親自体は条件に合いません" : ""}。${isMac ? "⌥" : "Alt"}+クリックですべて）`;
   return (
     <button
@@ -131,14 +149,15 @@ function LinkMark({ item, inline = false }: { item: Item; inline?: boolean }) {
       // ⌥-click: every parent of the list, as in Finder.
       onClick={(e) => (e.altKey ? useStore.getState().setAllParents(!open) : useStore.getState().toggleParent(item.id))}
       title={title}
-      className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] leading-none tabular-nums ${
-        inline
-          ? "mr-1.5 inline-flex shrink-0 bg-white/10 align-middle text-dim hover:bg-white/20"
-          : "absolute bottom-1.5 left-1.5 max-w-[calc(100%-2.75rem)] bg-black/60 text-white hover:bg-black/80"
+      // A parent: the accent face, the stack icon and the word, so it reads as one at a glance.
+      // At the bottom left, clear of the selection check at the right.
+      className={`flex items-center gap-1 rounded-full bg-accent-fill px-1.5 py-0.5 text-[11px] leading-none text-white tabular-nums hover:brightness-110 ${
+        inline ? "mr-1.5 inline-flex shrink-0 align-middle" : "absolute bottom-1.5 left-1.5 max-w-[calc(100%-2.75rem)]"
       }`}
     >
-      <Chevron size={11} strokeWidth={2.5} className="shrink-0" />
+      <Layers size={11} className="shrink-0" />
       <span className="truncate">{label}</span>
+      <Chevron size={11} strokeWidth={2.5} className="shrink-0" />
     </button>
   );
 }
@@ -311,6 +330,7 @@ const Cell = memo(function Cell({
       data-drop={reorderable ? `item:${item.id}` : undefined}
       data-link={link}
     >
+      <StackFrames item={item} width={width} height={height} />
       <div
         className={`relative flex items-center justify-center overflow-hidden rounded-lg bg-raised transition-shadow duration-150 ${
           selected ? "sel-ring" : focused ? "" : "hover:ring-2 hover:ring-white/15"

@@ -167,6 +167,8 @@ export async function systemFacetCounts(q: ItemQuery): Promise<Facets> {
     fontWeights: count("fontWeights", (f) => Object.keys(WEIGHT_RANGES).filter((k) => inWeight(f, k))),
     fontFeatures: count("fontFeatures", (f) => f.features),
     parents: 0,
+    children: 0,
+    unlinked: 0,
   };
 }
 

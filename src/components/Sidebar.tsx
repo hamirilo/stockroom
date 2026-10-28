@@ -765,9 +765,9 @@ export function Sidebar() {
       <ModeSwitch />
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {shown(looks).map(row)}
-        {shown(marks).length > 0 && <div className="mx-2 my-1.5 border-t border-line/60" />}
+        {shown(marks).length > 0 && <div className="h-2" />}
         {shown(marks).map(row)}
-        <div className="mt-2 rounded-lg border border-line/70 p-0.5">{shown(tidying).map(row)}</div>
+        <div className="mt-2">{shown(tidying).map(row)}</div>
         <FolderTree />
         <SmartFolderList />
         <TagList />

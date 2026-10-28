@@ -2,8 +2,6 @@ import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
   ChevronDown,
-  ChevronsDownUp,
-  ChevronsUpDown,
   CopyCheck,
   FolderInput,
   FolderSearch,
@@ -371,6 +369,7 @@ export function Toolbar() {
 /**
  * Opens every linked parent's children under it, or closes them all (docs/LINKS.md).
  * Always shown in the stock mode; disabled when nothing is linked, so it doesn't move.
+ * Two states side by side, like グループ, so the state reads without a pressed face.
  */
 function ParentsToggle() {
   const links = useStore((s) => s.librarySettings.links);
@@ -378,30 +377,26 @@ function ParentsToggle() {
   const openParents = useStore((s) => s.openParents);
   const none = !links || parents.length === 0;
   const allOpen = !none && parents.every((id) => openParents.has(id));
-  const run = () => command(allOpen ? "view.closeParents" : "view.openParents").run(useStore.getState());
+  const set = (open: boolean) => command(open ? "view.openParents" : "view.closeParents").run(useStore.getState());
+  const seg = (open: boolean) =>
+    `flex h-6 items-center rounded px-2 whitespace-nowrap disabled:off ${
+      !none && allOpen === open ? "bg-tonal text-on-tonal" : "text-dim enabled:hover:bg-hover"
+    }`;
   return (
-    <button
-      title={
-        none
-          ? "紐づけた項目をすべて開く／閉じる（この一覧に紐づけた項目はありません）"
-          : allOpen
-            ? "紐づけた項目をすべて閉じる"
-            : "紐づけた項目をすべて開く"
-      }
-      aria-label="紐づけた項目をすべて開く／閉じる"
-      aria-pressed={allOpen}
-      disabled={none}
-      onClick={run}
-      // Named, so it says what it is; open shows as pressed (the tonal face), the icon turned (docs/UI.md「色」).
-      className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 whitespace-nowrap disabled:off ${
-        allOpen
-          ? "border-transparent bg-tonal text-on-tonal enabled:hover:brightness-110"
-          : "ghost"
-      }`}
+    <div
+      className="flex shrink-0 items-center gap-1.5"
+      title={none ? "紐づけた項目をすべて開く／閉じる（この一覧に紐づけた項目はありません）" : "紐づけた項目をすべて開く／閉じる"}
     >
-      {allOpen ? <ChevronsDownUp size={15} /> : <ChevronsUpDown size={15} />}
-      <span className="@max-3xl:hidden">紐づけ</span>
-    </button>
+      <span className="text-dim @max-3xl:hidden">紐づけ</span>
+      <div className="flex gap-0.5 rounded-md bg-white/5 p-0.5">
+        <button disabled={none} aria-pressed={!none && !allOpen} className={seg(false)} onClick={() => allOpen && set(false)}>
+          閉じる
+        </button>
+        <button disabled={none} aria-pressed={allOpen} className={seg(true)} onClick={() => !allOpen && set(true)}>
+          開く
+        </button>
+      </div>
+    </div>
   );
 }
 

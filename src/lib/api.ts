@@ -105,7 +105,9 @@ export const VIDEO_EXTS = ["mp4", "m4v", "mov", "webm"];
 
 /** The kind a file type is imported as. */
 export const kindOfExt = (ext: string): ItemKind =>
-  FONT_EXTS.includes(ext)
+  ext === "url"
+    ? "bookmark"
+    : FONT_EXTS.includes(ext)
     ? "font"
     : FILE_EXTS.includes(ext)
       ? "file"
@@ -369,6 +371,9 @@ export interface Filter {
   maxSize: number | null;
   /** Only items with children (links on, docs/LINKS.md). */
   parentsOnly: boolean;
+  /** Only items linked to a parent / outside every link (docs/LINKS.md). At most one of the three. */
+  childrenOnly: boolean;
+  unlinkedOnly: boolean;
 }
 
 export const EMPTY_FILTER: Filter = {
@@ -388,6 +393,8 @@ export const EMPTY_FILTER: Filter = {
   minSize: null,
   maxSize: null,
   parentsOnly: false,
+  childrenOnly: false,
+  unlinkedOnly: false,
 };
 
 /** Saved conditions of a smart folder (same shape as the ad-hoc ones). */
@@ -464,6 +471,8 @@ export interface Facets {
   fontFeatures: Record<string, number>;
   /** Items with children. */
   parents: number;
+  children: number;
+  unlinked: number;
 }
 
 export interface Counts {
