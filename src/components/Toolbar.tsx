@@ -206,7 +206,7 @@ export function Toolbar() {
         <div className="flex flex-1 items-center justify-end gap-2">
           <label
             title={searchHelp(mode)}
-            className="flex h-8 min-w-28 shrink basis-60 items-center gap-2 rounded-md border border-edge bg-bg px-2 focus-within:border-accent @max-xl:min-w-0 @max-xl:flex-1"
+            className="flex h-8 min-w-28 shrink basis-60 items-center gap-2 rounded-md border border-transparent bg-white/7 px-2 focus-within:border-accent @max-xl:min-w-0 @max-xl:flex-1"
           >
             <Search size={14} className="shrink-0 text-dim" />
             <input
@@ -256,19 +256,19 @@ export function Toolbar() {
               <span className="@max-3xl:hidden">読み込み直す</span>
             </button>
           ) : (
-            // One framed group: the two ways to add (docs/UI.md「色」).
-            <div className="flex h-8 shrink-0 items-stretch overflow-hidden rounded-md border border-frame">
+            // The two ways to add, quiet until hovered (docs/UI.md「色」).
+            <div className="flex h-8 shrink-0 items-stretch gap-0.5">
               <button
                 title={`${addNoun}を追加`}
                 onClick={importFilesDialog}
-                className="flex items-center gap-1.5 px-2.5 whitespace-nowrap hover:bg-hover active:bg-press"
+                className="flex items-center gap-1.5 rounded-md px-2.5 whitespace-nowrap hover:bg-hover active:bg-press"
               >
                 <ImagePlus size={15} /> <span className="@max-3xl:hidden">追加</span>
               </button>
               <button
                 title="フォルダから追加"
                 onClick={importFolderDialog}
-                className="flex w-8 items-center justify-center border-l border-frame hover:bg-hover active:bg-press"
+                className="flex w-8 items-center justify-center rounded-md hover:bg-hover active:bg-press"
               >
                 <FolderInput size={15} />
               </button>
@@ -318,11 +318,11 @@ export function Toolbar() {
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           {/* Native select for the menu, laid over a label sized to the current
               choice so long names aren't clipped and the arrow matches the UI. */}
-          {/* The order and its direction: one setting, so one framed group. */}
-          <div className="flex h-7 shrink-0 items-stretch overflow-hidden rounded-md border border-frame focus-within:border-accent">
+          {/* The order and its direction side by side, quiet until hovered. */}
+          <div className="flex h-7 shrink-0 items-stretch gap-0.5">
           <label
             title="並び順"
-            className="relative flex items-center gap-1.5 pr-2 pl-2.5 whitespace-nowrap hover:bg-hover"
+            className="relative flex items-center gap-1.5 rounded-md pr-2 pl-2.5 whitespace-nowrap hover:bg-hover focus-within:ring-2 focus-within:ring-accent"
           >
             {manual ? "手動" : sortLabel}
             <ChevronDown size={14} className="text-dim" />
@@ -350,7 +350,7 @@ export function Toolbar() {
             title={manual ? "手動の並びは昇順のみ" : desc ? "降順" : "昇順"}
             disabled={manual}
             onClick={() => setSort(sort, !desc)}
-            className="flex w-8 items-center justify-center border-l border-frame enabled:hover:bg-hover enabled:active:bg-press disabled:off"
+            className="flex w-7 items-center justify-center rounded-md enabled:hover:bg-hover enabled:active:bg-press disabled:off"
           >
             {desc ? <ArrowDownWideNarrow size={15} /> : <ArrowUpNarrowWide size={15} />}
           </button>

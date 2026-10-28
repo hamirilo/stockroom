@@ -5,7 +5,7 @@
 // values picked are "any of"; the conditions are "all of".
 // An open smart folder shows its own conditions here (locked: "条件を編集"
 // loads them into the row to change them).
-import { Check, ChevronDown, FolderSearch, Search, X } from "lucide-react";
+import { Check, ChevronDown, FolderSearch, ListFilter, Search, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { cancelSmartEdit, createSmartFolder, saveEditedSmartFolder } from "../lib/actions";
@@ -128,10 +128,12 @@ export function Pill({
         title={title ?? (on ? `${label}：${value}` : label)}
         aria-expanded={open}
         onClick={() => (locked ? onLocked?.() : setOpen((o) => !o))}
-        className={`flex h-7 items-center gap-1 rounded-full border pr-1.5 pl-3 whitespace-nowrap disabled:off ${
+        className={`flex h-7 items-center gap-1 rounded-md border border-transparent pr-1.5 pl-2.5 whitespace-nowrap disabled:off disabled:bg-transparent disabled:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)] ${
           on
-            ? "border-transparent bg-tonal text-on-tonal enabled:hover:brightness-110"
-            : `ghost ${open ? "bg-press" : ""}`
+            ? "bg-tonal text-on-tonal enabled:hover:brightness-110"
+            : open
+              ? "bg-press"
+              : "bg-white/8 enabled:hover:bg-white/12"
         } ${locked && on ? "opacity-80" : ""}`}
       >
         <span>{label}</span>
@@ -274,7 +276,11 @@ export function FilterRow() {
   return (
     // One row whatever is picked: the conditions scroll sideways when short of
     // room, the row's own actions stay at its right end (docs/UI.md).
-    <div data-filter-row className="flex h-7 items-center gap-3 text-xs">
+    // A row of its own, sunk one step (docs/UI.md「色」): the chips are where the list is narrowed.
+    <div data-filter-row className="-mx-4 flex h-10 items-center gap-3 bg-black/18 px-4 text-xs">
+      <span className="flex shrink-0 items-center gap-1.5 text-dim @max-3xl:hidden">
+        <ListFilter size={13} /> 絞り込み
+      </span>
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {locked && smart.rule.search.trim() && (
         <Pill label="検索" value={smart.rule.search.trim()} locked onLocked={edit} onClear={() => {}}>
@@ -331,7 +337,7 @@ export function FilterRow() {
               disabled={active === 0}
               onClick={clearConditions}
               title="絞り込みの条件と検索をすべて外す"
-              className="h-7 rounded-md px-2 text-dim enabled:hover:bg-white/5 enabled:hover:text-fg disabled:off"
+              className="h-7 rounded-md px-2 ghost disabled:off"
             >
               すべて解除
             </button>
