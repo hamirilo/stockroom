@@ -89,7 +89,7 @@ function Dialog() {
       >
         <div className="border-b border-line px-4 pt-3 pb-2">
           <div className="mb-2 text-xs font-semibold text-dim">{selectedCount} 件を紐づける親を選ぶ</div>
-          <label className="flex h-9 items-center gap-2 rounded-md border border-line bg-bg px-2 focus-within:border-accent">
+          <label className="flex h-9 items-center gap-2 rounded-md border border-edge bg-bg px-2 focus-within:border-accent">
             <Search size={15} className="text-dim" />
             <input
               autoFocus

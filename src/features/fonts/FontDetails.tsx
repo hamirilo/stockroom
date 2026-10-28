@@ -37,7 +37,7 @@ export function FontCategorySelect({ fonts }: { fonts: Item[] }) {
         const v = e.target.value;
         if (v !== "mixed") run(() => fontApi.setCategory(fonts.map((f) => f.id), v || null));
       }}
-      className="w-full rounded-md border border-line bg-bg px-1.5 py-0.5 text-xs outline-none focus:border-accent"
+      className="w-full rounded-md border border-edge bg-bg px-1.5 py-0.5 text-xs outline-none focus:border-accent"
       title="自動の判定が違うときは、ここで選び直せます"
     >
       {value === "mixed" && <option value="mixed">（いろいろ）</option>}

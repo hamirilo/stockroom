@@ -35,7 +35,7 @@ export function SpecimenControls() {
   return (
     <div className="flex min-w-0 items-center gap-2 text-xs">
       <ALargeSmall size={15} className="shrink-0 text-dim" />
-      <div className="flex h-7 min-w-32 flex-1 items-center rounded-md border border-line bg-bg focus-within:border-accent">
+      <div className="flex h-7 min-w-32 flex-1 items-center rounded-md border border-edge bg-bg focus-within:border-accent">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -157,7 +157,7 @@ function PatternMenu({ name, text, own }: { name: string; text: string; own: str
               disabled={!canSave}
               onClick={() => save(text)}
               title={canSave ? "入力欄の文字をこのライブラリのパターンとして保存" : "入力欄に新しい文字を入れると保存できます"}
-              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-accent enabled:hover:bg-accent/15 disabled:text-dim disabled:opacity-50"
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-accent enabled:hover:bg-accent/15 disabled:off"
             >
               <Save size={12} /> 今の文字を保存
             </button>

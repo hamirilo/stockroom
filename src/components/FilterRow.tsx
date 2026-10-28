@@ -128,10 +128,10 @@ export function Pill({
         title={title ?? (on ? `${label}：${value}` : label)}
         aria-expanded={open}
         onClick={() => (locked ? onLocked?.() : setOpen((o) => !o))}
-        className={`flex h-7 items-center gap-1 rounded-full border pr-1.5 pl-3 whitespace-nowrap disabled:opacity-40 ${
+        className={`flex h-7 items-center gap-1 rounded-full border pr-1.5 pl-3 whitespace-nowrap disabled:off ${
           on
-            ? "border-accent bg-accent text-white enabled:hover:brightness-110"
-            : `border-line ${open ? "bg-white/8" : ""} enabled:hover:bg-white/5`
+            ? "border-transparent bg-tonal text-on-tonal enabled:hover:brightness-110"
+            : `ghost ${open ? "bg-press" : ""}`
         } ${locked && on ? "opacity-80" : ""}`}
       >
         <span>{label}</span>
@@ -193,7 +193,7 @@ export function Option({
     >
       <span
         className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center border ${single ? "rounded-full" : "rounded-sm"} ${
-          on ? "border-accent bg-accent text-white" : "border-line"
+          on ? "border-accent bg-accent-fill text-white" : "border-edge"
         }`}
       >
         {on && <Check size={10} strokeWidth={3} />}
@@ -237,7 +237,7 @@ function NumField({
       onKeyDown={(e) => e.key === "Enter" && !composing(e) && commit()}
       inputMode="decimal"
       placeholder={placeholder}
-      className="h-7 w-20 rounded border border-line bg-bg px-1.5 tabular-nums outline-none focus:border-accent"
+      className="h-7 w-20 rounded border border-edge bg-bg px-1.5 tabular-nums outline-none focus:border-accent"
     />
   );
 }
@@ -306,7 +306,7 @@ export function FilterRow() {
           <button
             onClick={edit}
             title={`スマートフォルダ「${smart.name}」の条件を絞り込みの行に読み込んで変える`}
-            className="flex h-7 items-center gap-1.5 rounded-md border border-line px-2 hover:bg-white/5"
+            className="flex h-7 items-center gap-1.5 rounded-md px-2 ghost"
           >
             <FolderSearch size={13} className="text-accent" /> 条件を編集
           </button>
@@ -320,7 +320,7 @@ export function FilterRow() {
             </button>
             <button
               onClick={() => saveEditedSmartFolder()}
-              className="h-7 rounded-md bg-accent px-2.5 font-medium text-white hover:brightness-110"
+              className="h-7 rounded-md bg-accent-fill px-2.5 font-medium text-white hover:brightness-110"
             >
               保存
             </button>
@@ -331,7 +331,7 @@ export function FilterRow() {
               disabled={active === 0}
               onClick={clearConditions}
               title="絞り込みの条件と検索をすべて外す"
-              className="h-7 rounded-md px-2 text-dim enabled:hover:bg-white/5 enabled:hover:text-fg disabled:opacity-40"
+              className="h-7 rounded-md px-2 text-dim enabled:hover:bg-white/5 enabled:hover:text-fg disabled:off"
             >
               すべて解除
             </button>
@@ -345,7 +345,7 @@ export function FilterRow() {
                   ? "今の条件（このタグも）をスマートフォルダとして保存（⌘⇧⌥N）"
                   : "今の検索と絞り込みの条件をスマートフォルダとして保存（⌘⇧⌥N）"
               }
-              className="flex h-7 items-center gap-1.5 rounded-md border border-line px-2 enabled:hover:bg-white/5 disabled:opacity-40"
+              className="flex h-7 items-center gap-1.5 rounded-md px-2 ghost disabled:off"
             >
               <FolderSearch size={13} /> 条件を保存
             </button>
@@ -446,7 +446,7 @@ function TagMenu({ open, picked, toggle }: { open: boolean; picked: number[]; to
   return (
     <>
       {tags.length > 8 && (
-        <label className="mb-1 flex h-7 items-center gap-1.5 rounded border border-line bg-bg px-2 focus-within:border-accent">
+        <label className="mb-1 flex h-7 items-center gap-1.5 rounded border border-edge bg-bg px-2 focus-within:border-accent">
           <Search size={12} className="text-dim" />
           <input
             autoFocus
@@ -466,17 +466,17 @@ function TagMenu({ open, picked, toggle }: { open: boolean; picked: number[]; to
       {shown.length === 0 && <p className={menuNote}>当てはまるタグはありません</p>}
       <div className="mt-1 flex items-center gap-2 border-t border-line px-2 pt-2 pb-1">
         <span className="text-dim">複数選んだとき</span>
-        <div className="flex overflow-hidden rounded-md border border-line">
+        <div className="flex rounded-md track">
           {[
             { all: false, label: "いずれか" },
             { all: true, label: "すべて" },
-          ].map((m, i) => (
+          ].map((m) => (
             <button
               key={m.label}
               aria-pressed={matchAll === m.all}
               onClick={() => setMatchAll(m.all)}
-              className={`px-2 py-0.5 ${i > 0 ? "border-l border-line" : ""} ${
-                matchAll === m.all ? "bg-accent text-white" : "text-dim hover:bg-white/5"
+              className={`rounded px-2 py-0.5 ${
+                matchAll === m.all ? "thumb" : "text-fg/85 hover:bg-hover hover:text-fg"
               }`}
             >
               {m.label}

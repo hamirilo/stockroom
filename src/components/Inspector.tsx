@@ -120,7 +120,7 @@ function TagInput({ onAdd, exclude }: { onAdd: (names: string[]) => void; exclud
           }
         }}
         placeholder="タグを追加（Enter）"
-        className="h-8 w-full rounded-md border border-line bg-bg px-2 outline-none focus:border-accent"
+        className="h-8 w-full rounded-md border border-edge bg-bg px-2 outline-none focus:border-accent"
       />
       {open && suggestions.length > 0 && (
         <div className="absolute z-10 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-line bg-raised p-1 shadow-xl">
@@ -137,7 +137,7 @@ function TagInput({ onAdd, exclude }: { onAdd: (names: string[]) => void; exclud
                   commit(t.name);
                 }}
                 onMouseEnter={() => setHi(i)}
-                className={`flex w-full justify-between rounded px-2 py-1 text-left ${i === hi ? "bg-accent text-white" : ""}`}
+                className={`flex w-full justify-between rounded px-2 py-1 text-left ${i === hi ? "bg-accent-fill text-white" : ""}`}
               >
                 <span className="truncate">{t.name}</span>
                 <span className="text-xs opacity-70">{t.count}</span>
@@ -150,7 +150,7 @@ function TagInput({ onAdd, exclude }: { onAdd: (names: string[]) => void; exclud
   );
 }
 
-const btn = "h-8 rounded-md border border-line hover:bg-white/5";
+const btn = "h-8 rounded-md border border-frame hover:bg-hover active:bg-press";
 
 /** A video's codecs, frame rate and bit rate, read from the file when the panel shows it. */
 function VideoCodecRows({ item }: { item: Item }) {
@@ -385,8 +385,8 @@ export function FlagButton({
         state
           ? activeClass
           : mixed
-            ? "border-dashed border-line text-dim hover:bg-white/5"
-            : "border-line hover:bg-white/5"
+            ? "border-dashed border-edge text-dim hover:bg-hover"
+            : "border-frame hover:bg-hover"
       }`}
     >
       {icon}
@@ -630,7 +630,7 @@ export function Inspector() {
                 setAdding(false);
                 if (e.target.value) run(() => api.moveToFolder(ids, e.target.value));
               }}
-              className="mt-2 h-8 w-full rounded-md border border-line bg-bg px-2 outline-none"
+              className="mt-2 h-8 w-full rounded-md border border-edge bg-bg px-2 outline-none"
             >
               <option value="">移動先のフォルダを選択…</option>
               {unusedFolders.map((f) => (
@@ -673,7 +673,7 @@ export function Inspector() {
               value={single.note}
               placeholder="メモを入力"
               onSave={(v) => run(() => api.setNote(single.id, v))}
-              className="w-full resize-y rounded-md border border-line bg-bg p-2 outline-none focus:border-accent"
+              className="w-full resize-y rounded-md border border-edge bg-bg p-2 outline-none focus:border-accent"
             />
           </Section>
         )}

@@ -312,7 +312,7 @@ export function DragLayer() {
       )}
       <div
         className={`mt-2 flex w-max items-center gap-1 rounded-md px-2 py-0.5 text-xs shadow-lg transition-colors ${
-          label ? "bg-accent text-white" : "bg-black/70 text-white/70"
+          label ? "bg-accent-fill text-white" : "bg-black/70 text-white/70"
         }`}
       >
         {dropTarget === "tray" && <Plus size={12} strokeWidth={3} />}

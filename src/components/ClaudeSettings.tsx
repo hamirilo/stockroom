@@ -181,7 +181,7 @@ const Code = CopyCode;
 function CopyBlock({ text }: { text: string }) {
   const [copied, copy] = useCopy();
   return (
-    <div className="relative mt-2 rounded-md border border-line bg-bg">
+    <div className="relative mt-2 rounded-md border border-edge bg-bg">
       <pre className="max-h-40 overflow-auto py-2 pr-20 pl-2 font-mono text-xs break-all whitespace-pre-wrap">
         {text}
       </pre>

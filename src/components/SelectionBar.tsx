@@ -138,7 +138,7 @@ function Btn({
       aria-label={title}
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 whitespace-nowrap disabled:opacity-40 ${
+      className={`flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 whitespace-nowrap disabled:off ${
         danger ? "text-danger enabled:hover:bg-danger/15" : active ? "text-accent enabled:hover:bg-white/10" : "text-fg/80 enabled:hover:bg-white/10"
       }`}
     >

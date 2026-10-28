@@ -81,7 +81,7 @@ function TabButton({
       {tab === "shelf" && (
         <span
           key={flash ?? undefined}
-          className={`min-w-5 rounded-full px-1.5 tabular-nums ${flash !== null && !on ? "animate-pop bg-accent text-white" : "bg-white/10 text-dim"}`}
+          className={`min-w-5 rounded-full px-1.5 tabular-nums ${flash !== null && !on ? "animate-pop bg-accent-fill text-white" : "bg-white/10 text-dim"}`}
         >
           {fonts ? `${shelf}/${FONT_SHELF_MAX}` : shelf}
         </span>

@@ -150,7 +150,7 @@ export function Row({
       data-drop={dropId}
       className={`group relative flex h-7 cursor-default items-center gap-1.5 rounded-md pr-2 transition-[background-color,transform,box-shadow] duration-150 ${
         over
-          ? "scale-[1.03] bg-accent text-white shadow-lg shadow-accent/30"
+          ? "scale-[1.03] bg-accent-fill text-white shadow-lg shadow-accent/30"
           : active
             ? "bg-accent/25 text-white"
             : "hover:bg-white/5"
@@ -460,7 +460,7 @@ function FolderTree() {
         <div
           data-drop="root"
           className={`mb-1 animate-slide-down rounded-md border border-dashed px-2 py-1.5 text-center text-xs transition-colors ${
-            dropTarget === "root" ? "border-accent bg-accent text-white" : "border-line text-dim"
+            dropTarget === "root" ? "border-accent bg-accent-fill text-white" : "border-line text-dim"
           }`}
         >
           ここにドロップで最上位へ
@@ -623,7 +623,7 @@ function ModeSwitch() {
         title={`表示する種類（${shown.map((m) => comboText(`Mod+${MODES.indexOf(m) + 1}`)).join(" / ")}）`}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`flex h-9 w-full items-center gap-2 rounded-md border border-line px-2.5 text-left hover:bg-white/5 ${
+        className={`flex h-9 w-full items-center gap-2 rounded-md border border-frame px-2.5 text-left hover:bg-hover ${
           open ? "bg-white/5" : ""
         }`}
       >
@@ -646,7 +646,7 @@ function ModeSwitch() {
                 setOpen(false);
                 setMode(m);
               }}
-              className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent hover:text-white ${
+              className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent-fill hover:text-white ${
                 mode === m ? "text-accent" : ""
               }`}
             >
@@ -663,7 +663,7 @@ function ModeSwitch() {
               setOpen(false);
               useStore.getState().openSettings("libraryKinds");
             }}
-            className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-dim hover:bg-accent hover:text-white"
+            className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-dim hover:bg-accent-fill hover:text-white"
           >
             使う種類を選ぶ…
           </button>

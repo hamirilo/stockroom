@@ -122,7 +122,7 @@ function Dialog({ folderId }: { folderId: string }) {
           >
             共有中のフォルダの一覧
           </button>
-          <button onClick={close} className="ml-auto rounded-md bg-accent px-4 py-1.5 font-medium text-white hover:brightness-110">
+          <button onClick={close} className="ml-auto rounded-md bg-accent-fill px-4 py-1.5 font-medium text-white hover:brightness-110">
             閉じる
           </button>
         </div>
@@ -167,7 +167,7 @@ function ShareLink({ share, qr }: { share: ShareInfo; qr?: boolean }) {
       )}
       <div className="min-w-0 flex-1">
         {qr && <div className="mb-1 text-xs text-dim">スマホはカメラで QR コードを読み取ります。ほかの人には URL を送ります。</div>}
-        <div className="flex items-center rounded-md border border-line bg-bg">
+        <div className="flex items-center rounded-md border border-edge bg-bg">
           <span className="min-w-0 flex-1 truncate px-2 py-1.5 font-mono text-xs select-all" title={url}>
             {url}
           </span>
@@ -192,7 +192,7 @@ function ShareLink({ share, qr }: { share: ShareInfo; qr?: boolean }) {
             <select
               value={pick}
               onChange={(e) => setPick(Number(e.target.value))}
-              className="min-w-0 rounded border border-line bg-bg px-1 py-0.5 text-fg"
+              className="min-w-0 rounded border border-edge bg-bg px-1 py-0.5 text-fg"
             >
               {share.urls.map((u, i) => (
                 <option key={u} value={i}>

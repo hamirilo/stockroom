@@ -125,7 +125,7 @@ function MenuButton({ icon, label, hint, onClick }: { icon: React.ReactNode; lab
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-accent hover:text-white"
+      className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-accent-fill hover:text-white"
     >
       <span className="shrink-0 opacity-80">{icon}</span>
       <span className="flex-1">{label}</span>

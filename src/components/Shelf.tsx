@@ -21,7 +21,7 @@ import { useMenu } from "./ContextMenu";
 import { startPointerDrag } from "./DragLayer";
 
 const button =
-  "flex h-6 shrink-0 items-center justify-center gap-1 rounded-md border border-line px-2 whitespace-nowrap enabled:hover:bg-white/5 disabled:opacity-40";
+  "flex h-6 shrink-0 items-center justify-center gap-1 rounded-md px-2 whitespace-nowrap ghost disabled:off";
 
 export function Shelf() {
   const shelf = useStore((s) => s.shelf);
@@ -79,7 +79,7 @@ export function Shelf() {
             onClick={clearTray}
             title="シェルフを空にする（中身はそのまま残ります）"
             aria-label="シェルフを空にする"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-dim enabled:hover:bg-white/10 enabled:hover:text-fg disabled:opacity-40"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-dim enabled:hover:bg-white/10 enabled:hover:text-fg disabled:off"
           >
             <ListX size={15} />
           </button>
@@ -96,7 +96,7 @@ export function Shelf() {
                   ? "シェルフの画像を並べて比べる（拡大・移動はすべての画像で一緒に）"
                   : "シェルフに画像がありません（比べられるのは画像です）"
           }
-          className="flex h-7 items-center justify-center gap-1 rounded-md bg-accent px-2.5 font-medium whitespace-nowrap text-white enabled:hover:brightness-110 disabled:opacity-40"
+          className="flex h-7 items-center justify-center gap-1 rounded-md bg-accent-fill px-2.5 font-medium whitespace-nowrap text-white enabled:hover:brightness-110 disabled:off disabled:bg-control"
         >
           比較する <ArrowRight size={13} />
         </button>
@@ -151,7 +151,7 @@ function DropHint({ ids, over }: { ids: string[]; over: boolean }) {
       }`}
     >
       <span
-        className={`flex h-9 w-9 items-center justify-center rounded-full ${ok ? "bg-accent text-white" : "bg-raised"}`}
+        className={`flex h-9 w-9 items-center justify-center rounded-full ${ok ? "bg-accent-fill text-white" : "bg-raised"}`}
       >
         {ok ? <Plus size={20} strokeWidth={2.5} /> : <Ban size={17} />}
       </span>

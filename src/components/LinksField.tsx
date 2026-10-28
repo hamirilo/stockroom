@@ -10,7 +10,7 @@ import type { Item } from "../lib/api";
 import { useStore } from "../store";
 
 const btn =
-  "flex h-7 items-center gap-1.5 rounded-md border border-line px-2 text-xs hover:bg-white/5 disabled:pointer-events-none disabled:opacity-40";
+  "flex h-7 items-center gap-1.5 rounded-md border border-frame px-2 text-xs hover:bg-hover disabled:pointer-events-none disabled:off";
 
 function Thumb({ item }: { item: Item }) {
   return (

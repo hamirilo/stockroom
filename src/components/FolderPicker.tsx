@@ -124,7 +124,7 @@ function PickerDialog({ mode }: { mode: "move" | "goto" }) {
           <div className="mb-2 text-xs font-semibold text-dim">
             {mode === "move" ? `${selectedCount} 件をフォルダへ移動` : "フォルダへ移動"}
           </div>
-          <label className="flex h-9 items-center gap-2 rounded-md border border-line bg-bg px-2 focus-within:border-accent">
+          <label className="flex h-9 items-center gap-2 rounded-md border border-edge bg-bg px-2 focus-within:border-accent">
             <Search size={15} className="text-dim" />
             <input
               autoFocus
