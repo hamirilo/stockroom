@@ -12,6 +12,7 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   FolderInput,
+  ImagePlus,
   Heart,
   Layers,
   Pin,
@@ -30,6 +31,8 @@ import {
   deleteSelection,
   exportLibrary,
   exportList,
+  importFilesDialog,
+  importFolderDialog,
   moveToLastFolder,
   linkedIn,
   makeParent,
@@ -58,8 +61,8 @@ import {
 import { api, isSystemId, kindLabel, type Item, type ItemKind } from "./api";
 import { fontApi } from "../features/fonts/api";
 import { checkForUpdate, openReleaseNotes } from "./update";
-import { COMPARE_ZOOM, currentFolderId, listKinds, MODES, shelfShown, shownModes, useStore, zoomLook } from "../store";
-import { modeLabel } from "./modes";
+import { COMPARE_ZOOM, currentFolderId, listKinds, MODES, shelfShown, shownKinds, shownModes, useStore, zoomLook } from "../store";
+import { kindsNoun, modeLabel } from "./modes";
 import { rowIds } from "./grouping";
 import { useShortcutHelp } from "../components/ShortcutHelp";
 import { createText } from "../features/texts/actions";
@@ -173,6 +176,22 @@ export const COMMANDS: Command[] = [
   { id: "help.log", title: "ログを表示", run: (s) => s.run(() => api.revealLog()) },
 
   // ------------------------------------------------------------ library
+  // Adding is mostly done by dropping onto the window; these are the menu's way in.
+  {
+    id: "list.import",
+    title: "追加…",
+    icon: ImagePlus,
+    label: (s) => `${kindsNoun(shownKinds(s))}を追加…`,
+    enabled: library,
+    run: () => void importFilesDialog(),
+  },
+  {
+    id: "list.importFolder",
+    title: "フォルダから追加…",
+    icon: FolderInput,
+    enabled: library,
+    run: () => void importFolderDialog(),
+  },
   { id: "library.new", title: "新しいライブラリ…", run: () => void createLibraryDialog() },
   { id: "library.open", title: "ライブラリを開く…", run: () => void openLibraryDialog() },
   {

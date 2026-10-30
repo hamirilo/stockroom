@@ -141,7 +141,7 @@ export function LayoutSwitch() {
     ...LAYOUTS.filter((l) => l.key === layout && !primary.includes(l.key)),
   ];
   return (
-    <div className="flex h-7 shrink-0 items-stretch rounded-md track @max-4xl:hidden">
+    <div className="flex h-7 shrink-0 items-stretch rounded-md track @max-5xl:hidden">
       {shown.map((l) => (
         <button
           key={l.key}
@@ -263,7 +263,7 @@ export function ParentsToggle() {
       !none && allOpen === open ? "bg-tonal text-on-tonal" : "text-dim enabled:hover:bg-hover"
     }`;
   return (
-    <div className="flex shrink-0 items-center gap-1.5 @max-4xl:hidden" title={parentsTitle(none)}>
+    <div className="flex shrink-0 items-center gap-1.5 @max-5xl:hidden" title={parentsTitle(none)}>
       <span className="text-dim @max-7xl:hidden">紐づけ</span>
       <div className="flex gap-0.5 rounded-md bg-white/5 p-0.5">
         <button disabled={none} aria-pressed={!none && !allOpen} className={seg(false)} onClick={() => allOpen && set(false)}>

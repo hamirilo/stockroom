@@ -292,7 +292,7 @@ export function FilterRow({ viewControls, display }: { viewControls?: React.Reac
       </span>
       {/* Keeps room for a couple of conditions whatever else is on the band,
           so they never collapse to nothing (docs/UI.md). */}
-      <div className="flex min-w-[9rem] flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex min-w-[8rem] flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {locked && smart.rule.search.trim() && (
         <Pill label="検索" value={smart.rule.search.trim()} locked onLocked={edit} onClear={() => {}}>
           {() => null}
