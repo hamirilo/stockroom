@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { command } from "../lib/commands";
 import type { GroupBy } from "../lib/grouping";
 import type { ItemKind } from "../lib/api";
 import {
@@ -72,7 +73,7 @@ const INFO: { key: keyof ShowInfo; label: string; only?: ItemKind }[] = [
 ];
 
 /** A toolbar button with a dropdown that closes on Escape or a click elsewhere. */
-function Dropdown({
+export function Dropdown({
   button,
   title,
   active,
@@ -140,7 +141,7 @@ export function LayoutSwitch() {
     ...LAYOUTS.filter((l) => l.key === layout && !primary.includes(l.key)),
   ];
   return (
-    <div className="flex h-7 shrink-0 items-stretch rounded-md track">
+    <div className="flex h-7 shrink-0 items-stretch rounded-md track @max-4xl:hidden">
       {shown.map((l) => (
         <button
           key={l.key}
@@ -176,11 +177,11 @@ export function GroupMenu() {
   const current = groups.find((g) => g.key === groupBy) ?? groups[0];
   return (
     <div className="flex h-7 shrink-0 items-center gap-1.5">
-      <span className={`@max-3xl:hidden ${isSimilar ? "text-off" : "text-dim"}`}>グループ</span>
+      <span className={`@max-2xl:hidden ${isSimilar ? "text-off" : "text-dim"}`}>グループ</span>
       {/* Narrow: a native select over a label, like the sort order next to it. */}
       <label
         title={isSimilar ? "グループ分け（重複の候補では使えません）" : `グループ分け：${current.hint}`}
-        className={`relative hidden h-full items-center gap-1.5 rounded-md pr-2 pl-2.5 whitespace-nowrap @max-3xl:flex ${
+        className={`relative hidden h-full items-center gap-1.5 rounded-md pr-2 pl-2.5 whitespace-nowrap @max-2xl:flex ${
           isSimilar ? "off" : "ghost focus-within:border-accent"
         }`}
       >
@@ -202,7 +203,7 @@ export function GroupMenu() {
           ))}
         </select>
       </label>
-      <div role="group" aria-label="グループ分け" className="flex h-full items-stretch rounded-md track @max-3xl:hidden">
+      <div role="group" aria-label="グループ分け" className="flex h-full items-stretch rounded-md track @max-2xl:hidden">
         {groups.map((g) => {
           const on = groupBy === g.key && !isSimilar;
           return (
@@ -231,6 +232,51 @@ export function GroupMenu() {
   );
 }
 
+/**
+ * Opens every linked parent's children under it, or closes them all (docs/LINKS.md).
+ * Offered whenever the stock mode is open; disabled when nothing is linked, so it
+ * doesn't move. `none` also tells the display menu to grey its own copy out.
+ */
+function useParents() {
+  const links = useStore((s) => s.librarySettings.links);
+  const parents = useStore(useShallow((s) => s.items.filter((i) => i.childIds).map((i) => i.id)));
+  const openParents = useStore((s) => s.openParents);
+  const none = !links || parents.length === 0;
+  return {
+    none,
+    allOpen: !none && parents.every((id) => openParents.has(id)),
+    set: (open: boolean) => command(open ? "view.openParents" : "view.closeParents").run(useStore.getState()),
+  };
+}
+
+const PARENTS_TIP = "紐づけた項目をすべて開く／閉じる";
+const parentsTitle = (none: boolean) => (none ? `${PARENTS_TIP}（この一覧に紐づけた項目はありません）` : PARENTS_TIP);
+
+/**
+ * Two states side by side, like グループ, so the state reads without a pressed
+ * face. Folded into the display menu when the band gets short (docs/UI.md).
+ */
+export function ParentsToggle() {
+  const { none, allOpen, set } = useParents();
+  const seg = (open: boolean) =>
+    `flex h-6 items-center rounded px-2 whitespace-nowrap disabled:off ${
+      !none && allOpen === open ? "bg-tonal text-on-tonal" : "text-dim enabled:hover:bg-hover"
+    }`;
+  return (
+    <div className="flex shrink-0 items-center gap-1.5 @max-4xl:hidden" title={parentsTitle(none)}>
+      <span className="text-dim @max-7xl:hidden">紐づけ</span>
+      <div className="flex gap-0.5 rounded-md bg-white/5 p-0.5">
+        <button disabled={none} aria-pressed={!none && !allOpen} className={seg(false)} onClick={() => allOpen && set(false)}>
+          閉じる
+        </button>
+        <button disabled={none} aria-pressed={allOpen} className={seg(true)} onClick={() => !allOpen && set(true)}>
+          開く
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Thumbnail size and the information shown under each thumbnail. */
 export function DisplayMenu() {
   const showInfo = useStore((s) => s.showInfo);
@@ -243,6 +289,7 @@ export function DisplayMenu() {
   // The font mode sizes its text and tiles on the specimen text row.
   const sized = mode !== "font";
   const setLayout = useStore((s) => s.setLayout);
+  const parents = useParents();
   return (
     <Dropdown title="表示（レイアウト・サムネイルの大きさ・表示する情報）" width="w-64" button={<SlidersHorizontal size={15} />}>
       <div className={heading}>レイアウト</div>
@@ -279,6 +326,28 @@ export function DisplayMenu() {
             />
             <span className="w-10 text-right text-dim tabular-nums">{thumbSize}</span>
           </label>
+        </>
+      )}
+      {mode === "stock" && (
+        <>
+          <div className="mx-1.5 my-1 border-t border-line" />
+          <div className={heading}>紐づけ</div>
+          <div className="flex items-center gap-2 px-2 py-1.5" title={parentsTitle(parents.none)}>
+            {[
+              { open: false, label: "すべて閉じる" },
+              { open: true, label: "すべて開く" },
+            ].map((b) => (
+              <button
+                key={b.label}
+                data-close
+                disabled={parents.none || parents.allOpen === b.open}
+                onClick={() => parents.set(b.open)}
+                className="h-6 flex-1 rounded border border-edge whitespace-nowrap disabled:off"
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
         </>
       )}
       <div className="mx-1.5 my-1 border-t border-line" />
