@@ -680,7 +680,8 @@ function DateCondition({ cond, locked, onLocked }: CondProps) {
       locked={locked}
       onLocked={onLocked}
       onClear={() => setFilter(CLEARED.date.filter!)}
-      width="w-72"
+      // The calendar fills the menu: just wide enough for 7 square-ish days.
+      width="w-64"
     >
       {(_, close) => (
         <div className="flex flex-col gap-0.5">

@@ -59,7 +59,7 @@ export function RangeCalendar({ from, to, max = dayStart(new Date()), onChange }
   const nextYearDisabled = new Date(month.getFullYear() + 1, month.getMonth(), 1) > max;
 
   return (
-    <div className="w-[238px] select-none p-1" onPointerLeave={() => setHover(null)}>
+    <div className="w-full select-none p-1" onPointerLeave={() => setHover(null)}>
       <div className="mb-1 flex items-center justify-between">
         <div className="flex">
           <button className={nav} title="前の年" onClick={() => shift(-12)}>
@@ -126,7 +126,7 @@ export function RangeCalendar({ from, to, max = dayStart(new Date()), onChange }
         })}
       </div>
 
-      <p className="px-1 pt-2 text-[11px] text-dim">
+      <p className="pt-2 text-[11px] text-dim">
         {anchor ? "終わりの日を選んでください" : "1日だけ選ぶか、始めと終わりの日を選びます"}
       </p>
     </div>
