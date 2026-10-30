@@ -1,13 +1,13 @@
-// Splits the list into sections (kinds, typeface styles, writing systems,
-// rating bands, tags, folders) for the grid, and folds fonts into one row per
+// Splits the list into sections (typeface styles, writing systems, rating
+// bands, tags, folders, months) for the grid, and folds fonts into one row per
 // family in the font mode.
 // The result is a flattened display list plus the [start, end) of each
 // section, so layouts and navigation keep working on plain indices.
-import { FONT_CATEGORIES, FONT_SCRIPTS, fontCategoryOf, KINDS, type Folder, type Item, type Tag } from "./api";
+import { FONT_CATEGORIES, FONT_SCRIPTS, fontCategoryOf, type Folder, type Item, type Tag } from "./api";
 
-export type GroupBy = "none" | "kind" | "category" | "script" | "rating" | "tag" | "folder" | "month";
+export type GroupBy = "none" | "category" | "script" | "rating" | "tag" | "folder" | "month";
 
-export const GROUP_BYS: GroupBy[] = ["none", "kind", "category", "script", "rating", "tag", "folder", "month"];
+export const GROUP_BYS: GroupBy[] = ["none", "category", "script", "rating", "tag", "folder", "month"];
 
 export interface Section {
   /** Index of the first item, and one past the last. */
@@ -192,8 +192,6 @@ export function groupItems(
   switch (by) {
     case "none":
       return { items: expand(rows), sections: [] };
-    case "kind":
-      return grouped(KINDS.map((k) => ({ items: rows.filter((i) => i.kind === k.kind), title: k.label })));
     case "category":
       return grouped([
         ...FONT_CATEGORIES.map((c) => ({
