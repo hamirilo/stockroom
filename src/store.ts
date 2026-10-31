@@ -93,7 +93,8 @@ export const MODE_LAYOUTS: Record<Mode, Layout[]> = {
 
 /** Groupings of each mode. */
 export const MODE_GROUPS: Record<Mode, GroupBy[]> = {
-  stock: ["none", "kind", "month", "rating", "tag", "folder"],
+  // No 種類 grouping: the filter row's 種類 narrows to one kind instead (docs/UI.md).
+  stock: ["none", "month", "rating", "tag", "folder"],
   // Fonts are always one row per family (▸ opens its styles), so no family grouping.
   font: ["none", "category", "script", "month", "rating", "tag", "folder"],
 };
