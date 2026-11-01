@@ -1,6 +1,6 @@
 [package]
 name = "stockroom"
-version = "0.38.0"
+version = "0.38.1"
 description = "A local stockroom for everything you collect"
 authors = ["you"]
 edition = "2021"
