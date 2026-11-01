@@ -116,6 +116,7 @@ pub async fn save_text(app: AppHandle, id: String, text: String) -> CmdResult<Sa
 /// notes. Returns its id.
 #[tauri::command]
 pub async fn create_text(app: AppHandle, name: String, text: String, folder_id: Option<String>) -> CmdResult<String> {
+    crate::limits::require_kind(crate::db::Kind::Text)?;
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
         let ext = Path::new(&name)

@@ -21,6 +21,7 @@ import {
   type Tag,
   type View,
 } from "./lib/api";
+import { buildHas, OFF_SETTINGS } from "./lib/limits";
 import { fontApi } from "./features/fonts/api";
 import { fontShelf, querySystemFonts, refreshFontLinks, systemFonts } from "./features/fonts/system";
 import { filesApi, onFileThumbs } from "./features/files/api";
@@ -1015,7 +1016,7 @@ export const useStore = create<State>((set, get) => ({
     saveLibrarySetting("linksTrash", linksTrash === "with" ? null : linksTrash);
   },
   setUsedModes: (modes) => {
-    const used = KINDS.map((k) => k.kind).filter((k) => modes.includes(k));
+    const used = KINDS.map((k) => k.kind).filter((k) => modes.includes(k) && buildHas(k));
     if (!used.length) return;
     set({ librarySettings: { ...get().librarySettings, modes: used } });
     // Every kind = nothing to remember (a kind added later is used too).
@@ -1299,6 +1300,8 @@ export const useStore = create<State>((set, get) => ({
   openSettings: (tab) =>
     set((s) => {
       if (tab === null) return { settingsTab: null };
+      // A page this build leaves out (src/lib/limits.ts) opens the first one.
+      if (tab !== "last" && OFF_SETTINGS.has(tab)) tab = "general";
       if (tab !== "last") return { settingsTab: tab, lastSettingsTab: tab };
       const last = s.lastSettingsTab;
       return { settingsTab: last.startsWith("library") && !s.library ? "general" : last };
@@ -1553,7 +1556,8 @@ export function notifyUnusedKinds(kinds: Partial<Record<ItemKind, number>>) {
   const used = usedModes(s);
   for (const { kind: m } of KINDS) {
     const n = kinds[m] ?? 0;
-    if (!n || used.includes(m)) continue;
+    // Kinds this build doesn't handle are never imported (src/lib/limits.ts).
+    if (!n || used.includes(m) || !buildHas(m)) continue;
     s.notify({
       title: `${kindLabel(m)} ${n} 件を取り込みました`,
       detail: "このライブラリでは使っていない種類です",

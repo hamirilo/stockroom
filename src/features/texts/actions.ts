@@ -1,4 +1,5 @@
 // Making texts: "新規テキスト" (⌘N) and pasting words into the list. docs/TEXT.md
+import { buildHas } from "../../lib/limits";
 import { currentFolderId, notifyUnusedKinds, usedModes, useStore } from "../../store";
 import { textsApi } from "./api";
 
@@ -72,7 +73,8 @@ export function pastedName(text: string): string {
 /** Words pasted into the list (no files on the clipboard): a new text with them. */
 export async function pasteText(text: string) {
   const s = st();
-  if (!s.library || !text.trim()) return;
+  // A build without texts (src/lib/limits.ts).
+  if (!s.library || !text.trim() || !buildHas("text")) return;
   // The font mode has no texts; pasting there is most likely a slip.
   if (s.mode !== "stock") return;
   try {

@@ -7,6 +7,7 @@
  * Keys are written like "Mod+Shift+R": Mod is ⌘ on macOS and Ctrl elsewhere.
  * The first key is the one menus show.
  */
+import { OFF_COMMANDS } from "./limits";
 import {
   Copy,
   FlipHorizontal2,
@@ -150,7 +151,7 @@ function zoom(s: S, dir: 1 | -1) {
   else s.setThumbSize(Math.min(360, Math.max(80, s.thumbSize + 20 * dir)));
 }
 
-export const COMMANDS: Command[] = [
+const ALL_COMMANDS: Command[] = [
   // ---------------------------------------------------------------- app
   {
     id: "app.settings",
@@ -628,6 +629,9 @@ export const COMMANDS: Command[] = [
     }),
   ),
 ];
+
+/** The commands of this build: one with fewer features leaves some out (src/lib/limits.ts). */
+export const COMMANDS: Command[] = ALL_COMMANDS.filter((c) => !OFF_COMMANDS.has(c.id));
 
 const byId = new Map(COMMANDS.map((c) => [c.id, c]));
 

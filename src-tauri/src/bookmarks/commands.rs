@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager};
 /// titled with its host until the browser extension saves the page itself.
 #[tauri::command]
 pub async fn create_bookmark(app: AppHandle, url: String, folder_id: Option<String>) -> CmdResult<Added> {
+    crate::limits::require_kind(crate::db::Kind::Bookmark)?;
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
         super::add(&state.lib, &Input { url, ..Input::default() }, folder_id.as_deref(), &[])

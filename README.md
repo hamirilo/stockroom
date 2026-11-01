@@ -55,6 +55,7 @@ bun run test           # Rust のユニットテスト + 型チェック
 |---|---|
 | [FEATURES.md](docs/FEATURES.md) | 機能と使い方、キー操作、ライブラリの構造、バックアップ |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 開発環境、ソースの構成、リリース |
+| [LIMITS.md](docs/LIMITS.md) | 機能を絞ったビルド（扱う種類・拡張と Claude・アプリ内アップデートを環境変数で外す） |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | モードの考え方、共通基盤と種類ごとのコードの境界 |
 | [MCP.md](docs/MCP.md) | Claude との連携 |
 | [FROM_APPS.md](docs/FROM_APPS.md) | ほかのアプリ（Feedability）から受け取る（計画） |
