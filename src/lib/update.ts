@@ -14,6 +14,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { create } from "zustand";
 import { api } from "./api";
+import { NO_UPDATE } from "./limits";
 import { warn } from "./log";
 import { isMac } from "./shortcuts";
 import { useStore } from "../store";
@@ -220,7 +221,8 @@ async function install(update: Update) {
  * the settings ("アップデートを自動で確認する"). Returns a cleanup.
  */
 export function scheduleUpdateCheck(): () => void {
-  if (import.meta.env.DEV || !isTauri()) return () => {};
+  // A build without in-app updates (src/lib/limits.ts).
+  if (import.meta.env.DEV || !isTauri() || NO_UPDATE) return () => {};
   const t = setTimeout(() => {
     api.getAppSettings().then(
       (s) => void (s.autoUpdate && checkForUpdate(false)),

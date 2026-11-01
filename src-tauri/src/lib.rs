@@ -9,6 +9,7 @@ pub mod fonts;
 pub mod formats;
 pub mod import;
 pub mod library;
+pub mod limits;
 pub mod loopback;
 pub mod mcp;
 pub mod orient;
@@ -95,7 +96,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_drag::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         // Size, place and maximized of the window, kept between launches
         // (.window-state.json in the app config folder). Not fullscreen or
@@ -112,12 +112,17 @@ pub fn run() {
         .manage(AppState::default())
         .setup(move |app| {
             log_panics();
+            // A build without in-app updates doesn't load the updater (limits.rs).
+            if !limits::NO_UPDATE {
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
             for m in &moved {
                 log::info!("{m}");
             }
             main_window(app.handle())?;
             log::info!(
-                "Stockroom {} ({} {})",
+                "{} {} ({} {})",
+                app.package_info().name,
                 app.package_info().version,
                 std::env::consts::OS,
                 std::env::consts::ARCH

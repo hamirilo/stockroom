@@ -3,6 +3,7 @@
 // the sidebar entries hidden in each mode. They travel with the library.
 // The sidebar can instead follow the app's (settings.json `sidebarHidden`).
 import { KINDS, type ItemKind } from "./api";
+import { LIMITED_KINDS } from "./limits";
 import { MODES, modesFor, type Mode } from "./modes";
 
 export interface LibrarySettings {
@@ -30,7 +31,8 @@ export interface LibrarySettings {
 /** Sidebar entries hidden, per mode (ids of `SIDEBAR_ENTRIES`). */
 export type SidebarHidden = Partial<Record<Mode, string[]>>;
 
-const ALL_KINDS = KINDS.map((k) => k.kind);
+/** Every kind this build handles (src/lib/limits.ts). */
+const ALL_KINDS = KINDS.map((k) => k.kind).filter((k) => !LIMITED_KINDS || LIMITED_KINDS.includes(k));
 
 export const DEFAULT_LIBRARY_SETTINGS: LibrarySettings = { modes: ALL_KINDS, lastMode: null, lastKinds: [], hidden: {}, sidebarOwn: false, patterns: [], links: false, linksTrash: "with" };
 

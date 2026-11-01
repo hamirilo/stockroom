@@ -1,4 +1,5 @@
 // Making bookmarks: a URL pasted into the list. docs/BOOKMARKS.md
+import { buildHas } from "../../lib/limits";
 import { currentFolderId, notifyUnusedKinds, usedModes, useStore } from "../../store";
 import { bookmarksApi } from "./api";
 
@@ -36,7 +37,8 @@ async function reveal(id: string): Promise<boolean> {
  */
 export async function pasteBookmark(url: string) {
   const s = st();
-  if (!s.library) return;
+  // A build without bookmarks (src/lib/limits.ts).
+  if (!s.library || !buildHas("bookmark")) return;
   // The font mode has no bookmarks; pasting there is most likely a slip.
   if (s.mode !== "stock") return;
   try {

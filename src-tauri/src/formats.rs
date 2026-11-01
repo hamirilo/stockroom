@@ -21,6 +21,11 @@ pub const SUPPORTED_EXTS: &[&str] = &[
     "mp4", "m4v", "mov", "webm",
 ];
 
+/// Image files (the first row of `SUPPORTED_EXTS`).
+pub fn is_image(ext: &str) -> bool {
+    matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp" | "tif" | "tiff" | "svg" | "heic" | "heif" | "avif")
+}
+
 /// Font files are imported with a rendered sample as their thumbnail.
 pub fn is_font(ext: &str) -> bool {
     matches!(ext, "ttf" | "otf" | "woff" | "woff2" | "ttc" | "otc")

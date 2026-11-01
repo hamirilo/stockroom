@@ -1038,7 +1038,8 @@ fn apply_web_import(app: &AppHandle) {
 
 /// At startup: runs the server if the user turned it on earlier.
 pub fn start_web_import(app: &AppHandle) {
-    if load_settings(app).web_import.enabled {
+    // A build without the extension never opens its port (limits.rs).
+    if !crate::limits::NO_CONNECT && load_settings(app).web_import.enabled {
         apply_web_import(app);
     }
 }
@@ -1064,6 +1065,7 @@ pub fn web_import_status(app: AppHandle) -> CmdResult<WebImportStatus> {
 
 #[tauri::command]
 pub async fn set_web_import(app: AppHandle, enabled: bool) -> CmdResult<WebImportStatus> {
+    crate::limits::require_connect()?;
     tauri::async_runtime::spawn_blocking(move || {
         update_settings(&app, |s| {
             s.web_import.enabled = enabled;
@@ -1082,6 +1084,7 @@ pub async fn set_web_import(app: AppHandle, enabled: bool) -> CmdResult<WebImpor
 /// they get the new one (the installed copy is updated here).
 #[tauri::command]
 pub async fn reset_web_import_token(app: AppHandle) -> CmdResult<WebImportStatus> {
+    crate::limits::require_connect()?;
     tauri::async_runtime::spawn_blocking(move || {
         let token = update_settings(&app, |s| {
             s.web_import.token = new_token();
@@ -1117,6 +1120,7 @@ fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()>
 /// Doing it again updates the files in place, so Chrome keeps the extension.
 #[tauri::command]
 pub async fn install_extension(app: AppHandle) -> CmdResult<String> {
+    crate::limits::require_connect()?;
     tauri::async_runtime::spawn_blocking(move || {
         let src = app.path().resource_dir().map_err(err)?.join("extension");
         if !src.join("manifest.json").is_file() {
@@ -1189,7 +1193,8 @@ fn apply_mcp(app: &AppHandle) {
 
 /// At startup: runs the server if the user turned it on earlier.
 pub fn start_mcp(app: &AppHandle) {
-    if load_settings(app).mcp.enabled {
+    // A build without the Claude connection never opens its port (limits.rs).
+    if !crate::limits::NO_CONNECT && load_settings(app).mcp.enabled {
         apply_mcp(app);
     }
 }
@@ -1228,6 +1233,7 @@ pub fn mcp_status(app: AppHandle) -> McpStatus {
 
 #[tauri::command]
 pub async fn set_mcp(app: AppHandle, enabled: bool) -> CmdResult<McpStatus> {
+    crate::limits::require_connect()?;
     tauri::async_runtime::spawn_blocking(move || {
         update_settings(&app, |s| {
             s.mcp.enabled = enabled;
@@ -1246,6 +1252,7 @@ pub async fn set_mcp(app: AppHandle, enabled: bool) -> CmdResult<McpStatus> {
 /// they are set up again (Claude Desktop reads it from the settings by itself).
 #[tauri::command]
 pub async fn reset_mcp_token(app: AppHandle) -> CmdResult<McpStatus> {
+    crate::limits::require_connect()?;
     tauri::async_runtime::spawn_blocking(move || {
         update_settings(&app, |s| s.mcp.token = new_token())?;
         apply_mcp(&app);
@@ -1430,7 +1437,7 @@ fn release_page(version: &str) -> CmdResult<String> {
 
 #[tauri::command]
 pub fn supported_exts() -> Vec<&'static str> {
-    import::SUPPORTED_EXTS.to_vec()
+    import::SUPPORTED_EXTS.iter().copied().filter(|e| crate::limits::accepts(e)).collect()
 }
 
 // -------------------------------------------------------------- folders

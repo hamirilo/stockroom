@@ -28,7 +28,10 @@ import { setLinks, transferAllOfKind } from "../lib/actions";
 import { api, formatBytes, KINDS, kindLabel, type ItemKind } from "../lib/api";
 import { sidebarEntriesOf, type SidebarHidden } from "../lib/librarySettings";
 import { MODES, modeLabel, modesFor, type Mode } from "../lib/modes";
+import { BUILD_NAME, buildHas, NO_UPDATE, OFF_SETTINGS } from "../lib/limits";
 import { isMac } from "../lib/shortcuts";
+import { appVersion } from "../lib/update";
+import appIcon from "../../src-tauri/icons/128x128@2x.png";
 import { sidebarHidden, usedModes, useStore, type SettingsTab } from "../store";
 import { WebImportSettings } from "./WebImportDialog";
 import { ClaudeSettings } from "./ClaudeSettings";
@@ -67,6 +70,9 @@ const LIBRARY_PAGES: Page[] = [
   { id: "libraryShare", label: "フォルダの共有", icon: <Share2 size={15} /> },
 ];
 
+/** Pages of this build: one with fewer features leaves some out (src/lib/limits.ts). */
+const inBuild = (p: Page) => !OFF_SETTINGS.has(p.id);
+
 /** ⌘, opens the screen on the page shown last (or closes it). Esc is the frame's. */
 function useSettingsKeys() {
   useEffect(() => {
@@ -94,9 +100,11 @@ function Dialog({ tab }: { tab: SettingsTab }) {
   const close = useCallback(() => openSettings(null), [openSettings]);
 
   const groups: SettingsGroup<SettingsTab>[] = [
-    { title: "アプリ全体", pages: APP_PAGES },
+    { title: "アプリ全体", pages: APP_PAGES.filter(inBuild) },
     // Only with a library open: its settings are stored in it.
-    ...(library ? [{ title: `ライブラリ「${library.name}」`, sub: "このライブラリに保存", pages: LIBRARY_PAGES }] : []),
+    ...(library
+      ? [{ title: `ライブラリ「${library.name}」`, sub: "このライブラリに保存", pages: LIBRARY_PAGES.filter(inBuild) }]
+      : []),
   ];
 
   return (
@@ -168,8 +176,33 @@ function GeneralPage() {
           ]}
         />
       </Section>
-      <UpdateSection autoUpdate={app?.autoUpdate} onAutoUpdate={(autoUpdate) => save({ autoUpdate })} />
+      {NO_UPDATE ? (
+        <VersionSection />
+      ) : (
+        <UpdateSection autoUpdate={app?.autoUpdate} onAutoUpdate={(autoUpdate) => save({ autoUpdate })} />
+      )}
     </div>
+  );
+}
+
+/**
+ * The アップデート section's stand-in in a build without in-app updates
+ * (src/lib/limits.ts): which app and version this is.
+ */
+function VersionSection() {
+  const version = appVersion();
+  return (
+    <Section title="バージョン">
+      <Row
+        icon={<img src={appIcon} alt="" className="size-10" draggable={false} />}
+        label={
+          <span className="font-medium">
+            {BUILD_NAME} <span className="font-normal text-dim tabular-nums">{version || "（開発版）"}</span>
+          </span>
+        }
+        hint="このビルドはアプリの中では更新しません"
+      />
+    </Section>
   );
 }
 
@@ -221,7 +254,9 @@ function LibraryKindsPage() {
   const used = useStore(useShallow(usedModes));
   const setUsedModes = useStore((s) => s.setUsedModes);
   if (!library) return <p className="mt-8 text-center text-dim">ライブラリを開いていません</p>;
-  const dropped = KINDS.filter((k) => !used.includes(k.kind) && (kinds[k.kind] ?? 0) > 0);
+  // Only the kinds this build handles (src/lib/limits.ts).
+  const offered = KINDS.filter((k) => buildHas(k.kind));
+  const dropped = offered.filter((k) => !used.includes(k.kind) && (kinds[k.kind] ?? 0) > 0);
 
   return (
     <div>
@@ -229,7 +264,7 @@ function LibraryKindsPage() {
         title="使う種類"
         sub="使う種類が一覧と種類の絞り込みに出ます。フォントをほかの種類と使うときは、フォントを見比べる「フォント」のモードも出ます"
       >
-        {KINDS.map(({ kind, label }) => {
+        {offered.map(({ kind, label }) => {
           const on = used.includes(kind);
           const n = kinds[kind] ?? 0;
           return (

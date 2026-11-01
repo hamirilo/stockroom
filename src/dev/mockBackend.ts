@@ -2,8 +2,25 @@
 // opened in a normal browser (`bun run dev`) instead of inside Tauri.
 // Mirrors the semantics of src-tauri/src/db.rs closely enough for UI work.
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import { modeOf, type Folder, type Item, type ItemQuery, type Mode, type Rule, type SimilarLevel, type Tag } from "../lib/api";
+import { modeOf, type Folder, type Item, type ItemKind, type ItemQuery, type Mode, type Rule, type SimilarLevel, type Tag } from "../lib/api";
 import type { SystemFont } from "../features/fonts/api";
+import { buildHas, NO_CONNECT } from "../lib/limits";
+
+/** The file types of each kind (src-tauri/src/formats.rs `SUPPORTED_EXTS`). */
+const KIND_EXTS: [ItemKind, string[]][] = [
+  ["image", ["jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "svg", "heic", "heif", "avif"]],
+  ["font", ["ttf", "otf", "woff", "woff2", "ttc", "otc"]],
+  ["file", ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key"]],
+  ["text", ["md", "markdown", "txt", "csv", "tsv"]],
+  ["video", ["mp4", "m4v", "mov", "webm"]],
+];
+
+/** Commands a build with fewer features refuses (src-tauri/src/limits.rs). */
+const LEFT_OUT = new Set([
+  ...(NO_CONNECT ? ["set_web_import", "reset_web_import_token", "install_extension", "set_mcp", "reset_mcp_token"] : []),
+  ...(buildHas("text") ? [] : ["create_text"]),
+  ...(buildHas("bookmark") ? [] : ["create_bookmark"]),
+]);
 
 type MockItem = Omit<
   Item,
@@ -909,6 +926,8 @@ function handle(cmd: string, a: any): unknown {
     if (item && op === "set_checked") item.options.checked = a.checked;
     return null;
   }
+  // Left out of a build with fewer features, like src-tauri/src/limits.rs.
+  if (LEFT_OUT.has(cmd)) throw "このビルドでは使えません";
   switch (cmd) {
     case "open_last_library":
     case "create_library":
@@ -1287,13 +1306,8 @@ function handle(cmd: string, a: any): unknown {
       return effects;
     }
     case "supported_exts":
-      return [
-        ...["jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "svg", "heic", "heif", "avif"],
-        ...["ttf", "otf", "woff", "woff2", "ttc", "otc"],
-        ...["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key"],
-        ...["md", "markdown", "txt", "csv", "tsv"],
-        ...["mp4", "m4v", "mov", "webm"],
-      ];
+      // A build with fewer kinds takes theirs only (src-tauri/src/limits.rs `accepts`).
+      return KIND_EXTS.filter(([k]) => buildHas(k)).flatMap(([, exts]) => exts);
     case "import_paths":
     case "import_bytes":
       return { imported: 0, duplicates: 0, failed: ["mock backend: import is not available in the browser"] };

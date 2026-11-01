@@ -73,7 +73,8 @@ pub struct ImportSummary {
 
 fn ext_of(name: &str) -> Option<String> {
     let ext = Path::new(name).extension()?.to_str()?.to_ascii_lowercase();
-    SUPPORTED_EXTS.contains(&ext.as_str()).then_some(ext)
+    // A build with fewer kinds skips the others, like an unsupported type (limits.rs).
+    (SUPPORTED_EXTS.contains(&ext.as_str()) && crate::limits::accepts(&ext)).then_some(ext)
 }
 
 /// Expands dropped paths. Directories are walked recursively and keep their
@@ -686,6 +687,30 @@ mod tests {
         buf.into_inner()
     }
 
+    /// Run with `STOCKROOM_KINDS=image` (docs/LIMITS.md): every other kind is
+    /// skipped, like an unsupported type. Without it there is nothing to check.
+    #[test]
+    fn a_build_with_fewer_kinds_skips_the_others() {
+        if crate::limits::has(db::Kind::Text) || !crate::limits::has(db::Kind::Image) {
+            return;
+        }
+        let (tmp, lib) = setup();
+        let dir = tmp.path().join("src");
+        fs::create_dir_all(&dir).unwrap();
+        RgbImage::from_pixel(40, 30, Rgb([200, 10, 10])).save(dir.join("red.jpg")).unwrap();
+        fs::write(dir.join("memo.md"), "x").unwrap();
+        let files = collect_files(std::slice::from_ref(&dir));
+        assert_eq!(files.len(), 1);
+        let sum = run(&lib, files, None, |_, _| {}).unwrap();
+        assert_eq!(sum.imported, 1);
+
+        // Pasted or saved data with a name of another kind isn't taken either.
+        let pasted = vec![Source::Bytes { name: "memo.md".into(), data: b"# x".to_vec() }];
+        let sum = run(&lib, pasted, None, |_, _| {}).unwrap();
+        assert_eq!(sum.imported, 0);
+        assert_eq!(sum.failed.len(), 1);
+    }
+
     #[test]
     fn imports_dedupes_and_thumbnails() {
         let (tmp, lib) = setup();
@@ -937,6 +962,10 @@ mod tests {
 
     #[test]
     fn a_pdf_must_be_one() {
+        // A build without the kind skips it (`a_build_with_fewer_kinds_skips_the_others`).
+        if !crate::limits::has(db::Kind::File) {
+            return;
+        }
         let (_tmp, lib) = setup();
         let sources = vec![
             Source::Bytes { name: "real.pdf".into(), data: crate::files::tests::sample_pdf() },
@@ -1026,6 +1055,10 @@ mod tests {
 
     #[test]
     fn imports_files_with_thumbnails() {
+        // A build without the kind skips it (`a_build_with_fewer_kinds_skips_the_others`).
+        if !crate::limits::has(db::Kind::File) {
+            return;
+        }
         use crate::files::tests::{jpeg, sample_pdf, sample_zip};
         let (tmp, lib) = setup();
         let dir = tmp.path().join("docs");
@@ -1067,6 +1100,10 @@ mod tests {
 
     #[test]
     fn imports_texts_and_finds_them_by_their_body() {
+        // A build without the kind skips it (`a_build_with_fewer_kinds_skips_the_others`).
+        if !crate::limits::has(db::Kind::Text) {
+            return;
+        }
         let (tmp, lib) = setup();
         let dir = tmp.path().join("notes");
         fs::create_dir_all(&dir).unwrap();
@@ -1096,6 +1133,10 @@ mod tests {
 
     #[test]
     fn imports_videos_from_the_disk_with_their_length_and_size() {
+        // A build without the kind skips it (`a_build_with_fewer_kinds_skips_the_others`).
+        if !crate::limits::has(db::Kind::Video) {
+            return;
+        }
         let (tmp, lib) = setup();
         let data = videos::tests::mp4(false);
         let path = tmp.path().join("clip.mp4");

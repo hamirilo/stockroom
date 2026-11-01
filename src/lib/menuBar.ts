@@ -18,6 +18,7 @@ import { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tau
 import { copySelection, openLibraryAt } from "./actions";
 import { api, type LibraryEntry } from "./api";
 import { command, isEnabled, labelOf, runCommand, type Command } from "./commands";
+import { OFF_COMMANDS } from "./limits";
 import { warn } from "./log";
 import { comboText, isMac } from "./shortcuts";
 import { GROUPS, LAYOUTS } from "../components/ViewMenu";
@@ -132,6 +133,9 @@ function cmd(id: string): Promise<MenuItem | CheckMenuItem> {
   );
 }
 
+/** A command's item, or none when this build leaves the command out (src/lib/limits.ts). */
+const opt = (id: string) => (OFF_COMMANDS.has(id) ? [] : [cmd(id)]);
+
 const sep = () => PredefinedMenuItem.new({ item: "Separator" });
 
 async function submenu(text: string, items: Promise<Item>[]): Promise<Submenu> {
@@ -155,7 +159,7 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     ? [
         submenu("Stockroom", [
           PredefinedMenuItem.new({ item: { About: null }, text: "Stockroom について" }),
-          cmd("app.checkUpdate"),
+          ...opt("app.checkUpdate"),
           sep(),
           cmd("app.settings"),
           sep(),
@@ -184,7 +188,7 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     cmd("list.import"),
     cmd("list.importFolder"),
     sep(),
-    ...(mode === "stock" ? [cmd("text.new")] : []),
+    ...(mode === "stock" ? opt("text.new") : []),
     cmd("folder.new"),
     cmd("smart.new"),
     sep(),
@@ -349,12 +353,12 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
 
   const help = submenu("ヘルプ", [
     cmd("help.shortcuts"),
-    cmd("help.webImport"),
-    cmd("help.claude"),
+    ...opt("help.webImport"),
+    ...opt("help.claude"),
     sep(),
-    cmd("help.releaseNotes"),
+    ...opt("help.releaseNotes"),
     cmd("help.log"),
-    ...(isMac ? [] : [sep(), cmd("app.checkUpdate"), cmd("help.about")]),
+    ...(isMac ? [] : [sep(), ...opt("app.checkUpdate"), cmd("help.about")]),
   ]);
 
   return Menu.new({ items: await Promise.all([...appMenu, file, edit, item, view, ...windowMenu, help]) });

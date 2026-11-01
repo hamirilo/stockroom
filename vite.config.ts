@@ -8,6 +8,10 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
 
+  // A build with fewer features is set by STOCKROOM_ environment variables,
+  // read by the Rust side too (docs/LIMITS.md, src/lib/limits.ts).
+  envPrefix: ["VITE_", "STOCKROOM_"],
+
   // The app's own code and the libraries in separate files: one bundle went
   // past Vite's 500 kB warning (a CI warning on every build). Loading is from
   // disk, so this is about keeping the warning meaningful, not download size.
