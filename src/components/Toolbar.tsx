@@ -338,37 +338,40 @@ function DisplayControls() {
       {/* The order and its direction side by side, quiet until hovered. */}
       <div className="flex h-7 shrink-0 items-stretch gap-0.5">
         {/* Native select laid over a label sized to the current choice, so long
-            names aren't clipped and the arrow matches the UI. The label holds a
+            names aren't clipped and the arrow matches the UI. The wrapper holds a
             width for the longest one, so picking another doesn't push what is
-            to its right (docs/UI.md). */}
-        <label
-          title={`並び順：${sortLabel}`}
-          className="relative flex min-w-[7.75rem] items-center gap-1.5 rounded-md pr-2 pl-2.5 whitespace-nowrap hover:bg-hover focus-within:ring-2 focus-within:ring-accent @max-4xl:min-w-0 @max-4xl:px-2"
-        >
-          <ArrowUpDown size={14} className="hidden text-dim @max-4xl:block" />
-          <span className="@max-4xl:hidden">{sortLabel}</span>
-          <ChevronDown size={14} className="text-dim" />
-          <select
-            aria-label="並び順"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey, desc)}
-            className="absolute inset-0 cursor-default opacity-0"
+            to its right (docs/UI.md); the label sits at its right end, next to
+            the direction, so a short one doesn't leave a gap before it. */}
+        <div className="flex min-w-[7.75rem] justify-end @max-4xl:min-w-0">
+          <label
+            title={`並び順：${sortLabel}`}
+            className="relative flex items-center gap-1.5 rounded-md pr-2 pl-2.5 whitespace-nowrap hover:bg-hover focus-within:ring-2 focus-within:ring-accent @max-4xl:px-2"
           >
-            {sorts.map((s) => (
-              <option
-                key={s.key}
-                value={s.key}
-                disabled={(s.key === "manual" && !canManual) || (isSystem && s.key === "rating")}
-              >
-                {s.key === "manual" && !canManual
-                  ? "手動（フォルダのみ）"
-                  : isSystem && s.key === "rating"
-                    ? "評価（ライブラリのフォントのみ）"
-                    : s.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            <ArrowUpDown size={14} className="hidden text-dim @max-4xl:block" />
+            <span className="@max-4xl:hidden">{sortLabel}</span>
+            <ChevronDown size={14} className="text-dim" />
+            <select
+              aria-label="並び順"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey, desc)}
+              className="absolute inset-0 cursor-default opacity-0"
+            >
+              {sorts.map((s) => (
+                <option
+                  key={s.key}
+                  value={s.key}
+                  disabled={(s.key === "manual" && !canManual) || (isSystem && s.key === "rating")}
+                >
+                  {s.key === "manual" && !canManual
+                    ? "手動（フォルダのみ）"
+                    : isSystem && s.key === "rating"
+                      ? "評価（ライブラリのフォントのみ）"
+                      : s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <button
           title={manual ? "手動の並びは昇順のみ" : desc ? "降順" : "昇順"}
           disabled={manual}
