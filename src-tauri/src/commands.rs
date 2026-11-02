@@ -1409,10 +1409,20 @@ pub fn undo_change(state: State<AppState>, id: i64) -> CmdResult<changes::Undone
     with_lib(&state, |lib| changes::undo(&mut lib.conn, id))
 }
 
-/// The proxy the OS uses for `url` (PAC included), for the updater: its
-/// HTTP client can't run PAC scripts. None = connect directly.
+/// Where this build's in-app updater looks for updates: the first of
+/// `plugins.updater.endpoints` in tauri.conf.json, or of the config a fork
+/// lays over it with `tauri build --config` (docs/LIMITS.md). The proxy lookup
+/// and the release page follow it, so a fork only sets the endpoint.
+fn update_feed(app: &AppHandle) -> Option<String> {
+    let updater = app.config().plugins.0.get("updater")?;
+    updater.get("endpoints")?.get(0)?.as_str().map(str::to_owned)
+}
+
+/// The proxy the OS uses for the update feed (PAC included), for the updater:
+/// its HTTP client can't run PAC scripts. None = connect directly.
 #[tauri::command]
-pub async fn system_proxy(url: String) -> Option<String> {
+pub async fn system_proxy(app: AppHandle) -> Option<String> {
+    let url = update_feed(&app)?;
     tauri::async_runtime::spawn_blocking(move || crate::proxy::for_url(&url)).await.ok().flatten()
 }
 
@@ -1420,19 +1430,36 @@ pub async fn system_proxy(url: String) -> Option<String> {
 /// dialog and the settings' about page link there for what changed, instead
 /// of showing the release notes in the app.
 #[tauri::command]
-pub fn open_release_page(version: String) -> CmdResult<()> {
-    tauri_plugin_opener::open_url(release_page(&version)?, None::<&str>).map_err(err)
+pub fn open_release_page(app: AppHandle, version: String) -> CmdResult<()> {
+    let feed = update_feed(&app).unwrap_or_default();
+    tauri_plugin_opener::open_url(release_page(&feed, &version)?, None::<&str>).map_err(err)
 }
 
-/// Same repository as `plugins.updater.endpoints` in tauri.conf.json. Only a
-/// version goes into the URL, so the page can't be sent anywhere else.
-fn release_page(version: &str) -> CmdResult<String> {
+/// The release page in the same repository as the update feed
+/// (`https://github.com/<owner>/<repo>/releases/...`). Only a version goes
+/// into the URL, so the page can't be sent anywhere else. A feed outside
+/// GitHub Releases has no page to open.
+fn release_page(feed: &str, version: &str) -> CmdResult<String> {
     let version = version.strip_prefix('v').unwrap_or(version);
     let ok = !version.is_empty() && version.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'));
     if !ok {
         return Err(format!("not a version: {version}"));
     }
-    Ok(format!("https://github.com/hamirilo/stockroom/releases/tag/v{version}"))
+    let repo = feed
+        .strip_prefix("https://github.com/")
+        .and_then(|rest| rest.split_once("/releases/"))
+        .map(|(repo, _)| repo)
+        .filter(|repo| {
+            let mut parts = repo.split('/');
+            let name_ok = |p: Option<&str>| {
+                p.is_some_and(|p| {
+                    !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+                })
+            };
+            name_ok(parts.next()) && name_ok(parts.next()) && parts.next().is_none()
+        })
+        .ok_or_else(|| "このビルドの更新の配信先には、更新内容のページがありません".to_string())?;
+    Ok(format!("https://github.com/{repo}/releases/tag/v{version}"))
 }
 
 #[tauri::command]
@@ -1673,12 +1700,33 @@ mod tests {
 
     #[test]
     fn release_page_takes_only_a_version() {
+        let feed = "https://github.com/hamirilo/stockroom/releases/latest/download/latest.json";
         let page = "https://github.com/hamirilo/stockroom/releases/tag/v0.28.0";
-        assert_eq!(super::release_page("0.28.0").unwrap(), page);
-        assert_eq!(super::release_page("v0.28.0").unwrap(), page);
-        assert!(super::release_page("1.0.0-beta.1").is_ok());
-        assert!(super::release_page("").is_err());
-        assert!(super::release_page("0.28.0/../../evil").is_err());
-        assert!(super::release_page("0.28.0?x=1").is_err());
+        assert_eq!(super::release_page(feed, "0.28.0").unwrap(), page);
+        assert_eq!(super::release_page(feed, "v0.28.0").unwrap(), page);
+        assert!(super::release_page(feed, "1.0.0-beta.1").is_ok());
+        assert!(super::release_page(feed, "").is_err());
+        assert!(super::release_page(feed, "0.28.0/../../evil").is_err());
+        assert!(super::release_page(feed, "0.28.0?x=1").is_err());
+    }
+
+    #[test]
+    fn release_page_follows_the_update_feed() {
+        let fork = "https://github.com/someone/stockroom-fork/releases/latest/download/latest.json";
+        assert_eq!(
+            super::release_page(fork, "1.2.3").unwrap(),
+            "https://github.com/someone/stockroom-fork/releases/tag/v1.2.3"
+        );
+        // Not GitHub Releases, or no feed at all: no page.
+        assert!(super::release_page("https://updates.example.com/stockroom/latest.json", "1.2.3").is_err());
+        assert!(super::release_page("", "1.2.3").is_err());
+        assert!(super::release_page("https://github.com/a/b/c/releases/latest/download/latest.json", "1.2.3").is_err());
+    }
+
+    #[test]
+    fn the_shipped_config_has_an_update_feed() {
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let feed = conf["plugins"]["updater"]["endpoints"][0].as_str().unwrap();
+        assert!(super::release_page(feed, "1.0.0").is_ok(), "{feed}");
     }
 }

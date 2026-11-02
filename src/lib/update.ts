@@ -81,17 +81,15 @@ export function openReleaseNotes(v = version) {
 
 let busy = false;
 
-/** Same as `plugins.updater.endpoints` in src-tauri/tauri.conf.json. */
-const FEED = "https://github.com/hamirilo/stockroom/releases/latest/download/latest.json";
-
 /**
- * The proxy the OS would use for the feed (PAC included). The updater's HTTP
+ * The proxy the OS would use for the feed (PAC included). The feed is
+ * `plugins.updater.endpoints` of the build's config, read on the Rust side. The updater's HTTP
  * client can't evaluate PAC scripts, so behind a company proxy it would try to
  * connect directly and fail. Undefined = direct.
  */
 async function systemProxy(): Promise<string | undefined> {
   try {
-    return (await api.systemProxy(FEED)) ?? undefined;
+    return (await api.systemProxy()) ?? undefined;
   } catch {
     return undefined;
   }
