@@ -650,7 +650,7 @@ function DimsCondition({ cond, locked, onLocked }: CondProps) {
       label="画像サイズ"
       value={value}
       disabled={!images && !value}
-      title={!images && !value ? "画像だけの一覧で使えます（種類で画像に絞る）" : undefined}
+      title={!images && !value ? "画像だけの一覧で使えます（サイドバーの「種類で絞る」で画像を選ぶ）" : undefined}
       locked={locked}
       onLocked={onLocked}
       onClear={() => setFilter(CLEARED.dims.filter!)}
