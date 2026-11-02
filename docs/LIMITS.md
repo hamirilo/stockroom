@@ -48,6 +48,18 @@ STOCKROOM_KINDS=image bun run dev   # ブラウザで UI だけ（モック）
 
 更新ファイル（`createUpdaterArtifacts`）と updater の設定は、この変数では止まらない。要らなければ、重ねる設定ファイルで外す。
 
+## フォークで使うとき
+
+機能を絞った版をフォークで配るとき、フォークに置くのは新しいファイルだけにする。
+
+- その版の設定（`tauri build --config` で重ねる設定ファイル）
+- ビルドのワークフロー（`STOCKROOM_*` の環境変数を設定する）
+- 運用の文書（`docs/CORP.md` など）
+
+このリポジトリにあるファイルは、フォークで変えない。変えると、取り込むたびに衝突する。
+
+フォークで見つけた不具合や改善は、このリポジトリで直してから取り込む。新しく外したい機能があれば、ここに外せる仕組みを足し、フォークでは環境変数で使うだけにする。
+
 ## コードの置き場所
 
 - フロントエンド：`src/lib/limits.ts`（`LIMITED_KINDS`・`buildHas`・`NO_CONNECT`・`NO_UPDATE`・`OFF_COMMANDS`・`OFF_SETTINGS`）
