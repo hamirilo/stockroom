@@ -182,6 +182,7 @@ workbench の各ツールにも同じファイルを置いている（desktop-pl
   ```
 - 更新内容（リリースノート）はダイアログに載せない。「更新内容を見る」で GitHub のリリースのページ
   （`https://github.com/hamirilo/stockroom/releases/tag/v<version>`、Rust の `open_release_page`）を開く。
+  リポジトリは updater の `endpoints` の 1 つ目から決める（`--config` で配信先を変えたビルドでは、そのリポジトリのページ）。
   ダイアログは閉じ、「あとで」と同じく設定の「アップデート」からいつでも更新できる
 - 更新して起動し直した最初の 1 回だけ「Stockroom を v0.28.0 に更新しました［更新内容を見る］」のトーストを出す
   （前回のバージョンは `localStorage` の `lastVersion`）
