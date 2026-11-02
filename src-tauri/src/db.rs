@@ -1200,14 +1200,15 @@ fn push_rule(rule: &Rule, wheres: &mut Vec<String>, args: &mut Vec<Box<dyn ToSql
         wheres.push(format!("lower(items.ext) IN ({})", placeholders(exts.len())));
         args.extend(exts.into_iter().map(|e| Box::new(e) as Box<dyn ToSql>));
     }
-    // Shape and pixel size only apply to images (fonts are 0 × 0).
+    // Shape and pixel size apply to what has one: images and videos (docs/KINDS.md).
+    // Fonts, files, texts and bookmarks are 0 × 0.
     let sized = !f.shapes.is_empty()
         || f.min_width.is_some()
         || f.max_width.is_some()
         || f.min_height.is_some()
         || f.max_height.is_some();
     if sized {
-        wheres.push("items.kind = 'image'".into());
+        wheres.push(PIXEL_KINDS.into());
     }
     if !f.shapes.is_empty() {
         let parts: Vec<&str> = f
@@ -1451,7 +1452,7 @@ pub fn facet_counts(conn: &Connection, q: &ItemQuery) -> DbResult<Facets> {
         Ok(out.into_iter().filter(|(_, n)| *n > 0).collect())
     };
     let shapes: Vec<(String, String)> = SHAPE_SQL.iter().map(|(k, t)| (k.to_string(), t.to_string())).collect();
-    f.shapes = sums(&shapes, "items.kind = 'image'")?;
+    f.shapes = sums(&shapes, PIXEL_KINDS)?;
     let fonts = "items.kind = 'font' AND items.font_script IS NOT NULL";
     let weights: Vec<(String, String)> = FONT_WEIGHTS.iter().map(|(k, _, _)| (k.to_string(), font_weight_where(k))).collect();
     f.font_weights = sums(&weights, fonts)?;
@@ -2094,6 +2095,9 @@ pub struct Counts {
     pub tray: i64,
     /// Items not in the trash, by kind (kinds with none are left out).
     pub kinds: BTreeMap<Kind, i64>,
+    /// The places above (of `mode`), each by kind, for the sidebar's counts
+    /// narrowed to the kinds picked (docs/KINDS.md).
+    pub by_kind: PlaceKinds,
     /// Fonts not in the trash by writing system, and by typeface style ("none" = unknown).
     pub font_scripts: BTreeMap<String, i64>,
     pub font_categories: BTreeMap<String, i64>,
@@ -2102,6 +2106,26 @@ pub struct Counts {
     pub font_weights: BTreeMap<String, i64>,
     pub font_features: BTreeMap<String, i64>,
 }
+
+/// Items by kind (kinds with none are left out).
+pub type KindCounts = BTreeMap<Kind, i64>;
+
+/// The sidebar's fixed places, each by kind (`Counts::by_kind`).
+#[derive(Debug, Default, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaceKinds {
+    pub all: KindCounts,
+    pub unfiled: KindCounts,
+    pub untagged: KindCounts,
+    pub trash: KindCounts,
+    pub favorites: KindCounts,
+    pub pinned: KindCounts,
+    pub tray: KindCounts,
+}
+
+/// The kinds with a pixel size (width × height), as an SQL condition: the
+/// shape and pixel size conditions apply to these only (docs/KINDS.md).
+const PIXEL_KINDS: &str = "items.kind IN ('image', 'video')";
 
 /// SQL fragment keeping rows of `kind` (any kind when None), with the kind
 /// as the argument `?n`. `t` is the alias of the items table.
@@ -2150,6 +2174,7 @@ pub fn counts(conn: &Connection, mode: Option<Mode>) -> DbResult<Counts> {
     let font_weights = sums(&weight_terms)?.into_iter().filter(|(_, n)| *n > 0).collect();
     let font_features = sums(&feature_terms)?.into_iter().filter(|(_, n)| *n > 0).collect();
     let (of_kind, arg) = mode_where(mode, 1, "items");
+    let by_kind = place_kinds(conn, &of_kind, arg.as_ref())?;
     conn.query_row(
         &format!(
             "SELECT
@@ -2173,6 +2198,7 @@ pub fn counts(conn: &Connection, mode: Option<Mode>) -> DbResult<Counts> {
                 pinned: r.get::<_, Option<i64>>(5)?.unwrap_or(0),
                 tray: r.get::<_, Option<i64>>(6)?.unwrap_or(0),
                 kinds,
+                by_kind,
                 font_scripts,
                 font_categories,
                 font_weights,
@@ -2180,6 +2206,66 @@ pub fn counts(conn: &Connection, mode: Option<Mode>) -> DbResult<Counts> {
             })
         },
     )
+}
+
+/// The sidebar's fixed places by kind, of the items `of_kind` keeps.
+fn place_kinds(conn: &Connection, of_kind: &str, arg: &dyn ToSql) -> DbResult<PlaceKinds> {
+    let mut stmt = conn.prepare_cached(&format!(
+        "SELECT kind,
+           SUM(deleted_at IS NULL),
+           SUM(deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM item_folders f WHERE f.item_id = items.id)),
+           SUM(deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM item_tags t WHERE t.item_id = items.id)),
+           SUM(deleted_at IS NOT NULL),
+           SUM(deleted_at IS NULL AND favorite = 1),
+           SUM(deleted_at IS NULL AND pinned_at IS NOT NULL),
+           SUM(deleted_at IS NULL AND EXISTS (SELECT 1 FROM tray WHERE tray.item_id = items.id))
+         FROM items WHERE {of_kind} GROUP BY kind"
+    ))?;
+    let mut out = PlaceKinds::default();
+    let mut rows = stmt.query([arg])?;
+    while let Some(r) = rows.next()? {
+        let kind = Kind::parse(&r.get::<_, String>(0)?);
+        let places = [
+            &mut out.all,
+            &mut out.unfiled,
+            &mut out.untagged,
+            &mut out.trash,
+            &mut out.favorites,
+            &mut out.pinned,
+            &mut out.tray,
+        ];
+        for (i, place) in places.into_iter().enumerate() {
+            let n = r.get::<_, Option<i64>>(i + 1)?.unwrap_or(0);
+            if n > 0 {
+                place.insert(kind, n);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Live items (of the container's mode) of each folder or tag, by kind.
+/// `table` is `item_folders` / `item_tags`, `col` its container column,
+/// `owner` the containers' table.
+fn container_kinds(
+    conn: &Connection,
+    table: &str,
+    col: &str,
+    owner: &str,
+) -> DbResult<std::collections::HashMap<String, KindCounts>> {
+    let mut stmt = conn.prepare_cached(&format!(
+        "SELECT CAST(x.{col} AS TEXT), i.kind, COUNT(*)
+         FROM {table} x JOIN items i ON i.id = x.item_id JOIN {owner} o ON o.id = x.{col}
+         WHERE i.deleted_at IS NULL AND (i.kind = 'font') = (o.mode = 'font')
+         GROUP BY 1, 2"
+    ))?;
+    let mut out: std::collections::HashMap<String, KindCounts> = std::collections::HashMap::new();
+    let mut rows = stmt.query([])?;
+    while let Some(r) = rows.next()? {
+        let id: String = r.get(0)?;
+        out.entry(id).or_default().insert(Kind::parse(&r.get::<_, String>(1)?), r.get(2)?);
+    }
+    Ok(out)
 }
 
 // ------------------------------------------------------------- settings
@@ -2240,6 +2326,8 @@ pub struct Folder {
     pub parent_id: Option<String>,
     pub name: String,
     pub count: i64,
+    /// `count` by kind (docs/KINDS.md).
+    pub by_kind: KindCounts,
     pub color: Option<String>,
     /// Shared on the local network (share.rs).
     pub shared: bool,
@@ -2258,9 +2346,12 @@ pub fn list_folders(conn: &Connection, mode: Option<Mode>) -> DbResult<Vec<Folde
          FROM folders f WHERE ?1 IS NULL OR f.mode = ?1
          ORDER BY f.sort_order IS NULL, f.sort_order, f.name COLLATE NOCASE",
     )?;
+    let mut by_kind = container_kinds(conn, "item_folders", "folder_id", "folders")?;
     let rows = stmt.query_map([mode.map(Mode::as_str)], |r| {
+        let id: String = r.get(0)?;
         Ok(Folder {
-            id: r.get(0)?,
+            by_kind: by_kind.remove(&id).unwrap_or_default(),
+            id,
             parent_id: r.get(1)?,
             name: r.get(2)?,
             count: r.get(3)?,
@@ -2405,6 +2496,8 @@ pub struct SmartFolder {
     pub name: String,
     pub rule: Rule,
     pub count: i64,
+    /// `count` by kind (docs/KINDS.md).
+    pub by_kind: KindCounts,
     pub color: Option<String>,
     pub mode: Mode,
 }
@@ -2426,6 +2519,25 @@ fn clean_rule(conn: &Connection, mut rule: Rule) -> Rule {
             .is_some()
     });
     rule
+}
+
+/// What `count_rule` counts, by kind.
+fn count_rule_by_kind(conn: &Connection, rule: &Rule, mode: Option<Mode>) -> DbResult<KindCounts> {
+    let mut wheres = vec!["items.deleted_at IS NULL".to_string()];
+    let mut args: Vec<Box<dyn ToSql>> = Vec::new();
+    if let Some(m) = mode {
+        wheres.push("(items.kind = 'font') = (? = 'font')".into());
+        args.push(Box::new(m.as_str()));
+    }
+    push_rule(rule, &mut wheres, &mut args);
+    let mut stmt = conn.prepare(&format!(
+        "SELECT kind, COUNT(*) FROM items WHERE {} GROUP BY kind",
+        wheres.join(" AND ")
+    ))?;
+    let rows = stmt.query_map(params_from_iter(args.iter().map(|b| b.as_ref())), |r| {
+        Ok((Kind::parse(&r.get::<_, String>(0)?), r.get::<_, i64>(1)?))
+    })?;
+    rows.collect()
 }
 
 fn count_rule(conn: &Connection, rule: &Rule, mode: Option<Mode>) -> DbResult<i64> {
@@ -2460,8 +2572,9 @@ pub fn list_smart_folders(conn: &Connection, mode: Option<Mode>) -> DbResult<Vec
         .map(|(id, name, json, color, mode)| {
             let rule = clean_rule(conn, serde_json::from_str(&json).unwrap_or_default());
             let mode = Mode::parse(&mode);
-            let count = count_rule(conn, &rule, Some(mode))?;
-            Ok(SmartFolder { id, name, rule, count, color, mode })
+            let by_kind = count_rule_by_kind(conn, &rule, Some(mode))?;
+            let count = by_kind.values().sum();
+            Ok(SmartFolder { id, name, rule, count, by_kind, color, mode })
         })
         .collect()
 }
@@ -2888,6 +3001,8 @@ pub struct Tag {
     pub id: i64,
     pub name: String,
     pub count: i64,
+    /// `count` by kind (docs/KINDS.md).
+    pub by_kind: KindCounts,
     pub color: Option<String>,
     pub mode: Mode,
 }
@@ -2901,7 +3016,12 @@ pub fn list_tags(conn: &Connection, mode: Option<Mode>) -> DbResult<Vec<Tag>> {
            t.color, t.mode
          FROM tags t WHERE ?1 IS NULL OR t.mode = ?1 ORDER BY t.name COLLATE NOCASE",
     )?;
-    let rows = stmt.query_map([mode.map(Mode::as_str)], tag_row)?;
+    let mut by_kind = container_kinds(conn, "item_tags", "tag_id", "tags")?;
+    let rows = stmt.query_map([mode.map(Mode::as_str)], |r| {
+        let mut tag = tag_row(r)?;
+        tag.by_kind = by_kind.remove(&tag.id.to_string()).unwrap_or_default();
+        Ok(tag)
+    })?;
     rows.collect()
 }
 
@@ -2910,6 +3030,7 @@ fn tag_row(r: &rusqlite::Row) -> DbResult<Tag> {
         id: r.get(0)?,
         name: r.get(1)?,
         count: r.get(2)?,
+        by_kind: KindCounts::new(),
         color: r.get(3)?,
         mode: Mode::parse(&r.get::<_, String>(4)?),
     })
@@ -3532,6 +3653,13 @@ mod tests {
                 pinned: 0,
                 tray: 0,
                 kinds: BTreeMap::from([(Kind::Image, 2)]),
+                by_kind: PlaceKinds {
+                    all: BTreeMap::from([(Kind::Image, 2)]),
+                    unfiled: BTreeMap::from([(Kind::Image, 1)]),
+                    untagged: BTreeMap::from([(Kind::Image, 1)]),
+                    trash: BTreeMap::from([(Kind::Image, 1)]),
+                    ..Default::default()
+                },
                 font_scripts: BTreeMap::new(),
                 font_categories: BTreeMap::new(),
                 font_weights: BTreeMap::new(),
@@ -4104,6 +4232,17 @@ mod tests {
         assert_eq!(find(&conn, f(|f| { f.imported_after = Some(2_000); f.imported_before = Some(4_000) })), s(&["b", "c"]));
         assert_eq!(find(&conn, f(|f| f.max_size = Some(50_000))), s(&["b", "d"]));
         assert_eq!(find(&conn, f(|f| f.min_size = Some(1_000_000))), s(&["c"]));
+        // A video has a pixel size too; a file (0 × 0) doesn't.
+        add(&mut conn, "v", "v.mp4", 5_000);
+        conn.execute("UPDATE items SET kind = 'video', ext = 'mp4', width = 1920, height = 1080 WHERE id = 'v'", [])
+            .unwrap();
+        add(&mut conn, "p", "p.pdf", 6_000);
+        conn.execute("UPDATE items SET kind = 'file', ext = 'pdf', width = 0, height = 0 WHERE id = 'p'", []).unwrap();
+        let mut wide = find(&conn, f(|f| f.shapes = vec![Shape::Landscape]));
+        wide.sort();
+        assert_eq!(wide, s(&["a", "v"]));
+        assert_eq!(find(&conn, f(|f| f.max_width = Some(100))), s(&["d"]), "the file's 0 × 0 isn't a size");
+        conn.execute("DELETE FROM items WHERE id IN ('v', 'p')", []).unwrap();
         conn.execute("UPDATE items SET kind = 'font', width = 0, height = 0 WHERE id = 'd'", []).unwrap();
         assert_eq!(find(&conn, f(|f| f.kinds = vec![Kind::Font])), s(&["d"]));
         assert_eq!(find(&conn, f(|f| f.kinds = vec![Kind::Image])), s(&["a", "b", "c"]));
@@ -4218,6 +4357,38 @@ mod tests {
              PRAGMA user_version = 20;",
         )
         .unwrap();
+    }
+
+    #[test]
+    fn counts_by_kind_for_the_kind_picked() {
+        let mut conn = mem();
+        add(&mut conn, "a", "cat.png", 1);
+        add(&mut conn, "b", "dog.png", 2);
+        add(&mut conn, "p", "doc.pdf", 3);
+        conn.execute("UPDATE items SET kind = 'file', ext = 'pdf' WHERE id = 'p'", []).unwrap();
+        add_font(&mut conn, "f", 4);
+        let folder = create_folder(&conn, "Mixed", None, Mode::Stock).unwrap();
+        move_to_folder(&conn, &s(&["a", "p", "f"]), &folder).unwrap();
+        add_tags(&mut conn, &s(&["a", "b", "p"]), &s(&["ref"])).unwrap();
+        set_favorite(&conn, &s(&["p"]), true).unwrap();
+        trash_items(&conn, &s(&["b"])).unwrap();
+        create_smart_folder(&conn, "Any", &Rule::default(), Mode::Stock).unwrap();
+
+        let stock = counts(&conn, Some(Mode::Stock)).unwrap();
+        assert_eq!(stock.by_kind.all, BTreeMap::from([(Kind::Image, 1), (Kind::File, 1)]));
+        assert_eq!(stock.by_kind.favorites, BTreeMap::from([(Kind::File, 1)]));
+        assert_eq!(stock.by_kind.trash, BTreeMap::from([(Kind::Image, 1)]));
+        assert!(stock.by_kind.unfiled.is_empty());
+        // The sums are the totals.
+        assert_eq!(stock.by_kind.all.values().sum::<i64>(), stock.all);
+
+        let f = &list_folders(&conn, Some(Mode::Stock)).unwrap()[0];
+        assert_eq!(f.by_kind, BTreeMap::from([(Kind::Image, 1), (Kind::File, 1)]), "the font stays out");
+        assert_eq!(f.by_kind.values().sum::<i64>(), f.count);
+        let t = &list_tags(&conn, Some(Mode::Stock)).unwrap()[0];
+        assert_eq!(t.by_kind, BTreeMap::from([(Kind::Image, 1), (Kind::File, 1)]), "b is in the trash");
+        let sf = &list_smart_folders(&conn, Some(Mode::Stock)).unwrap()[0];
+        assert_eq!((sf.count, sf.by_kind.get(&Kind::File)), (2, Some(&1)));
     }
 
     fn add_font(conn: &mut Connection, id: &str, at: i64) {

@@ -58,12 +58,13 @@ import {
   transferableKind,
   transferList,
   trayList,
+  pickKind,
 } from "./actions";
 import { api, isSystemId, kindLabel, type Item, type ItemKind } from "./api";
 import { fontApi } from "../features/fonts/api";
 import { checkForUpdate, openReleaseNotes } from "./update";
 import { COMPARE_ZOOM, currentFolderId, listKinds, MODES, shelfShown, shownKinds, shownModes, useStore, zoomLook } from "../store";
-import { kindsNoun, modeLabel } from "./modes";
+import { kindsNoun, modeLabel, rangeKinds, STOCK_KINDS } from "./modes";
 import { rowIds } from "./grouping";
 import { useShortcutHelp } from "../components/ShortcutHelp";
 import { createText } from "../features/texts/actions";
@@ -220,6 +221,28 @@ const ALL_COMMANDS: Command[] = [
       enabled: (s) => shownModes(s).includes(m),
       checked: (s) => s.mode === m,
       run: (s) => s.setMode(m),
+    }),
+  ),
+
+  // ------------------------------------- the range of kinds (docs/KINDS.md)
+  // The sidebar's range: ⌥1… a kind, ⌥0 every kind. Keys are fixed per kind;
+  // the similar view is of images whatever is picked.
+  {
+    id: "kinds.none",
+    title: "種類で絞らない",
+    keys: ["Alt+0"],
+    enabled: (s) => rangeKinds(s).length > 0 && s.view.kind !== "similar",
+    checked: (s) => s.filter.kinds.length === 0,
+    run: () => pickKind(null),
+  },
+  ...STOCK_KINDS.map(
+    (k, i): Command => ({
+      id: `kinds.${k}`,
+      title: kindLabel(k),
+      keys: [`Alt+${i + 1}`],
+      enabled: (s) => rangeKinds(s).includes(k) && s.view.kind !== "similar",
+      checked: (s) => s.filter.kinds.includes(k),
+      run: () => pickKind(k),
     }),
   ),
 

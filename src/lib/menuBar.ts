@@ -21,11 +21,12 @@ import { command, isEnabled, labelOf, runCommand, type Command } from "./command
 import { OFF_COMMANDS } from "./limits";
 import { warn } from "./log";
 import { comboText, isMac } from "./shortcuts";
+import { rangeKinds } from "./modes";
 import { GROUPS, LAYOUTS } from "../components/ViewMenu";
 import { SORTS } from "../components/Toolbar";
 import {
   LIBRARY_GROUPS,
-  listIs,
+  listWithin,
   MODE_GROUPS,
   MODE_LAYOUTS,
   shownGroupBy,
@@ -278,6 +279,10 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
   const view = submenu("表示", [
     // The stock and the fonts when both are offered; ⌘1 / ⌘2 stay those of MODES.
     ...(modes.length > 1 ? [...modes.map((m) => cmd(`mode.${m}`)), sep()] : []),
+    // The sidebar's range (docs/KINDS.md), when there is a kind to pick.
+    ...(rangeKinds(s).length
+      ? [submenu("種類で絞る", [cmd("kinds.none"), sep(), ...rangeKinds(s).map((k) => cmd(`kinds.${k}`))]), sep()]
+      : []),
     submenu(
       "レイアウト",
       LAYOUTS.filter((l) => MODE_LAYOUTS[mode].includes(l.key)).map((l) =>
@@ -304,16 +309,16 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     ),
     submenu("並び順", [
       // Kept in the menu and greyed out: what the list holds changes without a rebuild.
-      ...SORTS.filter((o) => !o.only || (mode === "stock" && usedModes(s).includes(o.only))).map((o) =>
+      ...SORTS.filter((o) => !o.only || (mode === "stock" && o.only.some((k) => usedModes(s).includes(k)))).map((o) =>
         live(
           () => o.label,
           () => st().setSort(o.key, st().desc),
           {
             checked: (x) => x.sort === o.key,
-            // Manual order is a folder's; pixel size, of images alone.
+            // Manual order is a folder's; pixel size, of images and videos alone.
             enabled: (x) =>
               (o.key !== "manual" || x.view.kind === "folder") &&
-              (!o.only || listIs(x, o.only)),
+              (!o.only || listWithin(x, o.only)),
           },
         ),
       ),

@@ -2,7 +2,7 @@
 // opened in a normal browser (`bun run dev`) instead of inside Tauri.
 // Mirrors the semantics of src-tauri/src/db.rs closely enough for UI work.
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import { modeOf, type Folder, type Item, type ItemKind, type ItemQuery, type Mode, type Rule, type SimilarLevel, type Tag } from "../lib/api";
+import { modeOf, type Folder, type Item, type ItemKind, type ItemQuery, type KindCounts, type Mode, type Rule, type SimilarLevel, type Tag } from "../lib/api";
 import type { SystemFont } from "../features/fonts/api";
 import { buildHas, NO_CONNECT } from "../lib/limits";
 
@@ -133,7 +133,13 @@ const inWeight = (i: MockItem, key: string) => {
   const [lo, hi] = [i.fontWeightMin ?? i.fontWeight ?? 400, i.fontWeightMax ?? i.fontWeight ?? 400];
   return lo <= r[2] && hi >= r[1];
 };
-const folders: Omit<Folder, "count" | "shared">[] = [];
+const folders: Omit<Folder, "count" | "byKind" | "shared">[] = [];
+/** Items by kind (kinds with none left out), as the backend counts them for the sidebar. */
+const byKind = (list: { kind: ItemKind }[]): KindCounts => {
+  const out: KindCounts = {};
+  for (const i of list) out[i.kind] = (out[i.kind] ?? 0) + 1;
+  return out;
+};
 const tags: { id: number; name: string; color: string | null; mode: Mode }[] = [];
 // `${itemId}|${folderId}` -> manual position
 const itemFolders = new Map<string, number>();
@@ -624,9 +630,9 @@ function applyRule(r: MockItem[], rule: Rule): MockItem[] {
   if (f.fontFeatures?.length)
     r = r.filter((i) => i.kind === "font" && f.fontFeatures.some((k) => (i.fontFeatures ?? []).includes(k)));
   if (f.exts.length) r = r.filter((i) => f.exts.map(aliases).includes(aliases(i.ext)));
-  // Shape and pixel size only apply to images (fonts are 0 × 0), as in db.rs.
+  // Shape and pixel size apply to images and videos (the rest are 0 × 0), as in db.rs.
   const sized = f.shapes.length || [f.minWidth, f.maxWidth, f.minHeight, f.maxHeight].some((v) => v != null);
-  if (sized) r = r.filter((i) => i.kind === "image");
+  if (sized) r = r.filter((i) => i.kind === "image" || i.kind === "video");
   // The live children of live parents stay, to go under their rows.
   if (f.parentsOnly)
     r = r.filter(
@@ -717,7 +723,7 @@ function facets(q: ItemQuery) {
     ),
     kinds: countBy(r, (i) => i.kind),
     exts: Object.entries(exts).sort((x, y) => y[1] - x[1]),
-    shapes: countBy(r.filter((i) => i.kind === "image"), shape),
+    shapes: countBy(r.filter((i) => i.kind === "image" || i.kind === "video"), shape),
     fontScripts: countBy(fonts, (i) => i.fontScript ?? "other"),
     fontCategories: countBy(fonts, (i) => i.fontCategoryUser ?? i.fontCategory ?? "none"),
     fontWeights: Object.fromEntries(
@@ -979,6 +985,15 @@ function handle(cmd: string, a: any): unknown {
         favorites: of(live()).filter((i) => i.favorite).length,
         pinned: of(live()).filter((i) => i.pinnedAt !== null).length,
         tray: of(live()).filter((i) => tray.has(i.id)).length,
+        byKind: {
+          all: byKind(of(live())),
+          unfiled: byKind(of(live()).filter((i) => !folders.some((f) => inFolder(i.id, f.id)))),
+          untagged: byKind(of(live()).filter((i) => !tags.some((t) => hasTag(i.id, t.id)))),
+          trash: byKind(of(items).filter((i) => i.deletedAt !== null)),
+          favorites: byKind(of(live()).filter((i) => i.favorite)),
+          pinned: byKind(of(live()).filter((i) => i.pinnedAt !== null)),
+          tray: byKind(of(live()).filter((i) => tray.has(i.id))),
+        },
         kinds: Object.fromEntries(
           (["image", "font", "file", "text", "video", "bookmark"] as const)
             .map((k) => [k, live().filter((i) => i.kind === k).length])
@@ -1004,7 +1019,7 @@ function handle(cmd: string, a: any): unknown {
       const ids: string[] = a.ids;
       return {
         tags: tags
-          .map((t) => ({ ...t, count: ids.filter((i) => hasTag(i, t.id)).length }))
+          .map((t) => ({ ...t, count: ids.filter((i) => hasTag(i, t.id)).length, byKind: {} }))
           .filter((t) => t.count > 0),
         folders: folders
           .map((f) => ({ id: f.id, count: ids.filter((i) => inFolder(i, f.id)).length }))
@@ -1361,7 +1376,10 @@ function handle(cmd: string, a: any): unknown {
     case "list_folders":
       return folders
         .filter((f) => !a.mode || f.mode === a.mode)
-        .map((f) => ({ ...f, count: live().filter((i) => inFolder(i.id, f.id)).length, shared: shares.has(f.id) }));
+        .map((f) => {
+          const of = ofMode(f.mode)(live()).filter((i) => inFolder(i.id, f.id));
+          return { ...f, count: of.length, byKind: byKind(of), shared: shares.has(f.id) };
+        });
     case "place_folder":
       // Not under a folder of the other mode.
       if (a.parentId && folders.find((f) => f.id === a.parentId)?.mode !== folders.find((f) => f.id === a.id)?.mode)
@@ -1385,7 +1403,10 @@ function handle(cmd: string, a: any): unknown {
     case "list_smart_folders":
       return smartFolders
         .filter((f) => !a.mode || f.mode === a.mode)
-        .map((f) => ({ ...f, count: applyRule(ofMode(f.mode)(live()), f.rule).length }));
+        .map((f) => {
+          const of = applyRule(ofMode(f.mode)(live()), f.rule);
+          return { ...f, count: of.length, byKind: byKind(of) };
+        });
     case "create_smart_folder": {
       const f = { id: id(), name: a.name, rule: a.rule, color: null, mode: a.mode as Mode };
       smartFolders.push(f);
@@ -1539,7 +1560,10 @@ function handle(cmd: string, a: any): unknown {
       return [...tags]
         .filter((t) => !a.mode || t.mode === a.mode)
         .sort((x, y) => x.name.localeCompare(y.name))
-        .map((t) => ({ ...t, count: live().filter((i) => hasTag(i.id, t.id)).length })) satisfies Tag[];
+        .map((t) => {
+          const of = ofMode(t.mode)(live()).filter((i) => hasTag(i.id, t.id));
+          return { ...t, count: of.length, byKind: byKind(of) };
+        }) satisfies Tag[];
     case "add_tags":
       addTags(a.ids, a.names);
       return;

@@ -1000,14 +1000,28 @@ export async function createSmartFolder() {
     const rule = s.currentRule();
     const id = await api.createSmartFolder("新しいスマートフォルダ", rule, s.mode);
     // The conditions now live in the folder; start it with a clean slate.
-    useStore.setState({ search: "", tagFilter: [], minRating: 0, filter: EMPTY_FILTER });
+    // The kinds picked stay: they are the sidebar's range (docs/KINDS.md).
+    useStore.setState({ search: "", tagFilter: [], minRating: 0, filter: { ...EMPTY_FILTER, kinds: s.filter.kinds } });
     s.setView({ kind: "smart", id });
     if (!st().sidebarOpen) st().toggleSidebar();
     st().setRenamingFolder(id);
-    if (empty) st().startEditSmart({ id, name: "新しいスマートフォルダ", rule, count: 0, color: null, mode: s.mode });
+    if (empty) st().startEditSmart({ id, name: "新しいスマートフォルダ", rule, count: 0, byKind: {}, color: null, mode: s.mode });
   } catch (e) {
     s.toast(String(e), true);
   }
+}
+
+/**
+ * Picks the sidebar's range of kinds (docs/KINDS.md): one kind at a time, the
+ * one picked again goes back to every kind; `add` (⌘-click) adds or takes
+ * off one. Null = every kind.
+ */
+export function pickKind(kind: ItemKind | null, add = false) {
+  const s = st();
+  const cur = s.filter.kinds;
+  if (!kind) s.setKinds([]);
+  else if (add) s.setKinds(cur.includes(kind) ? cur.filter((k) => k !== kind) : [...cur, kind]);
+  else s.setKinds(cur.length === 1 && cur[0] === kind ? [] : [kind]);
 }
 
 /** Writes the edited conditions back to the smart folder being edited. */
@@ -1017,7 +1031,7 @@ export async function saveEditedSmartFolder() {
   if (!editing) return;
   try {
     await api.updateSmartFolder(editing.id, { rule: s.currentRule() });
-    leaveSmartEdit(editing.id);
+    leaveSmartEdit(editing.id, editing.kinds);
     st().toast(`スマートフォルダ「${editing.name}」の条件を保存しました`);
   } catch (e) {
     s.toast(String(e), true);
@@ -1026,11 +1040,12 @@ export async function saveEditedSmartFolder() {
 
 export function cancelSmartEdit() {
   const editing = st().editingSmart;
-  if (editing) leaveSmartEdit(editing.id);
+  if (editing) leaveSmartEdit(editing.id, editing.kinds);
 }
 
-function leaveSmartEdit(id: string) {
-  useStore.setState({ editingSmart: null, search: "", tagFilter: [], minRating: 0, filter: EMPTY_FILTER });
+/** Back to the smart folder, with the range picked before editing (its kinds were loaded into it, docs/KINDS.md). */
+function leaveSmartEdit(id: string, kinds: ItemKind[]) {
+  useStore.setState({ editingSmart: null, search: "", tagFilter: [], minRating: 0, filter: { ...EMPTY_FILTER, kinds } });
   st().setView({ kind: "smart", id });
 }
 
