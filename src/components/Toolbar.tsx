@@ -33,6 +33,7 @@ import { colorHex } from "../lib/colors";
 import { command } from "../lib/commands";
 import { useShallow } from "zustand/react/shallow";
 import { activeConditions, listKinds, placeTotal, useStore, type Mode } from "../store";
+import { PIXEL_KINDS } from "../lib/modes";
 import { composing } from "../lib/ime";
 import { FilterRow } from "./FilterRow";
 import { DisplayMenu, GroupMenu, LayoutSwitch, ParentsToggle } from "./ViewMenu";
@@ -43,12 +44,12 @@ const Divider = ({ className = "" }: { className?: string }) => (
   <div className={`mx-0.5 h-5 w-px shrink-0 bg-line ${className}`} />
 );
 
-/** Sort keys; `only`: offered when the list is of that kind alone (only images have a pixel size). */
-export const SORTS: { key: SortKey; label: string; only?: ItemKind }[] = [
+/** Sort keys; `only`: offered when the list holds those kinds alone (images and videos have a pixel size). */
+export const SORTS: { key: SortKey; label: string; only?: ItemKind[] }[] = [
   { key: "importedAt", label: "追加日" },
   { key: "name", label: "名前" },
   { key: "size", label: "ファイルサイズ" },
-  { key: "dimensions", label: "画像サイズ", only: "image" },
+  { key: "dimensions", label: "サイズ（px）", only: PIXEL_KINDS },
   { key: "rating", label: "評価" },
   { key: "manual", label: "手動（ドラッグで並べ替え）" },
 ];
@@ -328,7 +329,7 @@ function DisplayControls() {
   const mode = useStore((s) => s.mode);
   const view = useStore((s) => s.view);
   const kinds = useStore(useShallow(listKinds));
-  const sorts = SORTS.filter((s) => !s.only || (kinds.length === 1 && kinds[0] === s.only));
+  const sorts = SORTS.filter((s) => !s.only || (kinds.length > 0 && kinds.every((k) => s.only!.includes(k))));
   const isSystem = view.kind === "system";
   const canManual = view.kind === "folder";
   const manual = sort === "manual";

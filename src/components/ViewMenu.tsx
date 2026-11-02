@@ -64,10 +64,10 @@ const PRIMARY: Record<Mode, Layout[]> = {
 };
 const PRIMARY_IMAGES: Layout[] = ["justified", "waterfall"];
 
-/** What a thumbnail can show; `only`: when the list can hold that kind. */
-const INFO: { key: keyof ShowInfo; label: string; only?: ItemKind }[] = [
+/** What a thumbnail can show; `only`: when the list can hold one of those kinds. */
+const INFO: { key: keyof ShowInfo; label: string; only?: ItemKind[] }[] = [
   { key: "name", label: "名前" },
-  { key: "dims", label: "画像サイズ", only: "image" },
+  { key: "dims", label: "サイズ（px）", only: ["image", "video"] },
   { key: "rating", label: "評価" },
   { key: "meta", label: "形式・容量" },
 ];
@@ -352,7 +352,7 @@ export function DisplayMenu() {
       )}
       <div className="mx-1.5 my-1 border-t border-line" />
       <div className={heading}>サムネイルの下に表示</div>
-      {INFO.filter((i) => !i.only || kinds.includes(i.only)).map((i) => (
+      {INFO.filter((i) => !i.only || i.only.some((k) => kinds.includes(k))).map((i) => (
         <label key={i.key} className="flex cursor-default items-center gap-2 rounded px-2 py-1.5 hover:bg-white/8">
           <input
             type="checkbox"

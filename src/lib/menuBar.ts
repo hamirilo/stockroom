@@ -26,7 +26,7 @@ import { GROUPS, LAYOUTS } from "../components/ViewMenu";
 import { SORTS } from "../components/Toolbar";
 import {
   LIBRARY_GROUPS,
-  listIs,
+  listWithin,
   MODE_GROUPS,
   MODE_LAYOUTS,
   shownGroupBy,
@@ -309,16 +309,16 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     ),
     submenu("並び順", [
       // Kept in the menu and greyed out: what the list holds changes without a rebuild.
-      ...SORTS.filter((o) => !o.only || (mode === "stock" && usedModes(s).includes(o.only))).map((o) =>
+      ...SORTS.filter((o) => !o.only || (mode === "stock" && o.only.some((k) => usedModes(s).includes(k)))).map((o) =>
         live(
           () => o.label,
           () => st().setSort(o.key, st().desc),
           {
             checked: (x) => x.sort === o.key,
-            // Manual order is a folder's; pixel size, of images alone.
+            // Manual order is a folder's; pixel size, of images and videos alone.
             enabled: (x) =>
               (o.key !== "manual" || x.view.kind === "folder") &&
-              (!o.only || listIs(x, o.only)),
+              (!o.only || listWithin(x, o.only)),
           },
         ),
       ),

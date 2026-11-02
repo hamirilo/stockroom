@@ -1200,14 +1200,15 @@ fn push_rule(rule: &Rule, wheres: &mut Vec<String>, args: &mut Vec<Box<dyn ToSql
         wheres.push(format!("lower(items.ext) IN ({})", placeholders(exts.len())));
         args.extend(exts.into_iter().map(|e| Box::new(e) as Box<dyn ToSql>));
     }
-    // Shape and pixel size only apply to images (fonts are 0 × 0).
+    // Shape and pixel size apply to what has one: images and videos (docs/KINDS.md).
+    // Fonts, files, texts and bookmarks are 0 × 0.
     let sized = !f.shapes.is_empty()
         || f.min_width.is_some()
         || f.max_width.is_some()
         || f.min_height.is_some()
         || f.max_height.is_some();
     if sized {
-        wheres.push("items.kind = 'image'".into());
+        wheres.push(PIXEL_KINDS.into());
     }
     if !f.shapes.is_empty() {
         let parts: Vec<&str> = f
@@ -1451,7 +1452,7 @@ pub fn facet_counts(conn: &Connection, q: &ItemQuery) -> DbResult<Facets> {
         Ok(out.into_iter().filter(|(_, n)| *n > 0).collect())
     };
     let shapes: Vec<(String, String)> = SHAPE_SQL.iter().map(|(k, t)| (k.to_string(), t.to_string())).collect();
-    f.shapes = sums(&shapes, "items.kind = 'image'")?;
+    f.shapes = sums(&shapes, PIXEL_KINDS)?;
     let fonts = "items.kind = 'font' AND items.font_script IS NOT NULL";
     let weights: Vec<(String, String)> = FONT_WEIGHTS.iter().map(|(k, _, _)| (k.to_string(), font_weight_where(k))).collect();
     f.font_weights = sums(&weights, fonts)?;
@@ -2121,6 +2122,10 @@ pub struct PlaceKinds {
     pub pinned: KindCounts,
     pub tray: KindCounts,
 }
+
+/// The kinds with a pixel size (width × height), as an SQL condition: the
+/// shape and pixel size conditions apply to these only (docs/KINDS.md).
+const PIXEL_KINDS: &str = "items.kind IN ('image', 'video')";
 
 /// SQL fragment keeping rows of `kind` (any kind when None), with the kind
 /// as the argument `?n`. `t` is the alias of the items table.
@@ -4227,6 +4232,17 @@ mod tests {
         assert_eq!(find(&conn, f(|f| { f.imported_after = Some(2_000); f.imported_before = Some(4_000) })), s(&["b", "c"]));
         assert_eq!(find(&conn, f(|f| f.max_size = Some(50_000))), s(&["b", "d"]));
         assert_eq!(find(&conn, f(|f| f.min_size = Some(1_000_000))), s(&["c"]));
+        // A video has a pixel size too; a file (0 × 0) doesn't.
+        add(&mut conn, "v", "v.mp4", 5_000);
+        conn.execute("UPDATE items SET kind = 'video', ext = 'mp4', width = 1920, height = 1080 WHERE id = 'v'", [])
+            .unwrap();
+        add(&mut conn, "p", "p.pdf", 6_000);
+        conn.execute("UPDATE items SET kind = 'file', ext = 'pdf', width = 0, height = 0 WHERE id = 'p'", []).unwrap();
+        let mut wide = find(&conn, f(|f| f.shapes = vec![Shape::Landscape]));
+        wide.sort();
+        assert_eq!(wide, s(&["a", "v"]));
+        assert_eq!(find(&conn, f(|f| f.max_width = Some(100))), s(&["d"]), "the file's 0 × 0 isn't a size");
+        conn.execute("DELETE FROM items WHERE id IN ('v', 'p')", []).unwrap();
         conn.execute("UPDATE items SET kind = 'font', width = 0, height = 0 WHERE id = 'd'", []).unwrap();
         assert_eq!(find(&conn, f(|f| f.kinds = vec![Kind::Font])), s(&["d"]));
         assert_eq!(find(&conn, f(|f| f.kinds = vec![Kind::Image])), s(&["a", "b", "c"]));

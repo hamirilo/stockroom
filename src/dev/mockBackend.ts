@@ -630,9 +630,9 @@ function applyRule(r: MockItem[], rule: Rule): MockItem[] {
   if (f.fontFeatures?.length)
     r = r.filter((i) => i.kind === "font" && f.fontFeatures.some((k) => (i.fontFeatures ?? []).includes(k)));
   if (f.exts.length) r = r.filter((i) => f.exts.map(aliases).includes(aliases(i.ext)));
-  // Shape and pixel size only apply to images (fonts are 0 × 0), as in db.rs.
+  // Shape and pixel size apply to images and videos (the rest are 0 × 0), as in db.rs.
   const sized = f.shapes.length || [f.minWidth, f.maxWidth, f.minHeight, f.maxHeight].some((v) => v != null);
-  if (sized) r = r.filter((i) => i.kind === "image");
+  if (sized) r = r.filter((i) => i.kind === "image" || i.kind === "video");
   // The live children of live parents stay, to go under their rows.
   if (f.parentsOnly)
     r = r.filter(
@@ -723,7 +723,7 @@ function facets(q: ItemQuery) {
     ),
     kinds: countBy(r, (i) => i.kind),
     exts: Object.entries(exts).sort((x, y) => y[1] - x[1]),
-    shapes: countBy(r.filter((i) => i.kind === "image"), shape),
+    shapes: countBy(r.filter((i) => i.kind === "image" || i.kind === "video"), shape),
     fontScripts: countBy(fonts, (i) => i.fontScript ?? "other"),
     fontCategories: countBy(fonts, (i) => i.fontCategoryUser ?? i.fontCategory ?? "none"),
     fontWeights: Object.fromEntries(

@@ -28,7 +28,7 @@ import { fontShelf, querySystemFonts, refreshFontLinks, systemFonts } from "./fe
 import { filesApi, onFileThumbs } from "./features/files/api";
 import {
   kindsNoun,
-  listIs,
+  listHasPixels,
   modeLabel,
   modeOf,
   MODES,
@@ -63,7 +63,7 @@ import { notifyIfAway } from "./lib/osNotify";
  */
 export { MODES, type Mode } from "./lib/modes";
 // The kinds a list holds (lib/modes.ts), used across the components.
-export { listIs, listKinds, listNoun, queryKinds, shownKinds } from "./lib/modes";
+export { listHasPixels, listIs, listKinds, listNoun, listWithin, queryKinds, shownKinds } from "./lib/modes";
 
 /** x/y = current pointer, sx/sy = where the drag started (for snap-back). */
 type DragPos = { x: number; y: number; sx: number; sy: number };
@@ -498,15 +498,16 @@ const loadGroupBy = (mode: Mode): GroupBy => {
 };
 
 /** Conditions only images have (shape, pixel size), cleared when the list isn't of images alone. */
-const IMAGE_ONLY: Partial<Filter> = { shapes: [], minWidth: null, maxWidth: null, minHeight: null, maxHeight: null };
+/** What applies to kinds with a pixel size only (images, videos). */
+const PIXELS_ONLY: Partial<Filter> = { shapes: [], minWidth: null, maxWidth: null, minHeight: null, maxHeight: null };
 
 /**
  * Drops what no longer applies once the list holds other kinds: image-only
  * conditions and the pixel size sort.
  */
 function fitToKinds(s: KindState & { sort: SortKey }): Partial<State> {
-  if (listIs(s, "image")) return {};
-  return { filter: { ...s.filter, ...IMAGE_ONLY }, ...(s.sort === "dimensions" ? { sort: "importedAt" as SortKey } : {}) };
+  if (listHasPixels(s)) return {};
+  return { filter: { ...s.filter, ...PIXELS_ONLY }, ...(s.sort === "dimensions" ? { sort: "importedAt" as SortKey } : {}) };
 }
 
 /** Number of active ad-hoc conditions: the filter row's and the search. */

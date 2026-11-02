@@ -22,7 +22,7 @@ import {
   startOfToday,
 } from "../lib/rule";
 import { FontConditions } from "../features/fonts/FontFilters";
-import { activeConditions, CLEARED, listIs, listQuery, useStore, type ConditionKey } from "../store";
+import { activeConditions, CLEARED, listHasPixels, listQuery, useStore, type ConditionKey } from "../store";
 import { RangeCalendar } from "./RangeCalendar";
 import { Dropdown } from "./ViewMenu";
 import { systemFacetCounts } from "../features/fonts/system";
@@ -642,15 +642,18 @@ function ExtMenu({ open, picked, pick }: { open: boolean; picked: string[]; pick
 /** Shape and pixel size, of images: usable when the list is of images alone. */
 function DimsCondition({ cond, locked, onLocked }: CondProps) {
   const setFilter = useStore((s) => s.setFilter);
-  const images = useStore((s) => listIs(s, "image"));
+  // Images and videos have a pixel size; the other kinds are 0 × 0 (docs/KINDS.md).
+  const sized = useStore((s) => listHasPixels(s));
   const f = cond.filter;
   const value = [f.shapes.map((x) => SHAPE_LABEL[x]).join("・"), describeDims(f)].filter(Boolean).join(" ");
   return (
     <Pill
-      label="画像サイズ"
+      label="サイズ（px）"
       value={value}
-      disabled={!images && !value}
-      title={!images && !value ? "画像だけの一覧で使えます（サイドバーの「種類で絞る」で画像を選ぶ）" : undefined}
+      disabled={!sized && !value}
+      title={
+        !sized && !value ? "画像と動画だけの一覧で使えます（サイドバーの「種類で絞る」で画像・動画を選ぶ）" : undefined
+      }
       locked={locked}
       onLocked={onLocked}
       onClear={() => setFilter(CLEARED.dims.filter!)}
