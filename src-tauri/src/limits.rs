@@ -7,6 +7,9 @@
 //! - `STOCKROOM_NO_CONNECT`: no browser extension and no Claude connection;
 //!   their ports are never opened.
 //! - `STOCKROOM_NO_UPDATE`: no in-app updates (the updater isn't loaded).
+//!
+//! Not a limit, but set the same way: `STOCKROOM_TAG_PREFIX`, what this
+//! build's release tags start with before `v<version>` (e.g. `corp-`).
 
 use crate::db::Kind;
 use crate::{files, formats, texts, videos};
@@ -26,6 +29,13 @@ pub const NO_CONNECT: bool = on(option_env!("STOCKROOM_NO_CONNECT"));
 
 /// No in-app updates.
 pub const NO_UPDATE: bool = on(option_env!("STOCKROOM_NO_UPDATE"));
+
+/// What this build's release tags start with before `v<version>`
+/// (`STOCKROOM_TAG_PREFIX`, e.g. `corp-` for `corp-v1.2.3`). Empty = `v1.2.3`.
+pub const TAG_PREFIX: &str = match option_env!("STOCKROOM_TAG_PREFIX") {
+    Some(p) => p,
+    None => "",
+};
 
 /// Why something this build leaves out was refused.
 pub const LEFT_OUT: &str = "このビルドでは使えません";
