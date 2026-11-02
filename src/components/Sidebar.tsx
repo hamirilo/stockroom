@@ -1,7 +1,14 @@
 import {
+  Bookmark,
+  Check,
   ChevronDown,
   ChevronRight,
   Copy,
+  FileText,
+  Image as ImageIcon,
+  ListFilter,
+  NotebookText,
+  Video,
   Folder as FolderIcon,
   FolderPlus,
   FolderSearch,
@@ -29,6 +36,7 @@ import {
   createSmartFolder,
   emptyTrash,
   exportList,
+  pickKind,
   renameSmartFolder,
   shiftFolder,
   sortFoldersByName,
@@ -36,13 +44,15 @@ import {
   transferList,
   trayList,
 } from "../lib/actions";
-import { api, modeOf, type Folder, type ItemKind, type View } from "../lib/api";
-import { modeLabel, type Mode } from "../lib/modes";
+import { api, kindLabel, modeOf, type Folder, type ItemKind, type KindCounts, type View } from "../lib/api";
+import { inScope, modeLabel, rangeKinds, type Mode } from "../lib/modes";
+import { isMac } from "../lib/shortcuts";
 import {
   activeConditions,
   isHidden,
   listNoun,
   MODES,
+  placeByKind,
   shownModes,
   sidebarEntryLabel,
   sidebarHidden,
@@ -177,7 +187,7 @@ export function Row({
       {count !== undefined && (
         <span
           key={`count-${flash ?? ""}`}
-          className={`text-xs tabular-nums ${over ? "text-white" : "text-dim"} ${flash !== null ? "animate-pop" : ""} ${
+          className={`text-xs tabular-nums ${over ? "text-white" : count === 0 ? "text-dim/50" : "text-dim"} ${flash !== null ? "animate-pop" : ""} ${
             onContextMenu ? "group-hover:hidden" : ""
           }`}
         >
@@ -234,6 +244,7 @@ function InlineEdit({ value, onDone }: { value: string; onDone: (v: string | nul
 
 function FolderTree() {
   const folders = useStore((s) => s.folders);
+  const scoped = useInScope();
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
   const run = useStore((s) => s.run);
@@ -370,7 +381,7 @@ function FolderTree() {
                 f.name
               )
             }
-            count={f.count}
+            count={scoped(f.count, f.byKind)}
             onPointerDown={(e) => {
               if (e.button === 0 && (e.shiftKey || e.metaKey || e.ctrlKey)) {
                 e.preventDefault(); // no text selection
@@ -512,6 +523,7 @@ export function Section({
 
 function SmartFolderList() {
   const smartFolders = useStore((s) => s.smartFolders);
+  const scoped = useInScope();
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
   const editing = useStore((s) => s.renamingFolder);
@@ -559,7 +571,7 @@ function SmartFolderList() {
               sf.name
             )
           }
-          count={sf.count}
+          count={scoped(sf.count, sf.byKind)}
           onClick={() => setView({ kind: "smart", id: sf.id })}
           onDoubleClick={() => setEditing(sf.id)}
           onContextMenu={(e) =>
@@ -589,7 +601,7 @@ const MODE_ICON: Record<Mode, React.ReactNode> = {
  * What the app shows (the stock, or the fonts to compare): the sidebar's
  * header, a segment of the two (docs/UI.md「少なければ 1 つのセグメントに並べる」),
  * ⌘1 / ⌘2 in MODES order. Which kinds the library uses is in the settings
- * (種類). Images and files are narrowed in the stock with the kind filter.
+ * (種類). Images and files are narrowed in the stock with the range under it (KindRange).
  */
 function ModeSwitch() {
   const mode = useStore((s) => s.mode);
@@ -626,9 +638,147 @@ function ModeSwitch() {
   );
 }
 
+const KIND_ICON: Partial<Record<ItemKind, React.ReactNode>> = {
+  image: <ImageIcon size={14} />,
+  file: <FileText size={14} />,
+  text: <NotebookText size={14} />,
+  video: <Video size={14} />,
+  bookmark: <Bookmark size={14} />,
+};
+
+/**
+ * The sidebar's counts are of the kinds picked in the range (docs/KINDS.md):
+ * this narrows one, given its total and its counts by kind.
+ */
+function useInScope(): (total: number, byKind: KindCounts) => number {
+  const mode = useStore((s) => s.mode);
+  const kinds = useStore(useShallow((s) => s.filter.kinds));
+  return (total, byKind) => inScope({ mode, filter: { kinds } }, total, byKind);
+}
+
+/**
+ * The range of kinds (docs/KINDS.md): what is looked at, under the mode
+ * switch, apart from the places so that the two go together ("this folder's
+ * images"). One line, a menu: nothing picked is every kind (no 「すべて」 here,
+ * that word is the place's). Click picks one, ⌘-click adds or takes off one.
+ */
+function KindRange() {
+  const kinds = useStore(useShallow(rangeKinds));
+  const picked = useStore(useShallow((s) => s.filter.kinds));
+  // The similar view is of images whatever is picked: shown, greyed out.
+  const similar = useStore((s) => s.view.kind === "similar");
+  const counts = useStore(useShallow((s) => placeByKind(s)));
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("pointerdown", away);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("pointerdown", away);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  useEffect(() => {
+    if (similar) setOpen(false);
+  }, [similar]);
+  if (!kinds.length) return null;
+
+  const on = picked.length > 0 && !similar;
+  const label = similar ? "画像だけ" : on ? picked.map(kindLabel).join("・") : "種類で絞る";
+  const icon = similar ? KIND_ICON.image : on && picked.length === 1 ? KIND_ICON[picked[0]] : <ListFilter size={14} />;
+  const add = isMac ? "⌘" : "Ctrl";
+  const pick = (k: ItemKind | null, e?: React.MouseEvent) => {
+    const adding = !!k && !!e && (e.metaKey || e.ctrlKey);
+    pickKind(k, adding);
+    if (!adding) setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative mx-2 mb-2 shrink-0">
+      <button
+        disabled={similar}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={similar ? "重複の候補は画像だけが対象です" : on ? `種類：${label}（${comboText("Alt+0")} で解除）` : "種類で絞る"}
+        onClick={() => setOpen((o) => !o)}
+        className={`flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-[13px] ${
+          on
+            ? "bg-tonal text-on-tonal enabled:hover:brightness-110"
+            : open
+              ? "bg-press"
+              : "bg-white/6 text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
+        } disabled:off disabled:bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--color-off-edge)]`}
+      >
+        <span className={`shrink-0 ${on ? "" : "text-dim"}`}>{icon}</span>
+        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+        <ChevronDown size={13} className={`shrink-0 ${on ? "" : "text-dim"}`} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          data-modal
+          className="absolute top-full right-0 left-0 z-40 mt-1 animate-slide-down rounded-lg border border-line bg-raised p-1 text-xs shadow-xl"
+        >
+          <KindOption on={!picked.length} onClick={() => pick(null)}>
+            種類で絞らない
+          </KindOption>
+          <div className="my-1 border-t border-line" />
+          {kinds.map((k) => (
+            <KindOption
+              key={k}
+              on={picked.includes(k)}
+              icon={KIND_ICON[k]}
+              count={counts ? (counts[k] ?? 0) : undefined}
+              onClick={(e) => pick(k, e)}
+            >
+              {kindLabel(k)}
+            </KindOption>
+          ))}
+          <div className="my-1 border-t border-line" />
+          <p className="px-2 py-1 text-dim">{add}＋クリックで重ねて選ぶ</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KindOption({
+  on,
+  icon,
+  count,
+  onClick,
+  children,
+}: {
+  on: boolean;
+  icon?: React.ReactNode;
+  count?: number;
+  onClick: (e: React.MouseEvent) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      role="menuitemcheckbox"
+      aria-checked={on}
+      onClick={onClick}
+      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-white/8 ${
+        on ? "text-fg" : count === 0 ? "text-dim/60" : "text-fg/85"
+      }`}
+    >
+      <span className="flex w-3.5 shrink-0 justify-center text-accent">{on && <Check size={13} strokeWidth={2.5} />}</span>
+      {icon && <span className="shrink-0 text-dim">{icon}</span>}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {count !== undefined && <span className="shrink-0 text-dim tabular-nums">{count}</span>}
+    </button>
+  );
+}
+
 /** Tags are places like folders (docs/NAVIGATION.md): a click opens the tag's items. */
 function TagList() {
   const tags = useStore((s) => s.tags);
+  const scoped = useInScope();
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
   const run = useStore((s) => s.run);
@@ -656,7 +806,7 @@ function TagList() {
               t.name
             )
           }
-          count={t.count}
+          count={scoped(t.count, t.byKind)}
           onClick={() => setView({ kind: "tag", id: t.id })}
           onDoubleClick={() => setEditing(t.id)}
           onContextMenu={(e) =>
@@ -686,6 +836,7 @@ export function Sidebar() {
   const usesImages = useStore((s) => usedModes(s).includes("image"));
   const hidden = useStore(useShallow((s) => sidebarHidden(s)[s.mode] ?? []));
   const showMenu = useMenu((s) => s.show);
+  const scoped = useInScope();
 
   type Entry = { view: View; label: string; icon: React.ReactNode; count?: number; dropId?: string; title?: string };
   // Places, top down (docs/NAVIGATION.md): what to look at, what is marked,
@@ -695,10 +846,10 @@ export function Sidebar() {
       view: { kind: "all" },
       label: mode === "font" ? "すべてのフォント" : "すべて",
       icon: <Images size={15} />,
-      count: counts.all,
+      count: scoped(counts.all, counts.byKind.all),
     },
-    { view: { kind: "unfiled" }, label: "未分類", icon: <Inbox size={15} />, count: counts.unfiled },
-    { view: { kind: "untagged" }, label: "タグなし", icon: <Tags size={15} />, count: counts.untagged },
+    { view: { kind: "unfiled" }, label: "未分類", icon: <Inbox size={15} />, count: scoped(counts.unfiled, counts.byKind.unfiled) },
+    { view: { kind: "untagged" }, label: "タグなし", icon: <Tags size={15} />, count: scoped(counts.untagged, counts.byKind.untagged) },
     // Read only, not in the library (docs/SYSTEM_FONTS.md); counted once first listed.
     ...(mode === "font"
       ? [
@@ -713,14 +864,14 @@ export function Sidebar() {
       : []),
   ];
   const marks: Entry[] = [
-    { view: { kind: "favorites" }, label: "お気に入り", icon: <Heart size={15} />, count: counts.favorites },
-    { view: { kind: "pinned" }, label: "ピン留め", icon: <Pin size={15} />, count: counts.pinned },
+    { view: { kind: "favorites" }, label: "お気に入り", icon: <Heart size={15} />, count: scoped(counts.favorites, counts.byKind.favorites) },
+    { view: { kind: "pinned" }, label: "ピン留め", icon: <Pin size={15} />, count: scoped(counts.pinned, counts.byKind.pinned) },
     // The shelf is a tab of the details panel (Shelf.tsx), not a place to go.
   ];
   const tidying: Entry[] = [
     // Look-alikes are found by image hash: images only.
     ...(mode === "stock" && usesImages ? [{ view: { kind: "similar" } as View, label: "重複の候補", icon: <Copy size={15} /> }] : []),
-    { view: { kind: "trash" }, label: "ゴミ箱", icon: <Trash2 size={15} />, count: counts.trash },
+    { view: { kind: "trash" }, label: "ゴミ箱", icon: <Trash2 size={15} />, count: scoped(counts.trash, counts.byKind.trash) },
   ];
 
   const shown = (list: Entry[]) => list.filter((e) => !hidden.includes(e.view.kind));
@@ -763,6 +914,7 @@ export function Sidebar() {
       {/* What to show is switched often, the library seldom: the kinds on
           top, the library at the bottom. */}
       <ModeSwitch />
+      <KindRange />
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {shown(looks).map(row)}
         {shown(marks).length > 0 && <div className="h-2" />}

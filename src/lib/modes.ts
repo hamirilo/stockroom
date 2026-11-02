@@ -1,8 +1,8 @@
 // What the app shows: the stock (images and files, found and used) or the
 // fonts (compared and picked), each with its own folders, tags and smart
-// folders. Images and files are narrowed with the kind filter inside the
+// folders. Images and files are narrowed with the range of kinds (the sidebar, docs/KINDS.md) inside the
 // stock. See docs/MODES.md and docs/ARCHITECTURE.md (モード).
-import { KINDS, kindLabel, kindOfExt, modeOf, type Filter, type ItemKind, type Mode, type SmartFolder, type View } from "./api";
+import { KINDS, kindLabel, kindOfExt, modeOf, type Filter, type ItemKind, type KindCounts, type Mode, type SmartFolder, type View } from "./api";
 
 export { modeOf, type Mode } from "./api";
 
@@ -42,6 +42,28 @@ export type KindState = {
   smartFolders: SmartFolder[];
   librarySettings: { modes: ItemKind[] };
 };
+
+/**
+ * A sidebar count narrowed to the kinds picked (docs/KINDS.md): `total` when
+ * none are (or in the font mode, which has no range).
+ */
+export function inScope(s: { mode: Mode; filter: { kinds: ItemKind[] } }, total: number, byKind: KindCounts): number {
+  if (s.mode !== "stock" || !s.filter.kinds.length) return total;
+  return s.filter.kinds.reduce((n, k) => n + (byKind[k] ?? 0), 0);
+}
+
+/** The stock's kinds in `KINDS` order: the range's menu and its keys ⌥1… (docs/KINDS.md). */
+export const STOCK_KINDS: ItemKind[] = KINDS.map((k) => k.kind).filter((k) => modeOf(k) === "stock");
+
+/**
+ * Kinds the sidebar's range offers (docs/KINDS.md): the stock's kinds in use,
+ * none in the font mode or when one kind only is used (nothing to pick).
+ */
+export function rangeKinds(s: Pick<KindState, "mode" | "librarySettings">): ItemKind[] {
+  if (s.mode !== "stock") return [];
+  const used = usedKinds(s).filter((k) => modeOf(k) === "stock");
+  return used.length > 1 ? used : [];
+}
 
 /** Kinds the open library is used for, in `KINDS` order. */
 export const usedKinds = (s: Pick<KindState, "librarySettings">): ItemKind[] =>

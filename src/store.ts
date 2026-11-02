@@ -15,6 +15,7 @@ import {
   type Item,
   type ItemQuery,
   type ItemKind,
+  type KindCounts,
   type LibraryInfo,
   type SimilarLevel,
   type SortKey,
@@ -33,6 +34,7 @@ import {
   MODES,
   modesFor,
   queryKinds,
+  inScope,
   ruleKinds,
   usedKinds,
   type KindState,
@@ -226,7 +228,8 @@ interface State {
   /** Attribute filters from the filter bar. */
   filter: Filter;
   /** Smart folder whose rule is loaded into the filter row for editing. */
-  editingSmart: { id: string; name: string } | null;
+  /** The smart folder whose conditions the row is editing; `kinds` = the range picked before (put back after). */
+  editingSmart: { id: string; name: string; kinds: ItemKind[] } | null;
   layout: Layout;
   showInfo: ShowInfo;
   /** How the list is split into sections (ignored in the similar view). */
@@ -518,7 +521,7 @@ export function activeConditions(s: {
     (s.search.trim() ? 1 : 0) +
     (s.tagFilter.length ? 1 : 0) +
     (s.minRating ? 1 : 0) +
-    (f.kinds.length ? 1 : 0) +
+    // The kinds picked aren't one: they are the range the sidebar sets (docs/KINDS.md).
     (f.fontScripts.length ? 1 : 0) +
     (f.fontCategories.length ? 1 : 0) +
     (f.fontWeights.length ? 1 : 0) +
@@ -732,9 +735,14 @@ const shownQuery = (s: QueryState & { librarySettings: LibrarySettings }): ItemQ
  * null where it isn't known (the similar view).
  */
 export function placeTotal(
-  s: Pick<State, "view" | "counts" | "folders" | "tags" | "smartFolders" | "showSubfolders" | "systemCount">,
+  s: Pick<
+    State,
+    "mode" | "filter" | "view" | "counts" | "folders" | "tags" | "smartFolders" | "showSubfolders" | "systemCount"
+  >,
 ): number | null {
   const v = s.view;
+  // The same numbers as the sidebar: of the kinds picked (docs/KINDS.md).
+  const n = (x: { count: number; byKind: KindCounts } | undefined) => (x ? inScope(s, x.count, x.byKind) : null);
   switch (v.kind) {
     case "all":
     case "unfiled":
@@ -742,16 +750,15 @@ export function placeTotal(
     case "favorites":
     case "pinned":
     case "trash":
-      return s.counts[v.kind];
     case "tray":
-      return s.counts.tray;
+      return inScope(s, s.counts[v.kind], s.counts.byKind[v.kind]);
     case "tag":
-      return s.tags.find((t) => t.id === v.id)?.count ?? null;
+      return n(s.tags.find((t) => t.id === v.id));
     case "smart":
-      return s.smartFolders.find((f) => f.id === v.id)?.count ?? null;
+      return n(s.smartFolders.find((f) => f.id === v.id));
     case "folder": {
       const own = (id: string): number =>
-        (s.folders.find((f) => f.id === id)?.count ?? 0) +
+        (n(s.folders.find((f) => f.id === id)) ?? 0) +
         (s.showSubfolders ? s.folders.filter((f) => f.parentId === id).reduce((n, f) => n + own(f.id), 0) : 0);
       return own(v.id);
     }
@@ -759,6 +766,48 @@ export function placeTotal(
       return null;
     case "system":
       return s.systemCount;
+  }
+}
+
+/**
+ * The open place's items by kind, without any condition: the counts of the
+ * range's menu (docs/KINDS.md). Null where they aren't known.
+ */
+export function placeByKind(
+  s: Pick<State, "view" | "counts" | "folders" | "tags" | "smartFolders" | "showSubfolders">,
+): KindCounts | null {
+  const v = s.view;
+  const add = (a: KindCounts, b: KindCounts): KindCounts => {
+    const out = { ...a };
+    for (const [k, n] of Object.entries(b) as [ItemKind, number][]) out[k] = (out[k] ?? 0) + n;
+    return out;
+  };
+  switch (v.kind) {
+    case "all":
+    case "unfiled":
+    case "untagged":
+    case "favorites":
+    case "pinned":
+    case "trash":
+    case "tray":
+      return s.counts.byKind[v.kind];
+    case "tag":
+      return s.tags.find((t) => t.id === v.id)?.byKind ?? null;
+    case "smart":
+      return s.smartFolders.find((f) => f.id === v.id)?.byKind ?? null;
+    case "folder": {
+      const own = (id: string): KindCounts =>
+        add(
+          s.folders.find((f) => f.id === id)?.byKind ?? {},
+          s.showSubfolders
+            ? s.folders.filter((f) => f.parentId === id).reduce((n, f) => add(n, own(f.id)), {} as KindCounts)
+            : {},
+        );
+      return own(v.id);
+    }
+    case "similar":
+    case "system":
+      return null;
   }
 }
 
@@ -881,6 +930,7 @@ export const useStore = create<State>((set, get) => ({
     pinned: 0,
     tray: 0,
     kinds: {},
+    byKind: { all: {}, unfiled: {}, untagged: {}, trash: {}, favorites: {}, pinned: {}, tray: {} },
     fontScripts: {},
     fontCategories: {},
     fontWeights: {},
@@ -1218,7 +1268,8 @@ export const useStore = create<State>((set, get) => ({
     get().refresh();
   },
   clearConditions: () => {
-    set({ search: "", tagFilter: [], minRating: 0, filter: EMPTY_FILTER });
+    // The kinds picked are the sidebar's range, not a condition of the row (docs/KINDS.md).
+    set({ search: "", tagFilter: [], minRating: 0, filter: { ...EMPTY_FILTER, kinds: get().filter.kinds } });
     get().refresh();
   },
   currentRule: () => {
@@ -1239,7 +1290,7 @@ export const useStore = create<State>((set, get) => ({
   startEditSmart: (sf) => {
     // Edit in the "all" view so the user sees exactly what the rule matches.
     set({
-      editingSmart: { id: sf.id, name: sf.name },
+      editingSmart: { id: sf.id, name: sf.name, kinds: get().editingSmart?.kinds ?? get().filter.kinds },
       view: { kind: "all" },
       comparing: false,
       search: sf.rule.search,

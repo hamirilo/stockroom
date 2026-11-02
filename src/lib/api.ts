@@ -411,6 +411,8 @@ export interface SmartFolder {
   name: string;
   rule: Rule;
   count: number;
+  /** `count` by kind (docs/KINDS.md). */
+  byKind: KindCounts;
   color: string | null;
   mode: Mode;
 }
@@ -475,6 +477,20 @@ export interface Facets {
   unlinked: number;
 }
 
+/** Items by kind (kinds with none are left out). */
+export type KindCounts = Partial<Record<ItemKind, number>>;
+
+/** The sidebar's fixed places, each by kind. */
+export interface PlaceKinds {
+  all: KindCounts;
+  unfiled: KindCounts;
+  untagged: KindCounts;
+  trash: KindCounts;
+  favorites: KindCounts;
+  pinned: KindCounts;
+  tray: KindCounts;
+}
+
 export interface Counts {
   all: number;
   unfiled: number;
@@ -486,6 +502,8 @@ export interface Counts {
   tray: number;
   /** Items not in the trash, by kind, whatever kind was asked for (the mode switch). */
   kinds: Partial<Record<ItemKind, number>>;
+  /** The places above (of the mode asked for), each by kind: the sidebar's counts for the kinds picked (docs/KINDS.md). */
+  byKind: PlaceKinds;
   /** Fonts not in the trash by writing system and by style ("none" = unknown). */
   fontScripts: Record<string, number>;
   fontCategories: Record<string, number>;
@@ -499,6 +517,8 @@ export interface Folder {
   parentId: string | null;
   name: string;
   count: number;
+  /** `count` by kind (docs/KINDS.md). */
+  byKind: KindCounts;
   /** Colour name (see lib/colors.ts), if set. */
   color: string | null;
   /** Shared on the local network (src-tauri/src/share.rs). */
@@ -511,6 +531,8 @@ export interface Tag {
   id: number;
   name: string;
   count: number;
+  /** `count` by kind (docs/KINDS.md); empty where not counted (a selection's tags). */
+  byKind: KindCounts;
   color: string | null;
   mode: Mode;
 }

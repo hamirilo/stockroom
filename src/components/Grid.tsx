@@ -13,6 +13,7 @@ import {
   similarGroups,
   setRating,
   toggleFavorite,
+  pickKind,
 } from "../lib/actions";
 import { command, isEnabled, runKey } from "../lib/commands";
 import { applicable, commandIcon, commandItem } from "../lib/menuItems";
@@ -1094,6 +1095,7 @@ function Empty({
   analyzing: boolean;
 }) {
   const systemCount = useStore((s) => s.systemCount);
+  const ranged = useStore((s) => s.mode === "stock" && s.filter.kinds.length > 0);
   const noun = kindsNoun(kinds);
   const only = kinds.length === 1 ? kinds[0] : null;
   if (kind === "trash") return <p className="mt-24 text-center text-dim">ゴミ箱は空です</p>;
@@ -1112,6 +1114,19 @@ function Empty({
           className="rounded-md bg-accent-fill px-3 py-1.5 font-medium text-white hover:brightness-110"
         >
           絞り込みをすべて解除
+        </button>
+      </div>
+    );
+  // Nothing of the kinds picked in the sidebar's range (docs/KINDS.md).
+  if (ranged)
+    return (
+      <div className="mt-24 flex flex-col items-center gap-3 text-dim">
+        <p>ここに{noun}はありません</p>
+        <button
+          onClick={() => pickKind(null)}
+          className="rounded-md bg-accent-fill px-3 py-1.5 font-medium text-white hover:brightness-110"
+        >
+          種類で絞らない
         </button>
       </div>
     );

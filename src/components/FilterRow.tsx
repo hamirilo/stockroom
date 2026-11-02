@@ -9,7 +9,7 @@ import { Check, ChevronDown, Ellipsis, FolderSearch, ListFilter, Search, X } fro
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { cancelSmartEdit, createSmartFolder, saveEditedSmartFolder } from "../lib/actions";
-import { api, KINDS, kindLabel, modeOf, type Facets, type Filter, type ItemKind, type Rule, type Shape } from "../lib/api";
+import { api, kindLabel, type Facets, type Filter, type Rule, type Shape } from "../lib/api";
 import { colorHex } from "../lib/colors";
 import { composing } from "../lib/ime";
 import {
@@ -22,7 +22,7 @@ import {
   startOfToday,
 } from "../lib/rule";
 import { FontConditions } from "../features/fonts/FontFilters";
-import { activeConditions, CLEARED, listIs, listQuery, usedModes, useStore, type ConditionKey } from "../store";
+import { activeConditions, CLEARED, listIs, listQuery, useStore, type ConditionKey } from "../store";
 import { RangeCalendar } from "./RangeCalendar";
 import { Dropdown } from "./ViewMenu";
 import { systemFacetCounts } from "../features/fonts/system";
@@ -302,12 +302,12 @@ export function FilterRow({ viewControls, display }: { viewControls?: React.Reac
       <TagCondition {...common} />
       {mode === "stock" ? (
         <>
-          <KindCondition {...common} />
           <ExtCondition {...common} />
           <DimsCondition {...common} />
           <DateCondition {...common} />
           <SizeCondition {...common} />
           <LinksCondition {...common} />
+          <KindCondition {...common} />
         </>
       ) : (
         <>
@@ -541,41 +541,18 @@ function TagMenu({ open, picked, toggle }: { open: boolean; picked: number[]; to
   );
 }
 
-/** The stock's kinds, when the library uses more than one of them. */
+/**
+ * The kinds of an open smart folder's rule, shown (locked) last in the row.
+ * The kinds picked otherwise are the sidebar's range, not a condition here
+ * (docs/KINDS.md).
+ */
 function KindCondition({ cond, locked, onLocked }: CondProps) {
-  const used = useStore(useShallow(usedModes));
-  const setKinds = useStore((s) => s.setKinds);
-  const kinds = KINDS.filter((k) => modeOf(k.kind) === "stock" && used.includes(k.kind));
-  // The similar view is of images whatever is picked.
-  const similar = useStore((s) => s.view.kind === "similar");
-  if (kinds.length < 2) return null;
   const picked = cond.filter.kinds;
+  if (!locked || !picked.length) return null;
   return (
-    <Pill
-      label="種類"
-      value={picked.map(kindLabel).join("・")}
-      disabled={similar}
-      title={similar ? "重複の候補は画像だけが対象です" : undefined}
-      locked={locked}
-      onLocked={onLocked}
-      onClear={() => setKinds([])}
-      width="w-44"
-    >
-      {(open) => <KindMenu open={open} kinds={kinds.map((k) => k.kind)} picked={picked} pick={setKinds} />}
+    <Pill label="種類" value={picked.map(kindLabel).join("・")} locked onLocked={onLocked} onClear={() => {}}>
+      {() => null}
     </Pill>
-  );
-}
-
-function KindMenu({ open, kinds, picked, pick }: { open: boolean; kinds: ItemKind[]; picked: ItemKind[]; pick: (k: ItemKind[]) => void }) {
-  const facets = useFacets("kinds", open);
-  return (
-    <>
-      {kinds.map((k) => (
-        <Option key={k} on={picked.includes(k)} count={facets ? (facets.kinds[k] ?? 0) : null} onClick={() => pick(toggled(picked, k))}>
-          {kindLabel(k)}
-        </Option>
-      ))}
-    </>
   );
 }
 
