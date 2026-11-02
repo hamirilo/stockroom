@@ -15,6 +15,7 @@
 | `STOCKROOM_NO_CONNECT` | `1` | ブラウザ拡張と Claude との連携（MCP） |
 | `STOCKROOM_NO_UPDATE` | `1` | アプリ内アップデート |
 | `STOCKROOM_NAME` | `Stockroom（〇〇用）` | 外れるものはない。アップデートの欄の代わりに出す版の表示の名前 |
+| `STOCKROOM_TAG_PREFIX` | `corp-` | 外れるものはない。リリースのタグの `v<版>` の前に付くもの。「更新内容を見る」が開くページ（`releases/tag/corp-v1.2.3`）に使う |
 
 `STOCKROOM_NO_CONNECT` と `STOCKROOM_NO_UPDATE` は、空や `0` なら指定していないのと同じ。
 
@@ -56,7 +57,7 @@ STOCKROOM_KINDS=image bun run dev   # ブラウザで UI だけ（モック）
 - ビルドのワークフロー（`STOCKROOM_*` の環境変数を設定する）
 - 運用の文書（`docs/CORP.md` など）
 
-アプリ内アップデートを残すときは、重ねる設定ファイルで `plugins.updater` の `pubkey` と `endpoints` をその版のものにする（鍵もその版専用に作る）。そのままだと、このリポジトリのリリースに更新されて、外した機能が戻る。更新を確かめるときのプロキシの判定と「更新内容を見る」のページは `endpoints` の 1 つ目から決まるので、コードは変えなくてよい。ページを開けるのは配信先が GitHub のリリース（`https://github.com/<owner>/<repo>/releases/...`）のときだけ。
+アプリ内アップデートを残すときは、重ねる設定ファイルで `plugins.updater` の `pubkey` と `endpoints` をその版のものにする（鍵もその版専用に作る）。そのままだと、このリポジトリのリリースに更新されて、外した機能が戻る。更新を確かめるときのプロキシの判定と「更新内容を見る」のページは `endpoints` の 1 つ目から決まるので、コードは変えなくてよい。ページを開けるのは配信先が GitHub のリリース（`https://github.com/<owner>/<repo>/releases/...`）のときだけ。リリースのタグが `v<版>` でなければ、`STOCKROOM_TAG_PREFIX` でタグの頭を合わせる。
 
 このリポジトリにあるファイルは、フォークで変えない。変えると、取り込むたびに衝突する。
 
@@ -66,7 +67,7 @@ STOCKROOM_KINDS=image bun run dev   # ブラウザで UI だけ（モック）
 
 - フロントエンド：`src/lib/limits.ts`（`LIMITED_KINDS`・`buildHas`・`NO_CONNECT`・`NO_UPDATE`・`OFF_COMMANDS`・`OFF_SETTINGS`）
   - `OFF_COMMANDS` に入れたコマンドは、コマンド表（`src/lib/commands.ts`）から外れる。そのため、メニュー・キー・ショートカット一覧からも消える
-- Rust：`src-tauri/src/limits.rs`（`accepts`・`has`・`require_kind`・`require_connect`・`NO_CONNECT`・`NO_UPDATE`）
+- Rust：`src-tauri/src/limits.rs`（`accepts`・`has`・`require_kind`・`require_connect`・`NO_CONNECT`・`NO_UPDATE`・`TAG_PREFIX`）
 - モック：`src/dev/mockBackend.ts` も同じように断る
 
 画面では、外したものの場所を詰めるだけにする。並びの組み替えはしない（docs/UI.md）。外せるものを足すときは、上の 2 つのファイルに足し、ほかのコードからはそこを見る。
