@@ -66,6 +66,7 @@ bun run test           # Rust のユニットテスト + 型チェック
 | [NAVIGATION.md](docs/NAVIGATION.md) | サイドバーとツールバーの役割（場所・絞り込み・表示） |
 | [MODES.md](docs/MODES.md) | モードを分ける（ストックとフォント） |
 | [KINDS.md](docs/KINDS.md) | 種類で絞る：サイドバーの範囲（場所と組み合わせて使う） |
+| [FONT_APP.md](docs/FONT_APP.md) | フォントを別のアプリにする（方針。詳細は検討中） |
 | [FONT_UI.md](docs/FONT_UI.md) | フォントの画面（見本・グループ分け・シェルフ・比較） |
 | [GROUP_TOC.md](docs/GROUP_TOC.md) | グループ分けの目次（いま見ている区切りの表示と、区切りへのジャンプ） |
 | [COMPARE.md](docs/COMPARE.md) | 画像の比較（シェルフの画像を並べ、一緒に拡大して見比べる） |
