@@ -100,7 +100,7 @@ function StackFrames({ item, width, height }: { item: Item; width: number; heigh
         <div
           key={k}
           aria-hidden
-          className="pointer-events-none absolute rounded-lg border border-white/15 bg-raised"
+          className="pointer-events-none absolute rounded-lg border border-ink/15 bg-raised"
           style={{ width, height, top: (n - k) * 4, left: (n - k) * 4, opacity: 0.9 - k * 0.2 }}
         />
       ))}
@@ -127,7 +127,7 @@ function LinkMark({ item, inline = false }: { item: Item; inline?: boolean }) {
         }
       >
         {item.adopted ? (
-          <Star size={inline ? 12 : 11} fill="currentColor" className="text-amber-400" />
+          <Star size={inline ? 12 : 11} fill="currentColor" className="text-amber-500 dark:text-amber-400" />
         ) : (
           <Link2 size={inline ? 12 : 11} strokeWidth={2.25} />
         )}
@@ -329,7 +329,7 @@ const Cell = memo(function Cell({
       <StackFrames item={item} width={width} height={height} />
       <div
         className={`relative flex items-center justify-center overflow-hidden rounded-lg bg-raised transition-shadow duration-150 ${
-          selected ? "sel-ring" : focused ? "" : "hover:ring-2 hover:ring-white/15"
+          selected ? "sel-ring" : focused ? "" : "hover:ring-2 hover:ring-ink/15"
         } ${focused ? "focus-ring" : ""} ${over ? "outline-[3px] outline-accent" : ""}`}
         style={{ width, height }}
       >
@@ -358,7 +358,7 @@ const Cell = memo(function Cell({
       )}
       {label > 0 && (
         <div className="mt-1.5 w-full text-center leading-[15px]">
-          {info.name && <div className={`truncate text-xs ${selected ? "text-white" : ""}`}>{item.name}</div>}
+          {info.name && <div className={`truncate text-xs ${selected ? "text-fg" : ""}`}>{item.name}</div>}
           {detail && (
             <div className="flex items-center justify-center gap-1.5 overflow-hidden text-[11px] whitespace-nowrap text-dim tabular-nums">
               {info.rating && item.rating > 0 && <Stars n={item.rating} />}
@@ -388,8 +388,8 @@ const Cell = memo(function Cell({
 const rowSelection = (selected: boolean, focused: boolean) =>
   `${
     selected
-      ? "bg-accent/25 text-white before:absolute before:inset-y-1 before:left-0 before:w-[3px] before:rounded-full before:bg-accent"
-      : "hover:bg-white/5"
+      ? "bg-accent/25 text-fg before:absolute before:inset-y-1 before:left-0 before:w-[3px] before:rounded-full before:bg-accent"
+      : "hover:bg-ink/5"
   } ${focused ? "outline-1 -outline-offset-1 outline-fg/60" : ""}`;
 
 /** List layout row: thumbnail plus the details as columns. */
@@ -438,7 +438,7 @@ const ListRow = memo(function ListRow({
           </span>
         )}
         {similar && (
-          <span className="ml-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px]">
+          <span className="ml-1 rounded bg-ink/10 px-1.5 py-0.5 text-[10px]">
             {similar.best ? "最高画質" : `一致 ${similar.match}%`}
           </span>
         )}
@@ -454,8 +454,8 @@ const ListRow = memo(function ListRow({
       </span>
       <span className="flex w-10 shrink-0 items-center gap-1">
         {flags && item.pinnedAt !== null && <Pin size={12} className="text-accent" fill="currentColor" />}
-        {flags && item.inTray && <Layers size={12} className="text-emerald-400" />}
-        {flags && item.favorite && <Heart size={12} className="text-pink-400" fill="currentColor" />}
+        {flags && item.inTray && <Layers size={12} className="text-emerald-600 dark:text-emerald-400" />}
+        {flags && item.favorite && <Heart size={12} className="text-pink-600 dark:text-pink-400" fill="currentColor" />}
       </span>
       <span className="w-24 shrink-0">{item.rating > 0 && <Stars n={item.rating} />}</span>
       <span className="w-28 shrink-0 text-right text-dim tabular-nums">
@@ -479,7 +479,7 @@ const ListRow = memo(function ListRow({
 
 function Stars({ n, size = 9 }: { n: number; size?: number }) {
   return (
-    <span className="flex text-amber-400" title={`★${n}`}>
+    <span className="flex text-amber-500 dark:text-amber-400" title={`★${n}`}>
       {Array.from({ length: n }, (_, i) => (
         <Star key={i} size={size} fill="currentColor" strokeWidth={0} />
       ))}
@@ -965,7 +965,7 @@ function SectionBar({
               <button
                 key={`${s.start}:${n}`}
                 onClick={() => onJump(n)}
-                className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-white/10 ${n === current ? "bg-white/10 font-semibold" : ""}`}
+                className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-ink/10 ${n === current ? "bg-ink/10 font-semibold" : ""}`}
               >
                 {hex && (
                   <span

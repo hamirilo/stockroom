@@ -196,7 +196,7 @@ function Panel({
               <button
                 key={i}
                 disabled={it.disabled}
-                className={`${row} ${open?.index === i ? "bg-white/10" : ""} enabled:hover:bg-white/10 disabled:off`}
+                className={`${row} ${open?.index === i ? "bg-ink/10" : ""} enabled:hover:bg-ink/10 disabled:off`}
                 onPointerEnter={(e) => !it.disabled && hover(i, e.currentTarget, true)}
                 onClick={(e) => !it.disabled && setOpen({ index: i, rect: e.currentTarget.getBoundingClientRect() })}
               >
@@ -254,7 +254,7 @@ function RatingPicker({
           title={n === current ? "評価を消す（0）" : `★${n}（${n}）`}
           onPointerEnter={() => setOver(n)}
           onClick={() => run(() => onPick(n === current ? 0 : n))}
-          className="p-0.5 text-amber-400"
+          className="p-0.5 text-amber-500 dark:text-amber-400"
         >
           <Star size={14} fill={n <= shown ? "currentColor" : "none"} strokeWidth={1.75} />
         </button>

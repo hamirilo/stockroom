@@ -79,7 +79,7 @@ function Dialog({ req }: { req: TransferRequest }) {
     <button
       onClick={() => setMove(value)}
       className={`flex flex-1 items-start gap-2 rounded-lg border p-2.5 text-left ${
-        on ? "border-accent bg-accent/15" : "border-edge hover:bg-white/5"
+        on ? "border-accent bg-accent/15" : "border-edge hover:bg-ink/5"
       }`}
     >
       <span className={`mt-0.5 ${on ? "text-accent" : "text-dim"}`}>{icon}</span>
@@ -132,7 +132,7 @@ function Dialog({ req }: { req: TransferRequest }) {
                   const p = await pickLibraryFolder();
                   if (p) addExtra(p);
                 }}
-                className="flex items-center gap-1.5 rounded-md border border-edge bg-control px-2.5 py-1 text-xs hover:bg-white/12"
+                className="flex items-center gap-1.5 rounded-md border border-edge bg-control px-2.5 py-1 text-xs hover:bg-ink/12"
               >
                 <FolderOpen size={13} /> ほかのライブラリを選ぶ…
               </button>
@@ -144,7 +144,7 @@ function Dialog({ req }: { req: TransferRequest }) {
                     addExtra(lib.root);
                   }
                 }}
-                className="flex items-center gap-1.5 rounded-md border border-edge bg-control px-2.5 py-1 text-xs hover:bg-white/12"
+                className="flex items-center gap-1.5 rounded-md border border-edge bg-control px-2.5 py-1 text-xs hover:bg-ink/12"
               >
                 <Plus size={13} /> 新しいライブラリを作成…
               </button>
@@ -153,7 +153,7 @@ function Dialog({ req }: { req: TransferRequest }) {
         </div>
 
         <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-          <button onClick={close} className="rounded-md px-3 py-1.5 hover:bg-white/5">
+          <button onClick={close} className="rounded-md px-3 py-1.5 hover:bg-ink/5">
             キャンセル
           </button>
           <button

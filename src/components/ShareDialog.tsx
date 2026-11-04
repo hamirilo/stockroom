@@ -283,7 +283,7 @@ export function ShareSettings() {
                 <button
                   disabled={busy}
                   onClick={() => act(() => api.setFolderShare(s.folderId, false))}
-                  className="shrink-0 rounded px-2 py-0.5 text-xs text-dim hover:bg-white/5 hover:text-danger"
+                  className="shrink-0 rounded px-2 py-0.5 text-xs text-dim hover:bg-ink/5 hover:text-danger"
                 >
                   停止
                 </button>

@@ -133,7 +133,7 @@ export function ClaudeSettings() {
                   ) : (
                     <button
                       onClick={() => undoChanges([c.id], useStore.getState().library?.root)}
-                      className="flex h-6 shrink-0 items-center gap-1 rounded px-1.5 text-xs text-dim hover:bg-white/5 hover:text-fg"
+                      className="flex h-6 shrink-0 items-center gap-1 rounded px-1.5 text-xs text-dim hover:bg-ink/5 hover:text-fg"
                     >
                       <Undo2 size={12} /> 元に戻す
                     </button>
@@ -187,7 +187,7 @@ function CopyBlock({ text }: { text: string }) {
       </pre>
       <button
         onClick={() => copy(text)}
-        className="absolute top-1 right-1 flex h-7 items-center gap-1 rounded px-2 text-xs text-dim hover:bg-white/5 hover:text-fg"
+        className="absolute top-1 right-1 flex h-7 items-center gap-1 rounded px-2 text-xs text-dim hover:bg-ink/5 hover:text-fg"
         title="コピー"
       >
         <CopyLabel copied={copied} />

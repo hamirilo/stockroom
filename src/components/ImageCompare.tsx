@@ -119,7 +119,7 @@ export function ImageCompare() {
     w: Math.max(0, (box.w - GAP * (cols - 1)) / cols),
     h: Math.max(0, (box.h - GAP * (rows - 1)) / rows - CAPTION),
   };
-  const step = "flex h-6 w-5 shrink-0 items-center justify-center rounded text-dim hover:bg-white/8 hover:text-fg";
+  const step = "flex h-6 w-5 shrink-0 items-center justify-center rounded text-dim hover:bg-ink/8 hover:text-fg";
   const note =
     images.length > IMAGE_COMPARE_MAX
       ? `シェルフの先頭の ${IMAGE_COMPARE_MAX} 件を並べています`
@@ -133,7 +133,7 @@ export function ImageCompare() {
         <button
           onClick={() => setComparing(false)}
           title="一覧へ戻る（Esc）"
-          className="-ml-1 flex h-7 items-center gap-1.5 rounded-md px-2 hover:bg-white/5"
+          className="-ml-1 flex h-7 items-center gap-1.5 rounded-md px-2 hover:bg-ink/5"
         >
           <ArrowLeft size={14} /> 一覧へ戻る
         </button>

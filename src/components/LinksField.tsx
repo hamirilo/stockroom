@@ -56,7 +56,7 @@ export function LinksField({ ids, single }: { ids: string[]; single: Item | unde
           <div className="mb-1 text-[11px] text-dim">親</div>
           {parent ? (
             <button
-              className="flex w-full items-center gap-2 rounded-md bg-raised p-1 text-left hover:bg-white/10"
+              className="flex w-full items-center gap-2 rounded-md bg-raised p-1 text-left hover:bg-ink/10"
               onClick={() => useStore.getState().setSelection([parent.id])}
             >
               <Thumb item={parent} />
@@ -74,12 +74,12 @@ export function LinksField({ ids, single }: { ids: string[]; single: Item | unde
             {children.map((c) => (
               <button
                 key={c.id}
-                className="flex items-center gap-2 rounded-md bg-raised p-1 text-left hover:bg-white/10"
+                className="flex items-center gap-2 rounded-md bg-raised p-1 text-left hover:bg-ink/10"
                 onClick={() => showItem(c, single.id)}
               >
                 <Thumb item={c} />
                 <span className="min-w-0 flex-1 truncate text-xs">{c.name}</span>
-                {c.adopted && <Star size={12} fill="currentColor" className="shrink-0 text-amber-400" aria-label="採用" />}
+                {c.adopted && <Star size={12} fill="currentColor" className="shrink-0 text-amber-500 dark:text-amber-400" aria-label="採用" />}
               </button>
             ))}
           </div>

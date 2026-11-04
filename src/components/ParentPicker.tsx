@@ -109,7 +109,7 @@ function Dialog() {
               data-index={i}
               onMouseMove={() => setCursor(i)}
               onClick={() => commit(it)}
-              className={`flex h-12 w-full items-center gap-2.5 rounded-md px-2 text-left ${i === cursor ? "bg-white/8" : ""}`}
+              className={`flex h-12 w-full items-center gap-2.5 rounded-md px-2 text-left ${i === cursor ? "bg-ink/8" : ""}`}
             >
               <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded bg-raised">
                 <img src={convertFileSrc(it.thumbPath)} alt="" draggable={false} className="size-full object-contain" />

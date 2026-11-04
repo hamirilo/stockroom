@@ -158,7 +158,7 @@ export function TextView({ item }: { item: Item }) {
   const preview = content ? <Preview text={shown} ext={ext} /> : null;
 
   const seg = (on: boolean) =>
-    `rounded px-2.5 py-0.5 ${on ? "bg-white/15 text-white" : "text-white/60 hover:text-white"} disabled:cursor-default disabled:text-white/25`;
+    `rounded px-2.5 py-0.5 ${on ? "bg-ink/15 text-fg" : "text-ink/60 hover:text-fg"} disabled:cursor-default disabled:text-ink/25`;
   const reason = content?.truncated
     ? "大きすぎるため、先頭だけを表示しています（編集できません）"
     : content && !content.editable
@@ -167,8 +167,8 @@ export function TextView({ item }: { item: Item }) {
 
   return (
     <div ref={boxRef} className="absolute inset-0 flex flex-col">
-      <div className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-1.5 text-xs text-white/50">
-        <div className="flex items-center gap-0.5 rounded-md bg-white/5 p-0.5">
+      <div className="flex shrink-0 items-center gap-3 border-b border-ink/10 px-4 py-1.5 text-xs text-ink/50">
+        <div className="flex items-center gap-0.5 rounded-md bg-ink/5 p-0.5">
           <button className={seg(tab === "preview" || !editable)} onClick={() => setTab("preview")}>
             プレビュー
           </button>
@@ -194,7 +194,7 @@ export function TextView({ item }: { item: Item }) {
       </div>
       <div className="min-h-0 flex-1">
         {error ? (
-          <p className="mt-24 text-center text-sm text-white/60">読み込めませんでした：{error}</p>
+          <p className="mt-24 text-center text-sm text-ink/60">読み込めませんでした：{error}</p>
         ) : !content ? null : editing ? (
           <div className={`grid h-full ${markdown && wide ? "grid-cols-2" : "grid-cols-1"}`}>
             <textarea
@@ -205,9 +205,9 @@ export function TextView({ item }: { item: Item }) {
               onBlur={() => void save()}
               spellCheck={false}
               placeholder={markdown ? "# 見出し\n\n本文を書く…" : "本文を書く…"}
-              className="text-editor h-full w-full resize-none bg-[#151619] px-8 py-6 text-[14px] leading-relaxed text-white/90 outline-none placeholder:text-white/25"
+              className="text-editor h-full w-full resize-none bg-field px-8 py-6 text-[14px] leading-relaxed text-ink/90 outline-none placeholder:text-ink/25"
             />
-            {markdown && wide && <div className="h-full overflow-auto border-l border-white/10">{preview}</div>}
+            {markdown && wide && <div className="h-full overflow-auto border-l border-ink/10">{preview}</div>}
           </div>
         ) : (
           <div className="h-full overflow-auto">{preview}</div>
@@ -284,7 +284,7 @@ function Table({ text, sep }: { text: string; sep: "," | "\t" }) {
         </tbody>
       </table>
       {more && (
-        <p className="mt-3 text-xs text-white/50">先頭の {MAX_ROWS.toLocaleString()} 行まで表示しています</p>
+        <p className="mt-3 text-xs text-ink/50">先頭の {MAX_ROWS.toLocaleString()} 行まで表示しています</p>
       )}
     </div>
   );

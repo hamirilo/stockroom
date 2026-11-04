@@ -102,7 +102,7 @@ function Panel() {
           <button
             title={`閉じる（Esc / ${SHORTCUT_HELP_KEY}）`}
             onClick={() => setOpen(false)}
-            className="rounded-md p-1 text-dim hover:bg-white/10 hover:text-fg"
+            className="rounded-md p-1 text-dim hover:bg-ink/10 hover:text-fg"
           >
             <X size={16} />
           </button>

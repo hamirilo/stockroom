@@ -246,7 +246,7 @@ function Chip({
     <span className="flex max-w-full items-center gap-1 rounded-full bg-raised py-0.5 pr-1 pl-2.5 text-xs">
       {hex && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: hex }} />}
       <span className="truncate">{children}</span>
-      <button onClick={onRemove} className="rounded-full p-0.5 text-dim hover:bg-white/10 hover:text-fg">
+      <button onClick={onRemove} className="rounded-full p-0.5 text-dim hover:bg-ink/10 hover:text-fg">
         <X size={12} />
       </button>
     </span>
@@ -401,7 +401,7 @@ export function FlagButtons({ ids, items, compact }: { ids: string[]; items: Ite
       icon={<Layers size={14} />}
       label={tray ? "シェルフにあります" : "シェルフに追加"}
       hint={tray ? "シェルフから外す（キー B）" : "シェルフ（詳細パネルのタブ）に置いて、比べる・まとめて出力・書き出し（キー B）"}
-      activeClass="border-emerald-500/60 bg-emerald-500/15 text-emerald-400"
+      activeClass="border-emerald-500/60 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
       onClick={() => toggleTray(ids)}
     />
   );
@@ -414,7 +414,7 @@ export function FlagButtons({ ids, items, compact }: { ids: string[]; items: Ite
           icon={<Heart size={14} fill={fav ? "currentColor" : "none"} />}
           label={fav ? "お気に入り" : "お気に入りに追加"}
           hint="お気に入り（キー F）"
-          activeClass="border-pink-500/60 bg-pink-500/15 text-pink-400"
+          activeClass="border-pink-500/60 bg-pink-500/15 text-pink-600 dark:text-pink-400"
           onClick={() => toggleFavorite(ids, { quiet: true })}
         />
         <FlagButton

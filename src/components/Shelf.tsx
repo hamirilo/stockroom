@@ -70,7 +70,7 @@ export function Shelf() {
             onClick={clearTray}
             title="シェルフを空にする（中身はそのまま残ります）"
             aria-label="シェルフを空にする"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-dim enabled:hover:bg-white/10 enabled:hover:text-fg disabled:off"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-dim enabled:hover:bg-ink/10 enabled:hover:text-fg disabled:off"
           >
             <ListX size={15} />
           </button>
@@ -164,7 +164,7 @@ function Chip({ item }: { item: Item }) {
           { label: "シェルフから外す", onClick: () => removeFromShelf([item.id]) },
         ])
       }
-      className={`group relative flex h-10 shrink-0 cursor-default items-center gap-1.5 rounded-md border border-line bg-raised pr-1 pl-1.5 transition-opacity hover:border-white/20 ${
+      className={`group relative flex h-10 shrink-0 cursor-default items-center gap-1.5 rounded-md border border-line bg-raised pr-1 pl-1.5 transition-opacity hover:border-ink/20 ${
         dragged ? "opacity-40" : ""
       }`}
     >
@@ -181,7 +181,7 @@ function Chip({ item }: { item: Item }) {
         title="シェルフから外す"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => removeFromShelf([item.id])}
-        className="shrink-0 rounded p-0.5 text-dim hover:bg-white/10 hover:text-fg"
+        className="shrink-0 rounded p-0.5 text-dim hover:bg-ink/10 hover:text-fg"
       >
         <X size={12} />
       </button>
