@@ -1,6 +1,6 @@
 # 画像の比較：シェルフの画像を並べ、一緒に拡大して見比べる
 
-フォントのシェルフには比較ビュー（[FONT_UI.md](FONT_UI.md)）があるが、ストックのシェルフは書き出し・まとめて出力の前に集めておく場所でしかなかった。
+フォントのシェルフには比較ビューがあったが（フォントは今は別のアプリ。[FONT_APP.md](FONT_APP.md)）、ストックのシェルフは書き出し・まとめて出力の前に集めておく場所でしかなかった。
 「書き出しの設定違い」「似た写真のどれがよいか」のように、画像を並べて同じところを見比べたい。
 
 ## 決めたこと
@@ -27,5 +27,5 @@
 ## コード
 
 - `components/ImageCompare.tsx`：比較ビュー。`columnsFor` が列の数、`place` が枠の中の位置と大きさを決める
-- `components/Shelf.tsx`：「比較する」をモードに関わらず右端に置く
-- `store.ts`：`comparing` はフォント・ストックの両方で使う。`compareLook` / `zoomLook` / `COMPARE_ZOOM`
+- `components/Shelf.tsx`：「比較する」を右端に置く
+- `store.ts`：`comparing`、`compareLook` / `zoomLook` / `COMPARE_ZOOM`

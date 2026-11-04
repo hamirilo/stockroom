@@ -10,7 +10,7 @@ bun run tauri build    # 配布用ビルド（.dmg / -setup.exe。署名鍵が�
 ```
 
 - `bun run dev` でブラウザから開くと、Rust 側の代わりにインメモリのモック（`src/dev/mockBackend.ts`）で動く。UI だけ触りたいとき用（インポートは不可）。
-- 画像・フォント・ファイルの分け方（モード）と、共通基盤と種類ごとのコードの境界は [ARCHITECTURE.md](ARCHITECTURE.md) にまとめてある。
+- 種類の扱いと、共通基盤と種類ごとのコードの境界は [ARCHITECTURE.md](ARCHITECTURE.md) にまとめてある。
 - テスト用ライブラリの生成：`bun run seed /path/to/Test.library 10000`
   （1 万枚の取り込み 約 6 秒、検索+並び替えクエリ 約 6ms ／ Apple Silicon・release ビルド）
 - フォルダの共有の開発：`cargo run --manifest-path src-tauri/Cargo.toml --example shareserver -- /path/to/Test.library [フォルダ名]` でアプリなしに共有サーバーを起動し、表示された URL をブラウザで開く（ポートはアプリの 41640 ではなく 41650）。ページは `src-tauri/src/share.html` で、ビルドし直すと反映される
@@ -21,21 +21,18 @@ bun run tauri build    # 配布用ビルド（.dmg / -setup.exe。署名鍵が�
 ```
 src/                    React UI
   App.tsx               レイアウト、ファイルのドロップ・貼り付け
-  store.ts              zustand ストア（モード・表示条件・選択・再読込）
+  store.ts              zustand ストア（表示条件・選択・再読込）
   lib/api.ts            Rust コマンドの型付きラッパ（共通）
   lib/actions.ts        ダイアログを伴う操作（インポート・削除など）
   lib/layouts.ts        5 種類のレイアウト計算（位置を求めて仮想スクロール）
   lib/rule.ts           絞り込み条件の表示用ヘルパ
   components/           Sidebar / Toolbar / Grid / Inspector / Viewer ほか（共通の UI）
-  features/fonts/       フォント専用の UI と API（見本行・ビューア・詳細・サイドバーの絞り込み・フォントの読み込み）
   features/files/       ファイル（PDF・オフィス文書）のビューア
   dev/mockBackend.ts    ブラウザ開発用モック
 src-tauri/src/
   db.rs                 スキーマ・クエリ（＋テスト）
   import.rs             コピー・ハッシュ・サムネイル生成（rayon で並列）
   formats.rs            形式ごとのデコード（TIFF・SVG は Rust、HEIC・AVIF は OS）
-  fonts/mod.rs          フォント：WOFF / WOFF2 の展開、TTC から 1 書体を取り出す、名前・文字一覧、見本の描画
-  fonts/commands.rs     フォント専用のコマンド
   files/                ファイル：サムネイル（Quick Look / Windows.Data.Pdf / 中のプレビュー / 種類のカード）
   search.rs             検索構文のパーサ
   similar.rs            似ている画像の検出（dHash）
