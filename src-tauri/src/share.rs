@@ -53,19 +53,22 @@ pub struct Share {
 
 const SHARE_COLS: &str = "folder_id, token, download, created_at";
 
+/// Shares of folders that exist: not of the font mode's (see `db::NOT_FONT`).
+const OF_FOLDERS: &str = "folder_id IN (SELECT id FROM folders WHERE mode = 'stock')";
+
 fn row_to_share(r: &rusqlite::Row) -> DbResult<Share> {
     Ok(Share { folder_id: r.get(0)?, token: r.get(1)?, download: r.get(2)?, created_at: r.get(3)? })
 }
 
 /// Every shared folder, oldest first.
 pub fn list(conn: &Connection) -> DbResult<Vec<Share>> {
-    let mut stmt = conn.prepare(&format!("SELECT {SHARE_COLS} FROM shares ORDER BY created_at, folder_id"))?;
+    let mut stmt = conn.prepare(&format!("SELECT {SHARE_COLS} FROM shares WHERE {OF_FOLDERS} ORDER BY created_at, folder_id"))?;
     let rows = stmt.query_map([], row_to_share)?;
     rows.collect()
 }
 
 fn by_token(conn: &Connection, token: &str) -> DbResult<Option<Share>> {
-    conn.query_row(&format!("SELECT {SHARE_COLS} FROM shares WHERE token = ?1"), [token], row_to_share)
+    conn.query_row(&format!("SELECT {SHARE_COLS} FROM shares WHERE token = ?1 AND {OF_FOLDERS}"), [token], row_to_share)
         .optional()
 }
 
@@ -320,7 +323,7 @@ struct Scope {
 impl Scope {
     fn of(conn: &Connection, token: &str) -> DbResult<Option<Self>> {
         let Some(share) = by_token(conn, token)? else { return Ok(None) };
-        let folders = db::list_folders(conn, None)?;
+        let folders = db::list_folders(conn)?;
         let mut inside = HashSet::from([share.folder_id.clone()]);
         // Parents may come after their children in sidebar order: repeat until nothing is added.
         loop {
@@ -460,11 +463,6 @@ fn content_type(ext: &str) -> &'static str {
         "tif" | "tiff" => "image/tiff",
         "ico" => "image/x-icon",
         "pdf" => "application/pdf",
-        "ttf" => "font/ttf",
-        "otf" => "font/otf",
-        "woff" => "font/woff",
-        "woff2" => "font/woff2",
-        "ttc" | "otc" => "font/collection",
         _ => "application/octet-stream",
     }
 }
@@ -532,7 +530,6 @@ mod tests {
             thumb: format!("{id}.jpg"),
             phash: None,
             preview: None,
-            font: None,
             body: None,
             duration_ms: None,
         };
@@ -555,10 +552,10 @@ mod tests {
     fn setup() -> Setup {
         let tmp = tempfile::tempdir().unwrap();
         let mut lib = Library::create(&tmp.path().join("Share.library")).unwrap();
-        let parent = db::create_folder(&lib.conn, "親", None, db::Mode::Stock).unwrap();
-        let shared = db::create_folder(&lib.conn, "共有", Some(&parent), db::Mode::Stock).unwrap();
-        let sub = db::create_folder(&lib.conn, "下", Some(&shared), db::Mode::Stock).unwrap();
-        let beside = db::create_folder(&lib.conn, "隣", Some(&parent), db::Mode::Stock).unwrap();
+        let parent = db::create_folder(&lib.conn, "親", None).unwrap();
+        let shared = db::create_folder(&lib.conn, "共有", Some(&parent)).unwrap();
+        let sub = db::create_folder(&lib.conn, "下", Some(&shared)).unwrap();
+        let beside = db::create_folder(&lib.conn, "隣", Some(&parent)).unwrap();
         add(&mut lib, "in", &shared);
         add(&mut lib, "deep", &sub);
         add(&mut lib, "up", &parent);
@@ -625,7 +622,7 @@ mod tests {
         // Above and beside the shared folder: not there.
         let (status, _) = get_json(port, &format!("/s/{t}/api/folder?id={}", s.parent));
         assert_eq!(status, 404);
-        let side = db::list_folders(&s.host.0.lock().unwrap().as_ref().unwrap().conn, None)
+        let side = db::list_folders(&s.host.0.lock().unwrap().as_ref().unwrap().conn)
             .unwrap()
             .into_iter()
             .find(|f| f.name == "隣")
@@ -706,7 +703,7 @@ mod tests {
         let conn = &guard.as_ref().unwrap().conn;
         // Sharing again keeps the URL.
         assert_eq!(start(conn, &s.shared).unwrap().token, s.token);
-        assert!(db::list_folders(conn, None).unwrap().iter().any(|f| f.id == s.shared && f.shared));
+        assert!(db::list_folders(conn).unwrap().iter().any(|f| f.id == s.shared && f.shared));
         db::delete_folder(conn, &s.parent).unwrap();
         assert!(list(conn).unwrap().is_empty());
         // A folder that isn't there can't be shared.

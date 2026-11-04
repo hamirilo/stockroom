@@ -28,7 +28,7 @@ function holderOf(e: unknown): Holder | null {
 const when = (ms: number) =>
   new Date(ms).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
-/** The library's name from its folder ("/x/Fonts.library" → "Fonts"). */
+/** The library's name from its folder ("/x/Photos.library" → "Photos"). */
 const nameOf = (root: string) => root.split(/[\\/]/).filter(Boolean).pop()?.replace(/\.library$/, "") ?? root;
 
 /**

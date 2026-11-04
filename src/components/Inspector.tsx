@@ -23,7 +23,6 @@ import { listNoun } from "../store";
 import {
   api,
   formatBytes,
-  isSystemId,
   bitRateLabel,
   durationLabel,
   frameRateLabel,
@@ -35,8 +34,6 @@ import {
   type Tag,
   type VideoCodecs,
 } from "../lib/api";
-import { FontCategorySelect, FontDetails } from "../features/fonts/FontDetails";
-import { SystemFontPanel } from "../features/fonts/SystemFontPanel";
 import { VideoThumbField } from "../features/videos/VideoThumbField";
 import { useStore } from "../store";
 import { composing } from "../lib/ime";
@@ -178,15 +175,6 @@ function VideoCodecRows({ item }: { item: Item }) {
       <dt className="text-dim" title="ファイル全体（映像と音声）の平均">ビットレート</dt>
       <dd className="tabular-nums">{item.durationMs ? bitRateLabel(item.size, item.durationMs) : "不明"}</dd>
     </>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="mt-4">
-      <div className="mb-1.5 text-xs font-semibold text-dim">{label}</div>
-      {children}
-    </div>
   );
 }
 
@@ -451,20 +439,12 @@ export function Inspector() {
   const rev = useStore((s) => s.rev);
   const run = useStore((s) => s.run);
   const isTrash = useStore((s) => s.view.kind === "trash");
-  const stock = useStore((s) => s.mode === "stock");
   const noun = useStore(listNoun);
   const [info, setInfo] = useState<SelectionInfo>({ tags: [], folders: [] });
   const [adding, setAdding] = useState(false);
 
   const ids = useMemo(() => [...selected], [selected]);
-  // Installed fonts aren't library items: nothing to ask the library about them.
-  const system = ids.some(isSystemId);
   const single = ids.length === 1 ? items.find((i) => i.id === ids[0]) : undefined;
-  // With tag grouping an item can be listed more than once.
-  const selectedItems = useMemo(
-    () => [...new Map(items.filter((i) => selected.has(i.id)).map((i) => [i.id, i])).values()],
-    [items, selected],
-  );
   const renameSeq = useStore((s) => s.renameItemSeq);
   const linksOn = useStore((s) => s.librarySettings.links);
   const rawItems = useStore((s) => s.rawItems);
@@ -488,12 +468,12 @@ export function Inspector() {
   useEffect(() => {
     let live = true;
     setAdding(false);
-    if (!ids.length || system) return setInfo({ tags: [], folders: [] });
+    if (!ids.length) return setInfo({ tags: [], folders: [] });
     api.selectionInfo(ids).then((i) => live && setInfo(i));
     return () => {
       live = false;
     };
-  }, [ids, rev, system]);
+  }, [ids, rev]);
 
   const tagIds = useMemo(() => new Set(info.tags.map((t) => t.id)), [info.tags]);
 
@@ -504,13 +484,6 @@ export function Inspector() {
   }
 
   const n = ids.length;
-  if (system) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-        <SystemFontPanel single={single} ids={ids} />
-      </div>
-    );
-  }
   const countSuffix = (c: number) => (n > 1 && c < n ? ` (${c}/${n})` : "");
   const unusedFolders = folders.filter((f) => !info.folders.some((x) => x.id === f.id && x.count === n));
 
@@ -574,12 +547,6 @@ export function Inspector() {
           <div className="text-2xl font-semibold tabular-nums">{n}</div>
           <div className="text-dim">件を選択中</div>
         </div>
-      )}
-
-      {!single && selectedItems.length > 0 && selectedItems.every((i) => i.kind === "font") && (
-        <Field label="書体">
-          <FontCategorySelect fonts={selectedItems} />
-        </Field>
       )}
 
       {/* Rating and the flags are one row, icons only (the tooltip says which). */}
@@ -651,8 +618,8 @@ export function Inspector() {
           )}
         </Section>
 
-        {/* Stock only (fonts have families); not in the trash. */}
-        {!isTrash && stock && (
+        {/* Not in the trash. */}
+        {!isTrash && (
           <Section id="links" title="紐づけ" summary={linksSummary}>
             <LinksField ids={ids} single={single} />
           </Section>
@@ -683,8 +650,6 @@ export function Inspector() {
             id="file"
             title="ファイル情報"
             summary={new Date(single.importedAt).toLocaleDateString("ja-JP")}
-            // A font's details (family, weight …) are what it is: open until the user closes them.
-            defaultOpen={single.kind === "font"}
           >
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
               <dt className="text-dim">{single.kind === "image" || single.kind === "video" ? "サイズ" : "種類"}</dt>
@@ -704,7 +669,6 @@ export function Inspector() {
                 </>
               )}
               {single.kind === "video" && <VideoCodecRows item={single} />}
-              {single.kind === "font" && <FontDetails item={single} />}
               <dt className="text-dim">追加日</dt>
               <dd>{new Date(single.importedAt).toLocaleString("ja-JP")}</dd>
             </dl>

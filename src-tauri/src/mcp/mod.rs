@@ -37,7 +37,7 @@ const MAX_BATCH: usize = 20;
 const PROTOCOL_VERSIONS: [&str; 4] = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
 /// What Claude is told about the server when it connects.
-const INSTRUCTIONS: &str = "Stockroom（画像・フォント・ファイル・テキストを管理するデスクトップアプリ）のライブラリを整理するためのツールです。\
+const INSTRUCTIONS: &str = "Stockroom（画像・ファイル・テキスト・動画・ブックマークを管理するデスクトップアプリ）のライブラリを整理するためのツールです。\
 対象はアプリでいま開いているライブラリです。\n\
 - まず library_info / list_folders / list_tags で全体を把握し、find_items で対象を探してください。\
 find_items は 1 件 1 行で、先頭の 8 文字の id を書き込みのツールにそのまま渡せます。\n\
@@ -298,7 +298,7 @@ mod tests {
         assert_eq!((status, &res["result"]["isError"]), (200, &json!(false)), "{res}");
         assert_eq!(host.changes.load(Ordering::Relaxed), 1);
         let g = host.lib.lock().unwrap();
-        assert_eq!(db::list_tags(&g.as_ref().unwrap().conn, None).unwrap()[0].count, 1);
+        assert_eq!(db::list_tags(&g.as_ref().unwrap().conn).unwrap()[0].count, 1);
     }
 
     #[test]

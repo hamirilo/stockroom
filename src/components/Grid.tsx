@@ -17,12 +17,10 @@ import {
 } from "../lib/actions";
 import { command, isEnabled, runKey } from "../lib/commands";
 import { applicable, commandIcon, commandItem } from "../lib/menuItems";
-import { FontTile, SpecimenRow } from "../features/fonts/FontRows";
-import { api, durationLabel, formatBytes, isSystemId, sizeLabel, urlLabel, type Item, type ItemKind } from "../lib/api";
-import { fontApi } from "../features/fonts/api";
-import { itemsNoun, kindsNoun } from "../lib/modes";
+import { api, durationLabel, formatBytes, sizeLabel, urlLabel, type Item, type ItemKind } from "../lib/api";
+import { itemsNoun, kindsNoun } from "../lib/kinds";
 import { colorHex } from "../lib/colors";
-import { rowIds, type Section } from "../lib/grouping";
+import type { Section } from "../lib/grouping";
 import {
   computeLayout,
   GAP,
@@ -54,7 +52,7 @@ function focusIndex(s: { items: Item[]; focus: string | null }): number {
   return s.items.findIndex((i) => i.id === s.focus);
 }
 
-export function onItemPointerDown(e: React.PointerEvent, item: Item, index: number) {
+function onItemPointerDown(e: React.PointerEvent, item: Item, index: number) {
   if (e.button !== 0) return;
   e.stopPropagation();
   focusAt = index;
@@ -63,8 +61,6 @@ export function onItemPointerDown(e: React.PointerEvent, item: Item, index: numb
   if (e.shiftKey) s.select(item.id, "range", index);
   else if (mod) s.select(item.id, "toggle", index);
   else if (!s.selected.has(item.id)) s.select(item.id, "only", index);
-  // The installed fonts are dragged to the shelf only, not to folders or out of
-  // the app as files (DragLayer.tsx, docs/SYSTEM_FONTS.md).
   startPointerDrag(
     e,
     () => ({ kind: "items", ids: [...useStore.getState().selected] }),
@@ -165,12 +161,11 @@ function LinkMark({ item, inline = false }: { item: Item; inline?: boolean }) {
 
 /**
  * What a row needs to be dropped onto for linking (docs/LINKS.md): `link` is its id when the
- * dragged items can be linked to it (links on, the stock, not a child), `over` while one is over it.
+ * dragged items can be linked to it (links on, not a child), `over` while one is over it.
  */
 function useLinkDrop(item: Item) {
   const link = useStore((s) =>
     s.librarySettings.links &&
-    s.mode === "stock" &&
     s.view.kind !== "trash" &&
     s.view.kind !== "similar" &&
     !item.parentId &&
@@ -182,7 +177,7 @@ function useLinkDrop(item: Item) {
   return { link, over };
 }
 
-export type CellProps = {
+type CellProps = {
   item: Item;
   index: number;
   selected: boolean;
@@ -386,11 +381,11 @@ const Cell = memo(function Cell({
 });
 
 /**
- * Selection of a row (list, specimen): a tint plus an accent bar on the left,
+ * Selection of a list row: a tint plus an accent bar on the left,
  * so it shows even where the row's own content is blue; the keyboard position
  * gets a light outline.
  */
-export const rowSelection = (selected: boolean, focused: boolean) =>
+const rowSelection = (selected: boolean, focused: boolean) =>
   `${
     selected
       ? "bg-accent/25 text-white before:absolute before:inset-y-1 before:left-0 before:w-[3px] before:rounded-full before:bg-accent"
@@ -482,7 +477,7 @@ const ListRow = memo(function ListRow({
   );
 });
 
-export function Stars({ n, size = 9 }: { n: number; size?: number }) {
+function Stars({ n, size = 9 }: { n: number; size?: number }) {
   return (
     <span className="flex text-amber-400" title={`★${n}`}>
       {Array.from({ length: n }, (_, i) => (
@@ -504,20 +499,6 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
       ...header,
       { label: "復元", onClick: () => s.run(() => api.restoreItems(ids)) },
       commandItem("item.trash", { label: "完全に削除", danger: true }),
-    ]);
-    return;
-  }
-  if (ids.some(isSystemId)) {
-    // Installed fonts: looked at only (docs/SYSTEM_FONTS.md).
-    useMenu.getState().show(e, [
-      ...header,
-      commandItem("item.show", { onClick: () => s.openViewer(index) }),
-      commandItem("item.reveal", { onClick: () => s.run(() => fontApi.revealSystem(item.id)) }),
-      commandItem("item.tray"),
-      { separator: true },
-      {
-        header: "この端末のフォントは読み取り専用です。評価・タグ・フォルダはライブラリのフォントだけに使えます",
-      },
     ]);
     return;
   }
@@ -574,17 +555,13 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
           },
         ]
       : []),
-    // Stock only; with links off the rows stay, greyed, and say why (docs/UI.md).
-    ...(s.mode === "stock"
-      ? [
-          {
-            label: "紐づけ",
-            submenu: s.librarySettings.links
-              ? [commandItem("item.link"), commandItem("item.unlink"), commandItem("item.makeParent"), commandItem("item.adopt")]
-              : [{ label: "親子関係が無効です（設定で有効にできます）", onClick: () => {}, disabled: true }],
-          },
-        ]
-      : []),
+    // With links off the rows stay, greyed, and say why (docs/UI.md).
+    {
+      label: "紐づけ",
+      submenu: s.librarySettings.links
+        ? [commandItem("item.link"), commandItem("item.unlink"), commandItem("item.makeParent"), commandItem("item.adopt")]
+        : [{ label: "親子関係が無効です（設定で有効にできます）", onClick: () => {}, disabled: true }],
+    },
     { separator: true },
     commandItem("item.trash", { danger: true }),
   ]);
@@ -599,11 +576,7 @@ export function Grid() {
   // Marked only where it tells something: beside other selected items, or unselected.
   const focus = useStore((s) => (s.focus && (s.selected.size > 1 || !s.selected.has(s.focus)) ? s.focus : null));
   const thumbSize = useStore((s) => s.thumbSize);
-  const specimenSize = useStore((s) => s.specimenSize);
-  const tileSize = useStore((s) => s.tileSize);
   const kind = useStore((s) => s.layout);
-  // The font mode's grid draws each family in its font (FontTile), sized on the specimen text row.
-  const fontTiles = useStore((s) => s.mode === "font" && s.layout === "grid");
   const groupBy = useStore((s) => s.groupBy);
   const showInfo = useStore((s) => s.showInfo);
   const viewKind = useStore((s) => s.view.kind);
@@ -648,16 +621,9 @@ export function Grid() {
   const placement = useMemo<Placement>(
     () =>
       inner > 0
-        ? computeLayout(
-            kind,
-            items,
-            inner,
-            kind === "specimen" ? specimenSize : fontTiles ? tileSize : thumbSize,
-            info,
-            sections,
-          )
+        ? computeLayout(kind, items, inner, thumbSize, info, sections)
         : { boxes: [], headers: [], height: 0, label: 0, fit: "cover" },
-    [kind, items, inner, thumbSize, specimenSize, tileSize, fontTiles, info, sections],
+    [kind, items, inner, thumbSize, info, sections],
   );
   const visible = useMemo(
     () => visibleRange(placement, viewport.top - OVERSCAN, viewport.top + viewport.height + OVERSCAN),
@@ -696,7 +662,7 @@ export function Grid() {
     if (i >= 0) reveal(i);
   }, [kind, groupBy]);
 
-  /** Ids of cells intersecting a rectangle in content coordinates (a family row: all its fonts). */
+  /** Ids of cells intersecting a rectangle in content coordinates. */
   const hitTest = (r: Rect): string[] => {
     const { placement, items } = layout.current;
     const top = Math.min(r.y1, r.y2);
@@ -706,7 +672,7 @@ export function Grid() {
     const hits: string[] = [];
     placement.boxes.forEach((b, i) => {
       if (b.x <= right && b.x + b.w >= left && b.y <= bottom && b.y + b.h + placement.label >= top) {
-        hits.push(...rowIds([items[i]]));
+        hits.push(items[i].id);
       }
     });
     return hits;
@@ -737,7 +703,7 @@ export function Grid() {
       setMarquee(r);
       const hits = new Set(hitTest(r));
       // In list order, so the keyboard goes on from the last one.
-      const ids = new Set([...base, ...rowIds(layout.current.items).filter((id) => hits.has(id))]);
+      const ids = new Set([...base, ...layout.current.items.map((i) => i.id).filter((id) => hits.has(id))]);
       useStore.getState().setSelection([...ids]);
     };
     // Scroll while the pointer is held near the top/bottom edge.
@@ -831,7 +797,7 @@ export function Grid() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const Comp = kind === "list" ? ListRow : kind === "specimen" ? SpecimenRow : fontTiles ? FontTile : Cell;
+  const Comp = kind === "list" ? ListRow : Cell;
   // The section being read: the last one whose band has reached the top.
   const current = Math.max(0, placement.headers.filter((h) => h.y - PAD <= viewport.top + 4).length - 1);
   const jump = (n: number) => {
@@ -906,7 +872,7 @@ export function Grid() {
                           match: Math.round((1 - (item.distance ?? 0) / 64) * 100),
                         }
                   }
-                  flags={viewKind !== "similar" && viewKind !== "trash" && viewKind !== "system"}
+                  flags={viewKind !== "similar" && viewKind !== "trash"}
                 />
               </div>
             );
@@ -1033,7 +999,7 @@ function SectionHeader({ items, section }: { items: Item[]; section: Section }) 
       className={`flex cursor-default items-center gap-2 text-xs ${start > 0 ? "border-t border-line" : ""}`}
       style={{ height: HEADER - 8, marginLeft: PAD, marginRight: PAD, marginBottom: 8 }}
       onPointerDown={(e) => e.stopPropagation()}
-      onClick={() => useStore.getState().setSelection(rowIds(items.slice(start, end)))}
+      onClick={() => useStore.getState().setSelection(items.slice(start, end).map((i) => i.id))}
       title="クリックでこの区切りをすべて選択"
     >
       {rating !== undefined && rating > 0 ? <Stars n={rating} size={12} /> : null}
@@ -1094,8 +1060,7 @@ function Empty({
   filtering: boolean;
   analyzing: boolean;
 }) {
-  const systemCount = useStore((s) => s.systemCount);
-  const ranged = useStore((s) => s.mode === "stock" && s.filter.kinds.length > 0);
+  const ranged = useStore((s) => s.filter.kinds.length > 0);
   const noun = kindsNoun(kinds);
   const only = kinds.length === 1 ? kinds[0] : null;
   if (kind === "trash") return <p className="mt-24 text-center text-dim">ゴミ箱は空です</p>;
@@ -1130,14 +1095,6 @@ function Empty({
         </button>
       </div>
     );
-  if (kind === "system")
-    return (
-      <p className="mt-24 text-center text-dim">
-        {systemCount === null
-          ? "この端末のフォントを読み込んでいます…（初めてのときは時間がかかります）"
-          : "この端末のフォントは見つかりませんでした"}
-      </p>
-    );
   if (kind === "unfiled" || kind === "untagged")
     return <p className="mt-24 text-center text-dim">該当する{noun}はありません</p>;
   if (kind === "favorites")
@@ -1164,19 +1121,17 @@ function Empty({
     <div className="mt-24 flex flex-col items-center gap-3 text-dim">
       <ImagePlus size={40} strokeWidth={1.25} />
       <p>
-        {only === "font"
-          ? "フォントファイルやフォルダをここにドラッグ&ドロップ"
-          : only === "file"
-            ? "PDF・オフィス文書やフォルダをここにドラッグ&ドロップ"
-            : only === "text"
-              ? `Markdown・テキスト・CSV やフォルダをここにドラッグ&ドロップ、または ${comboText("Mod+N")} で新しく作る`
+        {only === "file"
+          ? "PDF・オフィス文書やフォルダをここにドラッグ&ドロップ"
+          : only === "text"
+            ? `Markdown・テキスト・CSV やフォルダをここにドラッグ&ドロップ、または ${comboText("Mod+N")} で新しく作る`
             : only === "video"
               ? "動画（MP4・MOV・WebM）やフォルダをここにドラッグ&ドロップ"
-            : only === "bookmark"
-              ? "ブラウザ拡張で保存するか、URL をクリップボードから貼り付け"
-            : only === "image"
-              ? "画像やフォルダをここにドラッグ&ドロップ、またはクリップボードから貼り付け"
-              : "ファイルやフォルダをここにドラッグ&ドロップ、またはクリップボードから貼り付け"}
+              : only === "bookmark"
+                ? "ブラウザ拡張で保存するか、URL をクリップボードから貼り付け"
+                : only === "image"
+                  ? "画像やフォルダをここにドラッグ&ドロップ、またはクリップボードから貼り付け"
+                  : "ファイルやフォルダをここにドラッグ&ドロップ、またはクリップボードから貼り付け"}
       </p>
       <button
         onPointerDown={(e) => e.stopPropagation()}

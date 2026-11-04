@@ -47,42 +47,25 @@ export interface AppSettings {
   /** At launch: open the last library, or show the list to choose from. */
   startup: "last" | "choose";
   autoUpdate: boolean;
-  /** Sidebar entries hidden per mode, for libraries that follow the app's sidebar. */
-  sidebarHidden: Partial<Record<Mode, string[]>>;
+  /**
+   * Sidebar entries hidden, for libraries that follow the app's sidebar. Kept
+   * under `stock` (`{ stock: [...] }`) as earlier versions read it; their
+   * `font` entry is ignored (docs/FONT_APP.md).
+   */
+  sidebarHidden: { stock?: string[] };
 }
 
 /**
- * What a file is. Fonts have no pixel size (0 × 0) and a rendered sample as the thumbnail;
- * files (PDF, office documents) are 0 × 0 too, with a thumbnail from the OS or the file;
+ * What a file is. Files (PDF, office documents) are 0 × 0 too, with a thumbnail from the OS or the file;
  * texts (Markdown, plain text, CSV) are 0 × 0, can be edited in the app and searched by their body (docs/TEXT.md);
  * videos have their picture size and a length (`durationMs`), a frame as the thumbnail and play in the viewer (docs/VIDEO.md);
  * bookmarks are a URL (`sourceUrl`) with the page's title as the name, 0 × 0, an eyecatch or a card as the thumbnail (docs/BOOKMARKS.md).
  */
-export type ItemKind = "image" | "font" | "file" | "text" | "video" | "bookmark";
-
-/**
- * What the app shows (docs/MODES.md): the stock (images and files) or the
- * fonts. Folders, tags and smart folders belong to one (src-tauri/src/db.rs `Mode`).
- */
-export type Mode = "stock" | "font";
-
-/** The mode an item of `kind` belongs to. */
-export const modeOf = (kind: ItemKind): Mode => (kind === "font" ? "font" : "stock");
-
-/**
- * Ids of the fonts installed on this computer (docs/SYSTEM_FONTS.md) start
- * with this: they are listed in the font mode but are not library items, so
- * nothing that changes items may be asked of them (src-tauri/src/fonts/system.rs).
- */
-export const SYSTEM_ID_PREFIX = "sys:";
-export const isSystemId = (id: string) => id.startsWith(SYSTEM_ID_PREFIX);
-/** The ids that are library items (installed fonts left out). */
-export const libraryIds = (ids: string[]) => ids.filter((id) => !isSystemId(id));
+export type ItemKind = "image" | "file" | "text" | "video" | "bookmark";
 
 /** Kinds in the order the sidebar lists them. */
 export const KINDS: { kind: ItemKind; label: string }[] = [
   { kind: "image", label: "画像" },
-  { kind: "font", label: "フォント" },
   { kind: "file", label: "ファイル" },
   { kind: "text", label: "テキスト" },
   { kind: "video", label: "動画" },
@@ -90,9 +73,6 @@ export const KINDS: { kind: ItemKind; label: string }[] = [
 ];
 
 export const kindLabel = (k: ItemKind) => KINDS.find((x) => x.kind === k)?.label ?? k;
-
-/** File types imported as fonts (src-tauri/src/formats.rs `is_font`). */
-export const FONT_EXTS = ["ttf", "otf", "woff", "woff2", "ttc", "otc"];
 
 /** File types imported as files (src-tauri/src/files/mod.rs `EXTS`). */
 export const FILE_EXTS = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key"];
@@ -107,8 +87,6 @@ export const VIDEO_EXTS = ["mp4", "m4v", "mov", "webm"];
 export const kindOfExt = (ext: string): ItemKind =>
   ext === "url"
     ? "bookmark"
-    : FONT_EXTS.includes(ext)
-    ? "font"
     : FILE_EXTS.includes(ext)
       ? "file"
       : TEXT_EXTS.includes(ext)
@@ -158,52 +136,6 @@ export function fileTypeLabel(ext: string): string {
   return "ファイル";
 }
 
-/** Writing systems fonts are filed under (src-tauri/src/fonts.rs `SCRIPTS`). */
-export const FONT_SCRIPTS: { key: string; label: string }[] = [
-  { key: "ja", label: "日本語" },
-  { key: "latin", label: "欧文" },
-  { key: "zh", label: "中国語" },
-  { key: "ko", label: "韓国語" },
-  { key: "other", label: "その他" },
-];
-
-/** Typeface styles (fonts.rs `CATEGORIES`); "none" = not known. */
-export const FONT_CATEGORIES: { key: string; label: string }[] = [
-  { key: "mincho", label: "明朝・セリフ" },
-  { key: "gothic", label: "ゴシック・サンセリフ" },
-  { key: "maru", label: "丸ゴシック" },
-  { key: "slab", label: "スラブセリフ" },
-  { key: "brush", label: "筆書体" },
-  { key: "hand", label: "手書き" },
-  { key: "display", label: "デザイン" },
-  { key: "none", label: "未分類" },
-];
-
-/** Weight ranges (db.rs `FONT_WEIGHTS`); a variable font is in every range its wght axis spans. */
-export const FONT_WEIGHTS: { key: string; label: string; names: string; range: string }[] = [
-  { key: "light", label: "細い", names: "Thin–Light", range: "〜399" },
-  { key: "regular", label: "標準", names: "Regular–Medium", range: "400〜549" },
-  { key: "bold", label: "太い", names: "SemiBold–Bold", range: "550〜749" },
-  { key: "black", label: "極太", names: "ExtraBold–Black", range: "750〜" },
-];
-
-/** Features a font has any number of (fonts.rs `FEATURES`). */
-export const FONT_FEATURES: { key: string; label: string }[] = [
-  { key: "mono", label: "等幅" },
-  { key: "coding", label: "プログラミング向け" },
-  { key: "variable", label: "可変フォント" },
-  { key: "italic", label: "イタリック・斜体" },
-];
-
-export const fontScriptLabel = (k: string) => FONT_SCRIPTS.find((x) => x.key === k)?.label ?? k;
-export const fontCategoryLabel = (k: string) => FONT_CATEGORIES.find((x) => x.key === k)?.label ?? k;
-export const fontWeightLabel = (k: string) => FONT_WEIGHTS.find((x) => x.key === k)?.label ?? k;
-export const fontFeatureLabel = (k: string) => FONT_FEATURES.find((x) => x.key === k)?.label ?? k;
-
-/** A font's typeface style: the user's choice, else the guess, else "none". */
-export const fontCategoryOf = (item: Pick<Item, "fontCategory" | "fontCategoryUser">) =>
-  item.fontCategoryUser ?? item.fontCategory ?? "none";
-
 export interface VideoCodecs {
   video: string | null;
   audio: string | null;
@@ -239,32 +171,8 @@ export interface Item {
   tagIds: number[];
   /** The web page the item was saved from with the browser extension. */
   sourceUrl: string | null;
-  /** Fonts: family shared by its styles (null until read) and weight 100-900. */
-  fontFamily: string | null;
-  fontWeight: number | null;
-  /** Fonts: writing system (see FONT_SCRIPTS), null until read. */
-  fontScript: string | null;
-  /** Fonts: typeface style guessed from the font (null = can't tell) and the user's correction. */
-  fontCategory: string | null;
-  fontCategoryUser: string | null;
-  /** Fonts: features (see FONT_FEATURES), empty until read. */
-  fontFeatures: string[];
-  /** Fonts: PostScript name of the first font (null until read, or when it has none). */
-  fontPsName: string | null;
   /** Videos: the length in milliseconds (null = not known). */
   durationMs: number | null;
-  /**
-   * An installed font on the font shelf that this computer doesn't have (the
-   * library was put together on another one): only its name is known (docs/SYSTEM_FONTS.md).
-   */
-  unavailable?: boolean;
-  /**
-   * Font mode only: the row stands for a whole family; every font of it (the
-   * row's own id first). Operations on the row reach them all.
-   */
-  familyIds?: string[];
-  /** Font mode only: a style shown under its family's opened row (▸), indented. */
-  familyMember?: boolean;
   /** On the shelf (シェルフ; the `tray` table). */
   inTray: boolean;
   /** The item this one is linked to as a child (docs/LINKS.md); null = not a child. */
@@ -300,7 +208,6 @@ export function bitRateLabel(bytes: number, durationMs: number): string {
 
 /** "1200 × 800", or the kind for items without a pixel size. */
 export function sizeLabel(item: Pick<Item, "kind" | "width" | "height" | "ext">): string {
-  if (item.kind === "font") return "フォント";
   if (item.kind === "file") return fileTypeLabel(item.ext);
   if (item.kind === "text") return textTypeLabel(item.ext);
   if (item.kind === "video" && !item.width) return "動画";
@@ -335,28 +242,17 @@ export type View =
   | { kind: "folder"; id: string }
   | { kind: "smart"; id: string }
   /** Items carrying a tag: the sidebar's tags are places like folders (docs/NAVIGATION.md). */
-  | { kind: "tag"; id: number }
-  /**
-   * Font mode: the fonts installed on this computer, read only and not in the
-   * library (docs/SYSTEM_FONTS.md). Never sent to Rust: features/fonts/system.ts lists them.
-   */
-  | { kind: "system" };
+  | { kind: "tag"; id: number };
 
 export type Shape = "landscape" | "portrait" | "square";
 
 /** Attribute filters (the filter bar). Empty / null = no restriction. */
 export interface Filter {
   /**
-   * Any of these kinds (empty = every kind): the kind filter of "すべて", or
-   * the font mode's own (`queryKinds` in lib/modes.ts). In a smart folder's rule, the
-   * kinds picked when it was saved.
+   * Any of these kinds (empty = every kind): the sidebar's range (`queryKinds`
+   * in lib/kinds.ts). In a smart folder's rule, the kinds picked when it was saved.
    */
   kinds: ItemKind[];
-  /** Fonts of any of these writing systems / styles / weight ranges / features (the font mode's sidebar). */
-  fontScripts: string[];
-  fontCategories: string[];
-  fontWeights: string[];
-  fontFeatures: string[];
   exts: string[];
   shapes: Shape[];
   minWidth: number | null;
@@ -378,10 +274,6 @@ export interface Filter {
 
 export const EMPTY_FILTER: Filter = {
   kinds: [],
-  fontScripts: [],
-  fontCategories: [],
-  fontWeights: [],
-  fontFeatures: [],
   exts: [],
   shapes: [],
   minWidth: null,
@@ -414,7 +306,6 @@ export interface SmartFolder {
   /** `count` by kind (docs/KINDS.md). */
   byKind: KindCounts;
   color: string | null;
-  mode: Mode;
 }
 
 /** How alike images must be to count as duplicates: strict, standard, loose. */
@@ -467,10 +358,6 @@ export interface Facets {
   exts: [string, number][];
   /** Images by shape. */
   shapes: Partial<Record<Shape, number>>;
-  fontScripts: Record<string, number>;
-  fontCategories: Record<string, number>;
-  fontWeights: Record<string, number>;
-  fontFeatures: Record<string, number>;
   /** Items with children. */
   parents: number;
   children: number;
@@ -500,16 +387,10 @@ export interface Counts {
   pinned: number;
   /** Items on the shelf (not in the trash). */
   tray: number;
-  /** Items not in the trash, by kind, whatever kind was asked for (the mode switch). */
+  /** Items not in the trash, by kind. */
   kinds: Partial<Record<ItemKind, number>>;
-  /** The places above (of the mode asked for), each by kind: the sidebar's counts for the kinds picked (docs/KINDS.md). */
+  /** The places above, each by kind: the sidebar's counts for the kinds picked (docs/KINDS.md). */
   byKind: PlaceKinds;
-  /** Fonts not in the trash by writing system and by style ("none" = unknown). */
-  fontScripts: Record<string, number>;
-  fontCategories: Record<string, number>;
-  /** ... by weight range (a variable font under every range it spans) and by feature. */
-  fontWeights: Record<string, number>;
-  fontFeatures: Record<string, number>;
 }
 
 export interface Folder {
@@ -523,10 +404,8 @@ export interface Folder {
   color: string | null;
   /** Shared on the local network (src-tauri/src/share.rs). */
   shared: boolean;
-  mode: Mode;
 }
 
-/** A tag of one mode; the other mode may have one of the same name. */
 export interface Tag {
   id: number;
   name: string;
@@ -534,7 +413,6 @@ export interface Tag {
   /** `count` by kind (docs/KINDS.md); empty where not counted (a selection's tags). */
   byKind: KindCounts;
   color: string | null;
-  mode: Mode;
 }
 
 export interface SelectionInfo {
@@ -647,10 +525,9 @@ export const api = {
     }),
 
   queryItems: (query: ItemQuery) => invoke<Item[]>("query_items", { query }),
-  /** Totals for the sidebar; with `kind`, of that kind only (`kinds` always has every kind). */
-  /** Counts of the items of `mode` (`kinds` is always of every kind). */
   facetCounts: (query: ItemQuery) => invoke<Facets>("facet_counts", { query }),
-  getCounts: (mode?: Mode) => invoke<Counts>("get_counts", { mode: mode ?? null }),
+  /** Totals for the sidebar. */
+  getCounts: () => invoke<Counts>("get_counts"),
   selectionInfo: (ids: string[]) => invoke<SelectionInfo>("selection_info", { ids }),
   setNote: (id: string, note: string) => invoke<void>("set_note", { id, note }),
   renameItem: (id: string, name: string) => invoke<void>("rename_item", { id, name }),
@@ -677,10 +554,9 @@ export const api = {
     invoke<number>("export_items", { ids, dest, subdirs: subdirs ?? null }),
   /**
    * Every item not in the trash into a new "<library name>" folder in `dest`,
-   * in "<mode>/<folders>/…" (`labels` names the modes' folders). Reports "export-progress".
+   * in "<folders>/…" (unfiled items at its top). Reports "export-progress".
    */
-  exportLibrary: (dest: string, labels: Record<Mode, string>) =>
-    invoke<LibraryExport>("export_library", { dest, labels }),
+  exportLibrary: (dest: string) => invoke<LibraryExport>("export_library", { dest }),
   /** Stops `exportLibrary` after the file it is copying. */
   cancelExport: () => invoke<void>("cancel_export"),
 
@@ -747,19 +623,13 @@ export const api = {
   resolveDuplicates: (groups: { keep: string; remove: string[] }[]) =>
     invoke<DuplicateEffect[]>("resolve_duplicates", { groups }),
 
-  /** The folders of `mode` (every folder when not given). */
-  listFolders: (mode?: Mode) => invoke<Folder[]>("list_folders", { mode: mode ?? null }),
-  /** A subfolder is of its parent's mode, whatever `mode` says. */
-  createFolder: (name: string, parentId: string | null, mode: Mode) =>
-    invoke<string>("create_folder", { name, parentId, mode }),
+  listFolders: () => invoke<Folder[]>("list_folders"),
+  createFolder: (name: string, parentId: string | null) => invoke<string>("create_folder", { name, parentId }),
   renameFolder: (id: string, name: string) => invoke<void>("rename_folder", { id, name }),
   deleteFolder: (id: string) => invoke<void>("delete_folder", { id }),
   moveFolder: (id: string, parentId: string | null) =>
     invoke<boolean>("move_folder", { id, parentId }),
-  /**
-   * An item is in one folder at most: this takes it out of the one it was in.
-   * Items of the other mode than the folder's are left alone.
-   */
+  /** An item is in one folder at most: this takes it out of the one it was in. */
   moveToFolder: (ids: string[], folderId: string) => invoke<void>("move_to_folder", { ids, folderId }),
   /** Parent–child links (docs/LINKS.md). Each returns where the children stood, for `restoreLinks`. */
   linkItems: (parentId: string, ids: string[]) => invoke<LinkPlacement[]>("link_items", { parentId, ids }),
@@ -778,21 +648,19 @@ export const api = {
     invoke<boolean>("place_folder", { id, parentId, before }),
   /** -1 / +1 = up / down one; very large values move to the top / bottom. */
   shiftFolder: (id: string, by: number) => invoke<void>("shift_folder", { id, by }),
-  /** `parentId` null: the top level of `mode`. */
-  sortFoldersByName: (parentId: string | null, mode: Mode) =>
-    invoke<void>("sort_folders_by_name", { parentId, mode }),
-  listSmartFolders: (mode?: Mode) => invoke<SmartFolder[]>("list_smart_folders", { mode: mode ?? null }),
-  createSmartFolder: (name: string, rule: Rule, mode: Mode) =>
-    invoke<string>("create_smart_folder", { name, rule, mode }),
+  /** `parentId` null: the top level. */
+  sortFoldersByName: (parentId: string | null) => invoke<void>("sort_folders_by_name", { parentId }),
+  listSmartFolders: () => invoke<SmartFolder[]>("list_smart_folders"),
+  createSmartFolder: (name: string, rule: Rule) => invoke<string>("create_smart_folder", { name, rule }),
   updateSmartFolder: (id: string, patch: { name?: string; rule?: Rule }) =>
     invoke<void>("update_smart_folder", { id, name: patch.name ?? null, rule: patch.rule ?? null }),
   deleteSmartFolder: (id: string) => invoke<void>("delete_smart_folder", { id }),
-  listExts: (mode?: Mode) => invoke<[string, number][]>("list_exts", { mode: mode ?? null }),
+  listExts: () => invoke<[string, number][]>("list_exts"),
   removeFromFolder: (ids: string[], folderId: string) =>
     invoke<void>("remove_from_folder", { ids, folderId }),
 
-  listTags: (mode?: Mode) => invoke<Tag[]>("list_tags", { mode: mode ?? null }),
-  /** Each item gets the tag of its own mode (made where missing). */
+  listTags: () => invoke<Tag[]>("list_tags"),
+  /** Tags made where missing. */
   addTags: (ids: string[], names: string[]) => invoke<void>("add_tags", { ids, names }),
   removeTag: (ids: string[], tagId: number) => invoke<void>("remove_tag", { ids, tagId }),
   renameTag: (id: number, name: string) => invoke<void>("rename_tag", { id, name }),

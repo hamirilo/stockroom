@@ -5,7 +5,6 @@ pub mod commands;
 pub mod db;
 pub mod export;
 pub mod files;
-pub mod fonts;
 pub mod formats;
 pub mod import;
 pub mod library;
@@ -164,17 +163,6 @@ pub fn run() {
             orient_items,
             system_proxy,
             open_release_page,
-            fonts::commands::font_info,
-            fonts::commands::font_faces,
-            fonts::commands::font_list_preview,
-            fonts::commands::index_fonts,
-            fonts::commands::set_font_category,
-            fonts::commands::font_data,
-            fonts::commands::system_fonts,
-            fonts::commands::reveal_system_font,
-            fonts::commands::add_system_to_tray,
-            fonts::commands::system_tray,
-            fonts::commands::library_font_ps_names,
             files::commands::file_preview,
             files::commands::prepare_file_thumbs,
             texts::commands::read_text,

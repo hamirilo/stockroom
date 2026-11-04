@@ -54,7 +54,6 @@ export function ShortcutHelp() {
 function Panel() {
   const setOpen = useShortcutHelp((s) => s.setOpen);
   const kinds = useStore(useShallow(listKinds));
-  const layout = useStore((s) => s.layout);
   const inViewer = useStore((s) => s.viewer !== null);
   const [query, setQuery] = useState("");
 
@@ -66,12 +65,10 @@ function Panel() {
       .sort((a, b) => rank(a.id) - rank(b.id))
       .map((s) => ({
         ...s,
-        rows: s.rows
-          .map((row) => ({ row, label: row.labelIn?.[layout] ?? row.label }))
-          .filter(({ row, label }) => matchRow(row, label, query)),
+        rows: s.rows.filter((row) => matchRow(row, row.label, query)),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [inViewer, layout, query]);
+  }, [inViewer, query]);
 
   return (
     <div data-modal
@@ -119,18 +116,18 @@ function Panel() {
                 <section key={s.id} className="mb-5 break-inside-avoid">
                   <h3 className="mb-1 text-xs font-semibold text-dim">{s.title}</h3>
                   <ul>
-                    {s.rows.map(({ row, label }) => {
-                      // Shown but faded where it doesn't apply (e.g. rotating fonts).
+                    {s.rows.map((row) => {
+                      // Shown but faded where it doesn't apply (e.g. rotating files).
                       const off = row.kinds && !kinds.some((k) => row.kinds!.includes(k));
                       return (
                         <li
-                          key={label}
+                          key={row.label}
                           className={`flex items-start justify-between gap-3 border-b border-line/50 py-1.5 ${
                             off ? "opacity-45" : ""
                           }`}
                         >
                           <span className="min-w-0 pt-px">
-                            {label}
+                            {row.label}
                             {off && (
                               <span className="ml-1.5 text-[11px] text-dim">
                                 {row.kinds!.map(kindLabel).join("・")}のみ

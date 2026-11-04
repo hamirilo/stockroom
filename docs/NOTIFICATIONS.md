@@ -60,7 +60,7 @@
 | ゴミ箱へ・シェルフから外す・空にする・重複ではない | `lib/actions.ts` | トーストのまま（戻せる操作の［元に戻す］） |
 | フォルダへ移動しました | `moveToFolder` | トーストのまま（フォルダの行は光るが、移したものが今の一覧から消えたり、フォルダが画面の外だったりする） |
 | 取り込み・書き出し・移動の結果 | `importDone`、`ExportDialog`・`writeLibrary`、`transferTo` | トーストのまま。長くかかってウィンドウが前に無ければ OS の通知も |
-| 種類が別のモードに入った、使っていない種類 | `notifyOtherMode`、`notifyUnusedKinds` | トーストのまま（行き先のボタン付き） |
+| 使っていない種類 | `notifyUnusedKinds` | トーストのまま（行き先のボタン付き） |
 | アップデートの確認 | `lib/update.ts` | トーストのまま（設定画面を開いているときは節の中、docs/SETTINGS.md） |
 | お気に入り・ピン留めに追加しました | `toggleFavorite`、`togglePinned` | トーストのまま（隠した表示へ行く［開く］が要るときだけ出る） |
 | 失敗（`run` の `String(e)`） | 各所 | エラーのトースト。自動で消さなくなった |

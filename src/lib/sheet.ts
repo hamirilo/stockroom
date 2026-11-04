@@ -68,8 +68,8 @@ export function infoOf(item: Item): string {
   return `${sizeLabel(item)} ${item.ext.toUpperCase()} · ${formatBytes(item.size)}`;
 }
 
-/** Fonts are shown by their sample, which is 4:3 (fonts.rs THUMB_W × THUMB_H). */
-const aspectOf = (i: Item) => (i.kind === "font" || !i.width || !i.height ? 4 / 3 : i.width / i.height);
+/** Items without a pixel size are shown 4:3. */
+const aspectOf = (i: Item) => (!i.width || !i.height ? 4 / 3 : i.width / i.height);
 
 /** One shape for every cell: the images' own if they share one, else the middle one. */
 function cellAspect(items: Item[]): number {

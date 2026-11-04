@@ -20,19 +20,17 @@ import {
   Settings,
   Shapes,
   Share2,
-  Type,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { setLinks, transferAllOfKind } from "../lib/actions";
 import { api, formatBytes, KINDS, kindLabel, type ItemKind } from "../lib/api";
-import { sidebarEntriesOf, type SidebarHidden } from "../lib/librarySettings";
-import { MODES, modeLabel, modesFor, type Mode } from "../lib/modes";
+import { SIDEBAR_ENTRIES } from "../lib/librarySettings";
 import { BUILD_NAME, buildHas, NO_UPDATE, OFF_SETTINGS } from "../lib/limits";
 import { isMac } from "../lib/shortcuts";
 import { appVersion } from "../lib/update";
 import appIcon from "../../src-tauri/icons/128x128@2x.png";
-import { sidebarHidden, usedModes, useStore, type SettingsTab } from "../store";
+import { sidebarHidden, usedKinds, useStore, type SettingsTab } from "../store";
 import { WebImportSettings } from "./WebImportDialog";
 import { ClaudeSettings } from "./ClaudeSettings";
 import { ShareSettings } from "./ShareDialog";
@@ -41,10 +39,8 @@ import { UpdateSection } from "./UpdateSection";
 
 export const SETTINGS_KEY = isMac ? "⌘," : "Ctrl+,";
 
-const KIND_ICON: Record<Mode | ItemKind, React.ReactNode> = {
-  stock: <Shapes size={14} />,
+const KIND_ICON: Record<ItemKind, React.ReactNode> = {
   image: <ImageIcon size={14} />,
-  font: <Type size={14} />,
   file: <FileText size={14} />,
   text: <NotebookText size={14} />,
   video: <Video size={14} />,
@@ -251,8 +247,8 @@ function LibraryPage() {
 function LibraryKindsPage() {
   const library = useStore((s) => s.library);
   const kinds = useStore((s) => s.counts.kinds);
-  const used = useStore(useShallow(usedModes));
-  const setUsedModes = useStore((s) => s.setUsedModes);
+  const used = useStore(useShallow(usedKinds));
+  const setUsedKinds = useStore((s) => s.setUsedKinds);
   if (!library) return <p className="mt-8 text-center text-dim">ライブラリを開いていません</p>;
   // Only the kinds this build handles (src/lib/limits.ts).
   const offered = KINDS.filter((k) => buildHas(k.kind));
@@ -262,7 +258,7 @@ function LibraryKindsPage() {
     <div>
       <Section
         title="使う種類"
-        sub="使う種類が一覧と種類の絞り込みに出ます。フォントをほかの種類と使うときは、フォントを見比べる「フォント」のモードも出ます"
+        sub="使う種類が一覧と種類の絞り込みに出ます"
       >
         {offered.map(({ kind, label }) => {
           const on = used.includes(kind);
@@ -273,7 +269,7 @@ function LibraryKindsPage() {
               checked={on}
               // At least one kind stays.
               disabled={on && used.length === 1}
-              onChange={(v) => setUsedModes(v ? [...used, kind] : used.filter((m) => m !== kind))}
+              onChange={(v) => setUsedKinds(v ? [...used, kind] : used.filter((k) => k !== kind))}
             >
               {KIND_ICON[kind]}
               {label}
@@ -360,42 +356,27 @@ function LibraryLinksPage() {
 
 // ------------------------------------------------------------ サイドバー
 
-/** One column of checks per mode; `onChange` gets the mode's new hidden entries. */
+/** A check per sidebar entry; `onChange` gets the new hidden entries. */
 function SidebarChecks({
-  modes,
   hidden,
   onChange,
 }: {
-  modes: Mode[];
-  hidden: SidebarHidden;
+  hidden: string[];
   /** Without it the checks are shown, not changed (the app's, from a library). */
-  onChange?: (mode: Mode, ids: string[]) => void;
+  onChange?: (ids: string[]) => void;
 }) {
   return (
-    <div className="grid gap-4 py-1" style={{ gridTemplateColumns: `repeat(${modes.length}, minmax(0, 1fr))` }}>
-      {modes.map((m) => {
-        const off = hidden[m] ?? [];
-        return (
-          <div key={m}>
-            {modes.length > 1 && (
-              <div className="mt-1.5 mb-0.5 flex items-center gap-1.5 px-3 text-xs font-semibold text-dim">
-                {KIND_ICON[m]}
-                {modeLabel(m)}
-              </div>
-            )}
-            {sidebarEntriesOf(m).map((e) => (
-              <Check
-                key={e.id}
-                checked={!off.includes(e.id)}
-                disabled={!onChange}
-                onChange={(show) => onChange?.(m, show ? off.filter((x) => x !== e.id) : [...off, e.id])}
-              >
-                {e.label}
-              </Check>
-            ))}
-          </div>
-        );
-      })}
+    <div className="py-1">
+      {SIDEBAR_ENTRIES.map((e) => (
+        <Check
+          key={e.id}
+          checked={!hidden.includes(e.id)}
+          disabled={!onChange}
+          onChange={(show) => onChange?.(show ? hidden.filter((x) => x !== e.id) : [...hidden, e.id])}
+        >
+          {e.label}
+        </Check>
+      ))}
     </div>
   );
 }
@@ -410,7 +391,7 @@ function AppSidebarPage() {
   return (
     <div>
       <Section title="サイドバーの項目" sub={`すべてのライブラリの既定です。${SIDEBAR_SUB}`}>
-        {loaded && <SidebarChecks modes={MODES} hidden={hidden} onChange={(m, ids) => setSidebarHidden(m, ids, "app")} />}
+        {loaded && <SidebarChecks hidden={hidden} onChange={(ids) => setSidebarHidden(ids, "app")} />}
       </Section>
       <p className="mt-3 text-xs text-dim">
         ライブラリごとに変えるときは、そのライブラリを開いて、設定のライブラリの「サイドバー」で「このライブラリだけの設定」を選びます。
@@ -423,7 +404,6 @@ function LibrarySidebarPage() {
   const library = useStore((s) => s.library);
   const own = useStore((s) => s.librarySettings.sidebarOwn);
   const hidden = useStore((s) => sidebarHidden(s));
-  const modes = useStore(useShallow((s) => modesFor(usedModes(s))));
   const setSidebarOwn = useStore((s) => s.setSidebarOwn);
   const setSidebarHidden = useStore((s) => s.setSidebarHidden);
   const openSettings = useStore((s) => s.openSettings);
@@ -443,7 +423,7 @@ function LibrarySidebarPage() {
         />
       </Section>
       <div className={`mt-3 rounded-lg border border-line py-1 ${own ? "bg-bg/40" : ""}`}>
-        <SidebarChecks modes={modes} hidden={hidden} onChange={own ? setSidebarHidden : undefined} />
+        <SidebarChecks hidden={hidden} onChange={own ? (ids) => setSidebarHidden(ids) : undefined} />
         {!own && (
           <button
             onClick={() => openSettings("sidebar")}

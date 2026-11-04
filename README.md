@@ -3,17 +3,18 @@
 集めたものを何でもストックしておける、ローカルの保管庫アプリ（Tauri 2 / Mac・Windows）。
 種類の違うものを 1 つのライブラリにしまい、フォルダ・タグ・評価・検索で同じように整理して、必要なときに取り出す。
 
-いま扱えるのは画像・フォント・ファイル（PDF・オフィス文書）・テキスト（Markdown・テキスト・CSV）。URL など、ほかの種類も順に増やしていく。旧名は Image Library。
+いま扱えるのは画像・ファイル（PDF・オフィス文書）・テキスト（Markdown・テキスト・CSV）・動画・ブックマーク（URL）。ほかの種類も順に増やしていく。旧名は Image Library。
+フォントは別のアプリ（Typecase、[docs/FONT_APP.md](docs/FONT_APP.md)）で扱う。
 
 ## 主な機能
 
 - **取り込み**：ドラッグ&ドロップ・貼り付け・ブラウザ拡張（Chrome / Edge）から。同じファイルは重複として除く
-- **一覧**：画像・ファイル・テキストの「ストック」と「フォント」の 2 つのモード。ストックは種類（画像・ファイル・テキスト）で絞り込む。標準・Pinterest 風・グリッド・リスト、フォントは専用のモードで見本を並べ、ファミリーごとに見比べる
+- **一覧**：標準・Pinterest 風・グリッド・リスト。サイドバーの「種類で絞る」で画像・ファイル・テキストなどに絞り込む
 - **整理**：入れ子フォルダ・タグ・★評価・お気に入り・ピン留め・メモ・色分け、スマートフォルダ、親子の紐づけ（動画にサムネイル案を付けるなど。設定で有効にする）
 - **テキスト**：Markdown は整形、CSV は表で見る。アプリの中で書き換えられ、⌘N で新しく作る・文字を貼り付けて作る（Shift_JIS の CSV もそのまま）
 - **検索・絞り込み**：名前・メモ・タグ・テキストの本文で検索（除外・OR・語句）、形式・縦横・サイズ・追加日・容量で絞り込み
 - **重複の整理**：見た目が似ている画像をまとめて、残す 1 枚を選ぶ
-- **シェルフ**：一覧の下に、比べたいフォントや書き出し前のファイルを一時的に置いておく。フォントは並べて比較できる
+- **シェルフ**：書き出し前のファイルや見比べたい画像を一時的に置いておく。画像は並べて比較できる
 - **Claude から整理**（MCP）：タグ付け・フォルダ分けなどを Claude に頼める（削除はできず、元に戻せる）
 - **フォルダの共有**：同じ Wi-Fi・社内 LAN の人や自分のスマホに、フォルダを見るだけで共有する（URL・QR コード）
 
@@ -56,7 +57,7 @@ bun run test           # Rust のユニットテスト + 型チェック
 | [FEATURES.md](docs/FEATURES.md) | 機能と使い方、キー操作、ライブラリの構造、バックアップ |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 開発環境、ソースの構成、リリース |
 | [LIMITS.md](docs/LIMITS.md) | 機能を絞ったビルド（扱う種類・拡張と Claude・アプリ内アップデートを環境変数で外す） |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | モードの考え方、共通基盤と種類ごとのコードの境界 |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 共通基盤と種類ごとのコードの境界 |
 | [MCP.md](docs/MCP.md) | Claude との連携 |
 | [FROM_APPS.md](docs/FROM_APPS.md) | ほかのアプリ（Feedability）から受け取る（計画） |
 | [SETTINGS.md](docs/SETTINGS.md) | 設定画面とライブラリごとの設定 |
@@ -64,13 +65,10 @@ bun run test           # Rust のユニットテスト + 型チェック
 | [UI.md](docs/UI.md) | 画面の原則（表示を切り替えても操作の位置を不必要に変えない） |
 | [NOTIFICATIONS.md](docs/NOTIFICATIONS.md) | 知らせ方（その場・HUD・トースト・OS の通知・ダイアログの使い分け、トーストの秒数） |
 | [NAVIGATION.md](docs/NAVIGATION.md) | サイドバーとツールバーの役割（場所・絞り込み・表示） |
-| [MODES.md](docs/MODES.md) | モードを分ける（ストックとフォント） |
 | [KINDS.md](docs/KINDS.md) | 種類で絞る：サイドバーの範囲（場所と組み合わせて使う） |
-| [FONT_APP.md](docs/FONT_APP.md) | フォントを別のアプリにする（方針と決めたこと、残りの論点） |
-| [FONT_UI.md](docs/FONT_UI.md) | フォントの画面（見本・グループ分け・シェルフ・比較） |
+| [FONT_APP.md](docs/FONT_APP.md) | フォントを別のアプリ（Typecase）にした経緯と、残したデータの扱い |
 | [GROUP_TOC.md](docs/GROUP_TOC.md) | グループ分けの目次（いま見ている区切りの表示と、区切りへのジャンプ） |
 | [COMPARE.md](docs/COMPARE.md) | 画像の比較（シェルフの画像を並べ、一緒に拡大して見比べる） |
-| [SYSTEM_FONTS.md](docs/SYSTEM_FONTS.md) | この端末のフォント（ライブラリに取り込まない読み取り専用の一覧） |
 | [TEXT.md](docs/TEXT.md) | テキスト（Markdown・テキスト・CSV）：見る・編集・新規作成・文字コード |
 | [VIDEO.md](docs/VIDEO.md) | 動画（MP4・MOV・WebM）：取り込み・サムネイル・再生 |
 | [LINKS.md](docs/LINKS.md) | 親子の紐づけ：動画にサムネイル案を付ける、ライブラリごとに有効・無効 |

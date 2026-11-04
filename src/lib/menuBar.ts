@@ -9,8 +9,7 @@
  * menu, so those are the standard items (copying items uses the page's
  * `copy` event, see `installCopyHandler`).
  *
- * The menu is rebuilt when what it lists changes (mode, library, kinds in
- * use); otherwise only the names, greyed-out and check states are updated,
+ * The menu is rebuilt when what it lists changes (library, kinds in use); otherwise only the names, greyed-out and check states are updated,
  * at most once a frame.
  */
 import { isTauri } from "@tauri-apps/api/core";
@@ -21,19 +20,10 @@ import { command, isEnabled, labelOf, runCommand, type Command } from "./command
 import { OFF_COMMANDS } from "./limits";
 import { warn } from "./log";
 import { comboText, isMac } from "./shortcuts";
-import { rangeKinds } from "./modes";
+import { rangeKinds } from "./kinds";
 import { GROUPS, LAYOUTS } from "../components/ViewMenu";
 import { SORTS } from "../components/Toolbar";
-import {
-  LIBRARY_GROUPS,
-  listWithin,
-  MODE_GROUPS,
-  MODE_LAYOUTS,
-  shownGroupBy,
-  shownModes,
-  usedModes,
-  useStore,
-} from "../store";
+import { listWithin, usedKinds, useStore } from "../store";
 
 type S = ReturnType<typeof useStore.getState>;
 type Item = MenuItem | CheckMenuItem | Submenu | PredefinedMenuItem;
@@ -153,8 +143,6 @@ function selectAll() {
 async function build(libraries: LibraryEntry[]): Promise<Menu> {
   entries = [];
   const s = st();
-  const mode = s.mode;
-  const modes = shownModes(s);
 
   const appMenu = isMac
     ? [
@@ -189,7 +177,7 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     cmd("list.import"),
     cmd("list.importFolder"),
     sep(),
-    ...(mode === "stock" ? opt("text.new") : []),
+    ...opt("text.new"),
     cmd("folder.new"),
     cmd("smart.new"),
     sep(),
@@ -238,8 +226,8 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
       "評価",
       [0, 1, 2, 3, 4, 5].map((n) => cmd(`item.rate${n}`)),
     ),
-    // In the stock, greyed out unless only images are listed or selected (`appliesTo`).
-    ...(mode === "stock" && usedModes(s).includes("image")
+    // Greyed out unless only images are listed or selected (`appliesTo`).
+    ...(usedKinds(s).includes("image")
       ? [
           submenu("回転・反転", [
             cmd("item.rotateCcw"),
@@ -261,7 +249,7 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     cmd("item.makeParent"),
     cmd("item.adopt"),
     // Videos only (docs/VIDEO.md), greyed out unless one is selected.
-    ...(mode === "stock" && usedModes(s).includes("video")
+    ...(usedKinds(s).includes("video")
       ? [
           sep(),
           submenu("サムネイル", [
@@ -277,15 +265,13 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
   ]);
 
   const view = submenu("表示", [
-    // The stock and the fonts when both are offered; ⌘1 / ⌘2 stay those of MODES.
-    ...(modes.length > 1 ? [...modes.map((m) => cmd(`mode.${m}`)), sep()] : []),
     // The sidebar's range (docs/KINDS.md), when there is a kind to pick.
     ...(rangeKinds(s).length
       ? [submenu("種類で絞る", [cmd("kinds.none"), sep(), ...rangeKinds(s).map((k) => cmd(`kinds.${k}`))]), sep()]
       : []),
     submenu(
       "レイアウト",
-      LAYOUTS.filter((l) => MODE_LAYOUTS[mode].includes(l.key)).map((l) =>
+      LAYOUTS.map((l) =>
         live(
           () => l.label,
           () => st().setLayout(l.key),
@@ -295,21 +281,17 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     ),
     submenu(
       "グループ分け",
-      GROUPS.filter((g) => MODE_GROUPS[mode].includes(g.key)).map((g) =>
+      GROUPS.map((g) =>
         live(
           () => g.label,
           () => st().setGroupBy(g.key),
-          {
-            checked: (x) => shownGroupBy(x) === g.key,
-            // The installed fonts have no rating, tags or folder (docs/SYSTEM_FONTS.md).
-            enabled: (x) => x.view.kind !== "similar" && !(x.view.kind === "system" && LIBRARY_GROUPS.includes(g.key)),
-          },
+          { checked: (x) => x.groupBy === g.key, enabled: (x) => x.view.kind !== "similar" },
         ),
       ),
     ),
     submenu("並び順", [
       // Kept in the menu and greyed out: what the list holds changes without a rebuild.
-      ...SORTS.filter((o) => !o.only || (mode === "stock" && o.only.some((k) => usedModes(s).includes(k)))).map((o) =>
+      ...SORTS.filter((o) => !o.only || o.only.some((k) => usedKinds(s).includes(k))).map((o) =>
         live(
           () => o.label,
           () => st().setSort(o.key, st().desc),
@@ -331,8 +313,9 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     ]),
     cmd("view.toc"),
     cmd("view.subfolders"),
-    // Stock only, where links are (greyed out with them off).
-    ...(mode === "stock" ? [cmd("view.openParents"), cmd("view.closeParents")] : []),
+    // Greyed out with links off.
+    cmd("view.openParents"),
+    cmd("view.closeParents"),
     sep(),
     cmd("view.zoomIn"),
     cmd("view.zoomOut"),
@@ -394,7 +377,7 @@ function sync() {
 }
 
 /** What the menu's structure depends on; a change rebuilds it. */
-const shapeOf = (s: S) => `${s.library?.root ?? ""}|${s.mode}|${usedModes(s).join(",")}`;
+const shapeOf = (s: S) => `${s.library?.root ?? ""}|${usedKinds(s).join(",")}`;
 
 let building: Promise<void> = Promise.resolve();
 

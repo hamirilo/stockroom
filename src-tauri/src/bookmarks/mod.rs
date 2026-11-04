@@ -240,7 +240,6 @@ pub fn new_item(root: &Path, input: &Input, normalized: &str) -> Result<(NewItem
         thumb,
         phash: None,
         preview: None,
-        font: None,
         duration_ms: None,
     };
     Ok((item, description))
@@ -256,7 +255,7 @@ pub fn add(lib: &Mutex<Option<Library>>, input: &Input, folder_id: Option<&str>,
         let guard = lib.lock().unwrap();
         let l = guard.as_ref().ok_or(NO_LIBRARY)?;
         if let Some(f) = folder_id {
-            if db::folder_mode(&l.conn, f).map_err(|e| e.to_string())? != Some(db::Mode::Stock) {
+            if !db::folder_exists(&l.conn, f).map_err(|e| e.to_string())? {
                 return Err(NO_FOLDER.into());
             }
         }
