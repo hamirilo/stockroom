@@ -8,7 +8,7 @@
 
 use super::{Host, ToolOutput};
 use crate::changes::{self, Change, Undo};
-use crate::db::{self, Item, ItemQuery, Kind, Mode, SortKey, View};
+use crate::db::{self, Item, ItemQuery, Kind, SortKey, View};
 use crate::library::Library;
 use base64::Engine;
 use rusqlite::Connection;
@@ -39,7 +39,7 @@ fn where_schema() -> Value {
         "type": "object",
         "description": "絞り込みの条件。すべて省略するとライブラリ全体（ゴミ箱を除く）。複数指定するとすべてを満たすもの",
         "properties": {
-            "kind": { "type": "string", "enum": ["image", "font", "file", "text", "video", "bookmark"], "description": "種類" },
+            "kind": { "type": "string", "enum": ["image", "file", "text", "video", "bookmark"], "description": "種類" },
             "folder": { "type": "string", "description": "フォルダのパス（例: 写真/旅行）" },
             "include_subfolders": { "type": "boolean", "description": "folder のサブフォルダの中身も含める" },
             "tags": { "type": "array", "items": { "type": "string" }, "description": "このタグのどれかが付いているもの" },
@@ -47,7 +47,7 @@ fn where_schema() -> Value {
             "untagged": { "type": "boolean", "description": "タグが 1 つも無いものだけ" },
             "unfiled": { "type": "boolean", "description": "どのフォルダにも入っていないものだけ" },
             "name_contains": { "type": "string", "description": "表示名にこの文字を含むもの（大文字・小文字は区別しない）" },
-            "search": { "type": "string", "description": "アプリの検索欄と同じ（表示名・メモ・タグ名・フォント名・テキストの本文が対象。空白区切りで AND、OR、-除外、\"語句\"）" },
+            "search": { "type": "string", "description": "アプリの検索欄と同じ（表示名・メモ・タグ名・テキストの本文が対象。空白区切りで AND、OR、-除外、\"語句\"）" },
             "ext": { "type": "array", "items": { "type": "string" }, "description": "拡張子（例: [\"png\", \"jpg\"]）" }
         },
         "additionalProperties": false
@@ -83,21 +83,15 @@ pub fn list() -> Value {
         {
             "name": "list_folders",
             "title": "フォルダの一覧",
-            "description": "フォルダを「パス<TAB>件数」の行で、サイドバーの並びのまま返す。フォルダは画像・ファイル・テキスト用とフォント用に分かれていて、フォント用は「（フォント用）」の見出しの後に続く",
-            "inputSchema": {
-                "type": "object",
-                "properties": { "kind": { "type": "string", "enum": ["image", "font", "file", "text", "video", "bookmark"], "description": "この種類用のフォルダだけを返す（image・file・text・video・bookmark は同じ）" } }
-            },
+            "description": "フォルダを「パス<TAB>件数」の行で、サイドバーの並びのまま返す",
+            "inputSchema": { "type": "object", "properties": {} },
             "annotations": read_only(),
         },
         {
             "name": "list_tags",
             "title": "タグの一覧",
-            "description": "タグを「名前<TAB>件数」の行で返す。タグは画像・ファイル・テキスト用とフォント用に分かれていて（同じ名前もある）、フォント用は「（フォント用）」の見出しの後に続く",
-            "inputSchema": {
-                "type": "object",
-                "properties": { "kind": { "type": "string", "enum": ["image", "font", "file", "text", "video", "bookmark"], "description": "この種類用のタグだけを返す（image・file・text・video・bookmark は同じ）" } }
-            },
+            "description": "タグを「名前<TAB>件数」の行で返す",
+            "inputSchema": { "type": "object", "properties": {} },
             "annotations": read_only(),
         },
         {
@@ -117,7 +111,7 @@ pub fn list() -> Value {
         {
             "name": "view_images",
             "title": "画像を見る",
-            "description": format!("アイテムの縮小画像を返す（1 回 {MAX_VIEW} 件まで）。フォントは見本、PDF などはサムネイル。1 枚ごとに使用量がかかるので、必要な分だけにすること"),
+            "description": format!("アイテムの縮小画像を返す（1 回 {MAX_VIEW} 件まで）。PDF などはサムネイル。1 枚ごとに使用量がかかるので、必要な分だけにすること"),
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -131,7 +125,7 @@ pub fn list() -> Value {
         {
             "name": "add_tags",
             "title": "タグを付ける",
-            "description": "タグを付ける（無いタグは作る）。フォントにはフォント用、ほかには画像・ファイル・テキスト用の同じ名前のタグが付く。全部に同じタグなら ids か where と tags、1 件ずつ違うなら items",
+            "description": "タグを付ける（無いタグは作る）。全部に同じタグなら ids か where と tags、1 件ずつ違うなら items",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -177,12 +171,11 @@ pub fn list() -> Value {
         {
             "name": "create_folder",
             "title": "フォルダを作る",
-            "description": "フォルダを作る。途中のフォルダもまとめて作り、既にあれば何もしない。フォント用のフォルダは kind: font（既定は画像・ファイル・テキスト用）",
+            "description": "フォルダを作る。途中のフォルダもまとめて作り、既にあれば何もしない",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "path": { "type": "string", "description": "例: 写真/旅行/京都" },
-                    "kind": { "type": "string", "enum": ["image", "font", "file", "text", "video", "bookmark"], "description": "この種類用のフォルダを作る（image・file・text・video・bookmark は同じ）" },
                     "dry_run": dry_run_schema()
                 },
                 "required": ["path"]
@@ -192,7 +185,7 @@ pub fn list() -> Value {
         {
             "name": "move_to_folder",
             "title": "フォルダへ移す",
-            "description": "フォルダへ移す（アイテムが入るフォルダは 1 つまで。無いフォルダは作る）。フォントはフォント用、ほかは画像・ファイル・テキスト用の同じパスのフォルダへ入る。全部を同じフォルダへなら ids か where と folder、1 件ずつ違うなら items",
+            "description": "フォルダへ移す（アイテムが入るフォルダは 1 つまで。無いフォルダは作る）。全部を同じフォルダへなら ids か where と folder、1 件ずつ違うなら items",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -326,14 +319,14 @@ pub fn list() -> Value {
 pub fn call(host: &dyn Host, name: &str, args: &Value) -> ToolOutput {
     let result = match name {
         "library_info" => read(host, library_info),
-        "list_folders" => parse(args).and_then(|a: KindArg| read(host, |l| list_folders(&l.conn, a.kind.map(Mode::of)))),
-        "list_tags" => parse(args).and_then(|a: KindArg| read(host, |l| list_tags(&l.conn, a.kind.map(Mode::of)))),
+        "list_folders" => read(host, |l| list_folders(&l.conn)),
+        "list_tags" => read(host, |l| list_tags(&l.conn)),
         "find_items" => parse(args).and_then(|a: FindArgs| read(host, |l| find_items(&l.conn, &a))),
         "view_images" => return parse(args).map_or_else(ToolOutput::error, |a| view_images(host, a)),
         "add_tags" => parse(args).and_then(|a: TagArgs| write(host, a.dry_run, |c, u| tags(c, u, a, true))),
         "remove_tags" => parse(args).and_then(|a: TagArgs| write(host, a.dry_run, |c, u| tags(c, u, a, false))),
         "create_folder" => parse(args).and_then(|a: FolderArgs| {
-            write(host, a.dry_run, |c, u| create_folder(c, u, &a.path, a.kind.map(Mode::of).unwrap_or_default()))
+            write(host, a.dry_run, |c, u| create_folder(c, u, &a.path))
         }),
         "move_to_folder" => parse(args).and_then(|a: MoveArgs| write(host, a.dry_run, |c, u| move_items(c, u, a))),
         "remove_from_folder" => {
@@ -398,9 +391,9 @@ fn write(
 
 // ------------------------------------------------------------- helpers
 
-/// Folder id -> path ("写真/旅行"), of the folders of `mode` (every folder when None).
-fn folder_paths(conn: &Connection, mode: Option<Mode>) -> Result<HashMap<String, String>, String> {
-    let folders = db::list_folders(conn, mode).map_err(e)?;
+/// Folder id -> path ("写真/旅行").
+fn folder_paths(conn: &Connection) -> Result<HashMap<String, String>, String> {
+    let folders = db::list_folders(conn).map_err(e)?;
     let by_id: HashMap<&str, &db::Folder> = folders.iter().map(|f| (f.id.as_str(), f)).collect();
     let mut out = HashMap::new();
     for f in &folders {
@@ -420,10 +413,10 @@ fn normalize_path(path: &str) -> String {
     path.split('/').map(str::trim).filter(|p| !p.is_empty()).collect::<Vec<_>>().join("/")
 }
 
-/// The folder of `mode` at `path`.
-fn find_folder(conn: &Connection, path: &str, mode: Mode) -> Result<Option<String>, String> {
+/// The folder at `path`.
+fn find_folder(conn: &Connection, path: &str) -> Result<Option<String>, String> {
     let want = normalize_path(path);
-    Ok(folder_paths(conn, Some(mode))?.into_iter().find(|(_, p)| *p == want).map(|(id, _)| id))
+    Ok(folder_paths(conn)?.into_iter().find(|(_, p)| *p == want).map(|(id, _)| id))
 }
 
 fn short(id: &str) -> &str {
@@ -433,7 +426,7 @@ fn short(id: &str) -> &str {
 /// Full ids for the ids Claude gave (whole, or their first 8+ characters).
 fn resolve(conn: &Connection, given: &[String]) -> Result<Vec<String>, String> {
     let mut stmt = conn
-        .prepare_cached("SELECT id FROM items WHERE deleted_at IS NULL AND id LIKE ?1 || '%' LIMIT 2")
+        .prepare_cached(&format!("SELECT id FROM items WHERE deleted_at IS NULL AND {} AND id LIKE ?1 || '%' LIMIT 2", db::NOT_FONT))
         .map_err(e)?;
     let mut out: Vec<String> = Vec::with_capacity(given.len());
     let (mut unknown, mut ambiguous) = (Vec::new(), Vec::new());
@@ -499,16 +492,9 @@ fn cell(s: &str, max: usize) -> String {
 
 // -------------------------------------------------------------- reading
 
-#[derive(Deserialize, Default)]
-#[serde(default)]
-struct KindArg {
-    kind: Option<Kind>,
-}
-
 fn kind_label(kind: Kind) -> &'static str {
     match kind {
         Kind::Image => "画像",
-        Kind::Font => "フォント",
         Kind::File => "ファイル",
         Kind::Text => "テキスト",
         Kind::Video => "動画",
@@ -517,12 +503,9 @@ fn kind_label(kind: Kind) -> &'static str {
 }
 
 fn library_info(lib: &Library) -> Result<String, String> {
-    let c = db::counts(&lib.conn, None).map_err(e)?;
-    // Per mode, the fonts' own only when there are any.
-    let per_mode = |n: [usize; 2]| if n[1] == 0 { format!("{} 個", n[0]) } else { format!("{} 個（フォント用 {} 個）", n[0] + n[1], n[1]) };
-    let count = |f: &dyn Fn(Mode) -> Result<usize, String>| -> Result<[usize; 2], String> { Ok([f(Mode::Stock)?, f(Mode::Font)?]) };
-    let folders = per_mode(count(&|m| Ok(db::list_folders(&lib.conn, Some(m)).map_err(e)?.len()))?);
-    let tags = per_mode(count(&|m| Ok(db::list_tags(&lib.conn, Some(m)).map_err(e)?.len()))?);
+    let c = db::counts(&lib.conn).map_err(e)?;
+    let folders = format!("{} 個", db::list_folders(&lib.conn).map_err(e)?.len());
+    let tags = format!("{} 個", db::list_tags(&lib.conn).map_err(e)?.len());
     let kinds: Vec<String> = c.kinds.iter().map(|(k, n)| format!("{} {n}", kind_label(*k))).collect();
     let name = lib.root.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     Ok(format!(
@@ -535,20 +518,7 @@ fn library_info(lib: &Library) -> Result<String, String> {
     ))
 }
 
-/// The modes to list: `mode`, else both.
-fn modes(mode: Option<Mode>) -> Vec<Mode> {
-    mode.map_or(Mode::ALL.to_vec(), |m| vec![m])
-}
-
-/// The fonts' section follows the others' under its own heading, when both are listed.
-fn section(out: &mut String, mode: Mode, header: &str) {
-    if mode == Mode::Font && !out.is_empty() {
-        out.push_str("（フォント用）\n");
-    }
-    out.push_str(header);
-}
-
-fn list_folders(conn: &Connection, mode: Option<Mode>) -> Result<String, String> {
+fn list_folders(conn: &Connection) -> Result<String, String> {
     // Depth first, in each level's sidebar order (`list_folders` is already in it).
     fn walk(parent: Option<&str>, folders: &[db::Folder], paths: &HashMap<String, String>, out: &mut String) {
         for f in folders.iter().filter(|f| f.parent_id.as_deref() == parent) {
@@ -556,31 +526,25 @@ fn list_folders(conn: &Connection, mode: Option<Mode>) -> Result<String, String>
             walk(Some(&f.id), folders, paths, out);
         }
     }
-    let mut out = String::new();
-    for m in modes(mode) {
-        let folders = db::list_folders(conn, Some(m)).map_err(e)?;
-        if folders.is_empty() {
-            continue;
-        }
-        section(&mut out, m, "パス\t件数\n");
-        walk(None, &folders, &folder_paths(conn, Some(m))?, &mut out);
+    let folders = db::list_folders(conn).map_err(e)?;
+    if folders.is_empty() {
+        return Ok("フォルダはありません".into());
     }
-    Ok(if out.is_empty() { "フォルダはありません".into() } else { out })
+    let mut out = String::from("パス\t件数\n");
+    walk(None, &folders, &folder_paths(conn)?, &mut out);
+    Ok(out)
 }
 
-fn list_tags(conn: &Connection, mode: Option<Mode>) -> Result<String, String> {
-    let mut out = String::new();
-    for m in modes(mode) {
-        let tags = db::list_tags(conn, Some(m)).map_err(e)?;
-        if tags.is_empty() {
-            continue;
-        }
-        section(&mut out, m, "タグ\t件数\n");
-        for t in tags {
-            let _ = writeln!(out, "{}\t{}", cell(&t.name, 200), t.count);
-        }
+fn list_tags(conn: &Connection) -> Result<String, String> {
+    let tags = db::list_tags(conn).map_err(e)?;
+    if tags.is_empty() {
+        return Ok("タグはありません".into());
     }
-    Ok(if out.is_empty() { "タグはありません".into() } else { out })
+    let mut out = String::from("タグ\t件数\n");
+    for t in tags {
+        let _ = writeln!(out, "{}\t{}", cell(&t.name, 200), t.count);
+    }
+    Ok(out)
 }
 
 #[derive(Deserialize, Default)]
@@ -598,59 +562,38 @@ struct Where {
     ext: Vec<String>,
 }
 
-/// Live items matching `w`, by display name. Folders and tags are each mode's
-/// own (docs/MODES.md), so a path or tag name is looked up in each mode and
-/// the matches of both are put together.
+/// Live items matching `w`, by display name.
 fn select(conn: &Connection, w: &Where) -> Result<Vec<Item>, String> {
-    let all_tags = db::list_tags(conn, None).map_err(e)?;
+    let all_tags = db::list_tags(conn).map_err(e)?;
     let same = |a: &str, b: &str| a.to_lowercase() == b.trim().to_lowercase();
+    let mut tag_ids = Vec::new();
     for name in &w.tags {
-        if !all_tags.iter().any(|t| same(&t.name, name)) {
-            return Err(format!("タグ「{name}」はありません（list_tags で確かめてください）"));
+        match all_tags.iter().find(|t| same(&t.name, name)) {
+            Some(t) => tag_ids.push(t.id),
+            None => return Err(format!("タグ「{name}」はありません（list_tags で確かめてください）")),
         }
     }
-    let mut items = Vec::new();
-    let mut folder_found = false;
-    for mode in modes(w.kind.map(Mode::of)) {
-        let view = match &w.folder {
-            Some(path) => match find_folder(conn, path, mode)? {
-                Some(id) => View::Folder { id },
-                None => continue,
-            },
-            None if w.untagged => View::Untagged,
-            None if w.unfiled => View::Unfiled,
-            None => View::All,
-        };
-        folder_found = true;
-        let tag_ids: Vec<i64> = w
-            .tags
-            .iter()
-            .filter_map(|name| all_tags.iter().find(|t| t.mode == mode && same(&t.name, name)).map(|t| t.id))
-            .collect();
-        // No tag of these names in this mode: nothing of it can match.
-        if !w.tags.is_empty() && (tag_ids.is_empty() || (w.tag_match_all && tag_ids.len() < w.tags.len())) {
-            continue;
-        }
-        let mut q = ItemQuery {
-            view,
-            search: w.search.clone(),
-            tag_ids,
-            tag_match_all: w.tag_match_all,
-            include_subfolders: w.include_subfolders,
-            sort: SortKey::Name,
-            ..Default::default()
-        };
-        q.filter.kinds = match (w.kind, mode) {
-            (Some(k), _) => vec![k],
-            (None, Mode::Font) => vec![Kind::Font],
-            (None, Mode::Stock) => vec![Kind::Image, Kind::File, Kind::Text, Kind::Video, Kind::Bookmark],
-        };
-        q.filter.exts = w.ext.clone();
-        items.extend(db::query_items(conn, &q).map_err(e)?);
-    }
-    if let (Some(path), false) = (&w.folder, folder_found) {
-        return Err(format!("フォルダ「{path}」はありません（list_folders で確かめてください）"));
-    }
+    let view = match &w.folder {
+        Some(path) => match find_folder(conn, path)? {
+            Some(id) => View::Folder { id },
+            None => return Err(format!("フォルダ「{path}」はありません（list_folders で確かめてください）")),
+        },
+        None if w.untagged => View::Untagged,
+        None if w.unfiled => View::Unfiled,
+        None => View::All,
+    };
+    let mut q = ItemQuery {
+        view,
+        search: w.search.clone(),
+        tag_ids,
+        tag_match_all: w.tag_match_all,
+        include_subfolders: w.include_subfolders,
+        sort: SortKey::Name,
+        ..Default::default()
+    };
+    q.filter.kinds = w.kind.into_iter().collect();
+    q.filter.exts = w.ext.clone();
+    let mut items = db::query_items(conn, &q).map_err(e)?;
     let needle = w.name_contains.to_lowercase();
     items.retain(|i| {
         (!w.untagged || i.tag_ids.is_empty())
@@ -683,8 +626,8 @@ fn find_items(conn: &Connection, a: &FindArgs) -> Result<String, String> {
     }
     let mut out = String::new();
     let _ = writeln!(out, "該当 {} 件（{}〜{} 件目）", items.len(), a.offset + 1, a.offset + page.len());
-    let paths = folder_paths(conn, None)?;
-    let tag_names: HashMap<i64, String> = db::list_tags(conn, None).map_err(e)?.into_iter().map(|t| (t.id, t.name)).collect();
+    let paths = folder_paths(conn)?;
+    let tag_names: HashMap<i64, String> = db::list_tags(conn).map_err(e)?.into_iter().map(|t| (t.id, t.name)).collect();
     // With links on, the parent of a child and its adopted mark (docs/LINKS.md).
     let links = db::links_enabled(conn).map_err(e)?;
     out.push_str("id\t種類\t表示名\tフォルダ\tタグ\t取り込み元\tメモ");
@@ -871,19 +814,16 @@ fn tags(conn: &Connection, undo: &mut Undo, a: TagArgs, adding: bool) -> Result<
 #[derive(Deserialize)]
 struct FolderArgs {
     path: String,
-    /// Whose folder: the fonts' (font) or the images' and files' (default).
-    #[serde(default)]
-    kind: Option<Kind>,
     #[serde(default)]
     dry_run: bool,
 }
 
-fn create_folder(conn: &Connection, undo: &mut Undo, path: &str, mode: Mode) -> Result<Outcome, String> {
+fn create_folder(conn: &Connection, undo: &mut Undo, path: &str) -> Result<Outcome, String> {
     let path = normalize_path(path);
     if path.is_empty() {
         return Err("フォルダのパスが空です".into());
     }
-    changes::ensure_folder_path(conn, undo, &path, mode).map_err(e)?;
+    changes::ensure_folder_path(conn, undo, &path).map_err(e)?;
     Ok(Outcome { summary: format!("フォルダ「{path}」を作りました"), details: vec![] })
 }
 
@@ -935,16 +875,14 @@ fn move_items(conn: &Connection, undo: &mut Undo, a: MoveArgs) -> Result<Outcome
     let mut parts = Vec::new();
     let mut details = Vec::new();
     for (path, ids) in &plan {
-        // Each item to the folder at `path` of its own mode.
         let mut n = 0;
-        for (mode, ids) in db::by_mode(conn, ids).map_err(e)? {
+        if !ids.is_empty() {
             let created = undo.folders_created();
-            let folder = changes::ensure_folder_path(conn, undo, path, mode).map_err(e)?;
+            let folder = changes::ensure_folder_path(conn, undo, path).map_err(e)?;
             if undo.folders_created() > created {
-                let whose = if mode == Mode::Font { "フォント用の" } else { "" };
-                details.push(format!("{whose}フォルダ「{path}」を新しく作りました"));
+                details.push(format!("フォルダ「{path}」を新しく作りました"));
             }
-            n += changes::move_to_folder(conn, undo, &ids, folder.as_deref()).map_err(e)?;
+            n += changes::move_to_folder(conn, undo, ids, folder.as_deref()).map_err(e)?;
         }
         if n > 0 {
             parts.push(format!("「{path}」{n} 件"));
@@ -1212,7 +1150,7 @@ mod tests {
         let args = json!({ "where": { "name_contains": "kyoto" }, "tags": ["京都"], "dry_run": true });
         let (err, text) = run(&host, "add_tags", args);
         assert!(!err && text.contains("試し実行") && text.contains("「京都」2 件"), "{text}");
-        assert!(db::list_tags(&conn(&host).as_ref().unwrap().conn, None).unwrap().is_empty());
+        assert!(db::list_tags(&conn(&host).as_ref().unwrap().conn).unwrap().is_empty());
         assert!(host.changes.lock().unwrap().is_empty());
 
         let (err, text) = run(&host, "add_tags", json!({ "where": { "name_contains": "kyoto" }, "tags": ["京都"] }));
@@ -1247,31 +1185,39 @@ mod tests {
         let mut g = conn(&host);
         let lib = g.as_mut().unwrap();
         changes::undo(&mut lib.conn, id).unwrap();
-        assert!(db::list_folders(&lib.conn, None).unwrap().is_empty(), "the folders it made are gone");
+        assert!(db::list_folders(&lib.conn).unwrap().is_empty(), "the folders it made are gone");
     }
 
     #[test]
-    fn folders_and_tags_are_of_each_items_mode() {
+    fn left_over_fonts_are_not_offered() {
         let (_d, host, ids) = setup(&["kyoto.jpg", "Mincho.ttf"]);
-        conn(&host).as_ref().unwrap().conn.execute("UPDATE items SET kind = 'font' WHERE ext = 'ttf'", []).unwrap();
-        let (err, text) = run(&host, "move_to_folder", json!({ "ids": [&ids[0][..8], &ids[1][..8]], "folder": "仕事" }));
-        assert!(!err && text.contains("「仕事」2 件") && text.contains("フォント用のフォルダ「仕事」"), "{text}");
+        conn(&host)
+            .as_ref()
+            .unwrap()
+            .conn
+            .execute_batch(
+                "UPDATE items SET kind = 'font' WHERE ext = 'ttf';
+                 INSERT INTO folders (id, name, sort_order, mode) VALUES ('FF', '和文', 1, 'font');
+                 INSERT INTO tags (name, mode) VALUES ('明朝', 'font');",
+            )
+            .unwrap();
+        let (_, text) = run(&host, "find_items", json!({}));
+        assert!(text.starts_with("該当 1 件") && !text.contains("Mincho"), "{text}");
+        let (_, text) = run(&host, "library_info", json!({}));
+        assert!(text.contains("すべて: 1 件（画像 1）") && text.contains("フォルダ: 0 個") && text.contains("タグ: 0 個"), "{text}");
         let (_, list) = run(&host, "list_folders", json!({}));
-        assert_eq!(list, "パス\t件数\n仕事\t1\n（フォント用）\nパス\t件数\n仕事\t1\n");
-        let (_, list) = run(&host, "list_folders", json!({ "kind": "font" }));
-        assert_eq!(list, "パス\t件数\n仕事\t1\n");
-        run(&host, "add_tags", json!({ "ids": [&ids[0][..8], &ids[1][..8]], "tags": ["見本"] }));
+        assert_eq!(list, "フォルダはありません");
         let (_, list) = run(&host, "list_tags", json!({}));
-        assert_eq!(list, "タグ\t件数\n見本\t1\n（フォント用）\nタグ\t件数\n見本\t1\n");
-        // A path and a tag name reach the items of both modes.
-        let (_, text) = run(&host, "find_items", json!({ "where": { "folder": "仕事", "tags": ["見本"], "tag_match_all": true } }));
-        assert!(text.starts_with("該当 2 件"), "{text}");
-        let (_, text) = run(&host, "find_items", json!({ "where": { "folder": "仕事", "kind": "font" } }));
-        assert!(text.starts_with("該当 1 件") && text.contains("Mincho.ttf"), "{text}");
-        let (err, text) = run(&host, "create_folder", json!({ "path": "和文/明朝", "kind": "font" }));
-        assert!(!err, "{text}");
-        let (_, list) = run(&host, "list_folders", json!({ "kind": "image" }));
-        assert!(!list.contains("和文"), "{list}");
+        assert_eq!(list, "タグはありません");
+        let (err, text) = run(&host, "add_tags", json!({ "ids": [&ids[1][..8]], "tags": ["見本"] }));
+        assert!(err && text.contains("見つからない id"), "{text}");
+        let (err, _) = run(&host, "find_items", json!({ "where": { "kind": "font" } }));
+        assert!(err, "not a kind");
+        let (err, text) = run(&host, "find_items", json!({ "where": { "folder": "和文" } }));
+        assert!(err && text.contains("ありません"), "{text}");
+        // A folder of the same name is a new one.
+        let (err, text) = run(&host, "move_to_folder", json!({ "ids": [&ids[0][..8]], "folder": "和文" }));
+        assert!(!err && text.contains("新しく作りました"), "{text}");
     }
 
     #[test]

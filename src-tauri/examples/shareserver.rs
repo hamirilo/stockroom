@@ -25,7 +25,7 @@ fn main() {
     let port: u16 = args.next().map(|p| p.parse().expect("port")).unwrap_or(41650);
 
     let lib = Library::create(&root).unwrap();
-    let folders = db::list_folders(&lib.conn, None).unwrap();
+    let folders = db::list_folders(&lib.conn).unwrap();
     let folder = folders
         .iter()
         .find(|f| name.as_ref().is_none_or(|n| &f.name == n))

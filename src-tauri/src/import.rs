@@ -4,7 +4,6 @@
 
 use crate::db::{self, NewItem};
 use crate::files;
-use crate::fonts;
 use crate::formats;
 use crate::library::{self, Library};
 use crate::orient::{self, OrientOp, Orientation};
@@ -290,9 +289,6 @@ fn process(
         return Ok(done);
     }
 
-    if formats::is_font(&ext) {
-        return process_font(name, ext, data, hash, root);
-    }
     if files::is_file(&ext) {
         return process_file(name, ext, data, hash, root);
     }
@@ -346,43 +342,13 @@ fn process(
         thumb,
         phash: Some(phash),
         preview,
-        font: None,
-        body: None,
-        duration_ms: None,
-    }))
-}
-
-/// Fonts: stored as is, with a rendered sample as the thumbnail. They have no
-/// pixel size (0 × 0) and take no part in the look-alike search.
-fn process_font(name: String, ext: String, data: Vec<u8>, hash: String, root: &Path) -> Result<Outcome, String> {
-    let sfnt = fonts::to_sfnt(&data, &ext)?;
-    let sample = fonts::render_thumb(&sfnt)?;
-    let meta = fonts::meta(&sfnt)?;
-    let id = uuid::Uuid::new_v4().simple().to_string();
-    let file_name = sanitize(&name);
-    library::store_file(root, &id, &file_name, &data)?;
-    let thumb = write_thumb(&sample, &root.join("thumbs"), &id).inspect_err(|_| library::remove_item_dir(root, &id))?;
-    Ok(Outcome::New(NewItem {
-        id,
-        kind: db::Kind::Font,
-        name,
-        file_name,
-        ext,
-        width: 0,
-        height: 0,
-        size: data.len() as i64,
-        hash,
-        thumb,
-        phash: None,
-        preview: None,
-        font: Some(meta),
         body: None,
         duration_ms: None,
     }))
 }
 
 /// Files (PDF, office documents): stored as is, with a thumbnail from the OS
-/// or the file itself (files/mod.rs). Like fonts, 0 × 0 and no look-alikes.
+/// or the file itself (files/mod.rs). 0 × 0 and no look-alikes.
 fn process_file(name: String, ext: String, data: Vec<u8>, hash: String, root: &Path) -> Result<Outcome, String> {
     if ext == "pdf" && !files::looks_like_pdf(&data) {
         return Err("PDF ではありません".into());
@@ -406,7 +372,6 @@ fn process_file(name: String, ext: String, data: Vec<u8>, hash: String, root: &P
         thumb,
         phash: None,
         preview: None,
-        font: None,
         body: None,
         duration_ms: None,
     }))
@@ -473,7 +438,6 @@ fn process_video(
         thumb,
         phash: None,
         preview: None,
-        font: None,
         body: None,
         duration_ms: info.duration_ms,
     }))
@@ -549,48 +513,7 @@ pub fn compute_missing_phashes(lib: &Mutex<Option<Library>>) -> Result<usize, St
     Ok(hashes.len())
 }
 
-/// Reads the family, script and style of fonts imported by versions that
-/// didn't store them all. Like `compute_missing_phashes`, the library is
-/// locked only at the ends. Returns how many were read.
-pub fn compute_missing_font_meta(lib: &Mutex<Option<Library>>) -> Result<usize, String> {
-    let (root, missing) = {
-        let guard = lib.lock().unwrap();
-        let l = guard.as_ref().ok_or("ライブラリが開かれていません")?;
-        (l.root.clone(), db::missing_font_meta(&l.conn).map_err(|e| e.to_string())?)
-    };
-    if missing.is_empty() {
-        return Ok(0);
-    }
-    let metas: Vec<(String, fonts::FontMeta)> = missing
-        .par_iter()
-        .map(|(id, file_name, ext)| {
-            let path = library::stored_file(&root, id, file_name);
-            // A file that can't be read is filed as "other", so it isn't retried every time.
-            let meta = fs::read(&path)
-                .map_err(|e| e.to_string())
-                .and_then(|d| fonts::to_sfnt(&d, ext))
-                .and_then(|s| fonts::meta(&s))
-                .unwrap_or(fonts::FontMeta {
-                    family: String::new(),
-                    weight: 400,
-                    weight_min: 400,
-                    weight_max: 400,
-                    script: "other",
-                    category: None,
-                    features: Vec::new(),
-                    ps_name: String::new(),
-                });
-            (id.clone(), meta)
-        })
-        .collect();
-    let mut guard = lib.lock().unwrap();
-    let l = guard.as_mut().ok_or("ライブラリが開かれていません")?;
-    if l.root != root {
-        return Err("読み込み中にライブラリが切り替わりました".into());
-    }
-    db::set_font_meta(&mut l.conn, &metas).map_err(|e| e.to_string())?;
-    Ok(metas.len())
-}
+
 
 fn commit(
     conn: &mut Connection,
@@ -601,24 +524,18 @@ fn commit(
     // Target folder (None = unfiled) -> item ids, in import order.
     // The flag marks already-known items, which only fill an empty spot.
     let mut placed: Vec<(Option<String>, bool, Vec<String>)> = Vec::new();
-    let mut folder_cache: HashMap<(db::Mode, Vec<String>), String> = HashMap::new();
+    let mut folder_cache: HashMap<Vec<String>, String> = HashMap::new();
     let tx = conn.transaction()?;
-    // A folder holds its mode's items only (docs/MODES.md): the others go to
-    // the top of their own mode.
-    let target_mode = match folder_id {
-        Some(f) => db::folder_mode(&tx, f)?,
-        None => None,
-    };
     let base = db::now_ms();
     for (i, (o, dirs)) in outcomes.into_iter().enumerate() {
         let known = matches!(o, Outcome::Duplicate(_));
-        let (id, mode) = match o {
+        let id = match o {
             Outcome::New(item) => {
                 // Offset by index so the import order is preserved when sorting.
                 db::insert_item(&tx, &item, base + i as i64)?;
                 summary.imported += 1;
                 *summary.kinds.entry(item.kind).or_default() += 1;
-                (item.id, db::Mode::of(item.kind))
+                item.id
             }
             Outcome::Duplicate(id) => {
                 summary.duplicates += 1;
@@ -627,8 +544,7 @@ fn commit(
                 }
                 // Re-importing something from the trash brings it back.
                 db::restore_items(&tx, std::slice::from_ref(&id))?;
-                let mode = db::item_mode(&tx, &id)?.unwrap_or_default();
-                (id, mode)
+                id
             }
             Outcome::Failed(msg) => {
                 summary.failed.push(msg);
@@ -636,13 +552,13 @@ fn commit(
             }
         };
         // Recreate the source directory structure under the target folder.
-        let mut folder = folder_id.filter(|_| target_mode == Some(mode)).map(str::to_owned);
+        let mut folder = folder_id.map(str::to_owned);
         for depth in 1..=dirs.len() {
-            let key = (mode, dirs[..depth].to_vec());
+            let key = dirs[..depth].to_vec();
             let next = match folder_cache.get(&key) {
                 Some(f) => f.clone(),
                 None => {
-                    let f = db::find_or_create_folder(&tx, folder.as_deref(), &dirs[depth - 1], mode)?;
+                    let f = db::find_or_create_folder(&tx, folder.as_deref(), &dirs[depth - 1])?;
                     folder_cache.insert(key, f.clone());
                     f
                 }
@@ -733,7 +649,7 @@ mod tests {
 
         let target = {
             let g = lib.lock().unwrap();
-            db::create_folder(&g.as_ref().unwrap().conn, "F", None, db::Mode::Stock).unwrap()
+            db::create_folder(&g.as_ref().unwrap().conn, "F", None).unwrap()
         };
         let calls = AtomicUsize::new(0);
         let sum = run(&lib, files, Some(target.clone()), |_, _| {
@@ -748,7 +664,7 @@ mod tests {
         let g = lib.lock().unwrap();
         let l = g.as_ref().unwrap();
         // The dropped directory is recreated as F/src/sub.
-        let folders = db::list_folders(&l.conn, None).unwrap();
+        let folders = db::list_folders(&l.conn).unwrap();
         let src = folders.iter().find(|f| f.name == "src").unwrap();
         let sub = folders.iter().find(|f| f.name == "sub").unwrap();
         assert_eq!(src.parent_id.as_deref(), Some(target.as_str()));
@@ -788,7 +704,7 @@ mod tests {
         let sum = run(&lib, collect_files(std::slice::from_ref(&dir)), None, |_, _| {}).unwrap();
         assert_eq!((sum.imported, sum.duplicates), (1, 1));
         let g = lib.lock().unwrap();
-        let folders = db::list_folders(&g.as_ref().unwrap().conn, None).unwrap();
+        let folders = db::list_folders(&g.as_ref().unwrap().conn).unwrap();
         assert_eq!(folders.len(), 1);
         assert_eq!(folders[0].count, 2);
     }
@@ -976,81 +892,25 @@ mod tests {
         assert_eq!(sum.failed.len(), 1, "{:?}", sum.failed);
     }
 
+    /// Fonts have their own app (docs/FONT_APP.md): their files are skipped
+    /// like any type that isn't supported.
     #[test]
-    fn drops_into_a_folder_only_what_is_of_its_mode() {
-        let Some(ttf) = fonts::tests::system_font(fonts::tests::SINGLE) else { return };
-        let (_tmp, lib) = setup();
-        let folder = {
-            let g = lib.lock().unwrap();
-            db::create_folder(&g.as_ref().unwrap().conn, "画像", None, db::Mode::Stock).unwrap()
-        };
-        let sources = vec![
-            Source::Bytes { name: "Sample.ttf".into(), data: ttf },
-            Source::Bytes { name: "square.png".into(), data: png_bytes(DynamicImage::ImageRgb8(RgbImage::new(8, 8))) },
-        ];
-        run(&lib, sources, Some(folder.clone()), |_, _| {}).unwrap();
-        let g = lib.lock().unwrap();
-        let all = db::query_items(&g.as_ref().unwrap().conn, &db::ItemQuery::default()).unwrap();
-        let folder_of = |kind| all.iter().find(|i| i.kind == kind).unwrap().folder_id.clone();
-        assert_eq!(folder_of(db::Kind::Image), Some(folder));
-        assert_eq!(folder_of(db::Kind::Font), None, "the font stays unfiled, in its own mode");
-    }
-
-    #[test]
-    fn imports_fonts_without_pixel_size() {
-        let Some(ttf) = fonts::tests::system_font(fonts::tests::SINGLE) else { return };
-        let (_tmp, lib) = setup();
-        let sources = vec![
-            Source::Bytes { name: "Sample.ttf".into(), data: ttf.clone() },
-            Source::Bytes { name: "Sample.woff".into(), data: fonts::tests::encode_woff(&ttf) },
-            Source::Bytes { name: "square.png".into(), data: png_bytes(DynamicImage::ImageRgb8(RgbImage::new(8, 8))) },
-        ];
+    fn font_files_are_skipped() {
+        let (tmp, lib) = setup();
+        let dir = tmp.path().join("src");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("Sample.ttf"), b"\0\x01\0\0font").unwrap();
+        fs::write(dir.join("Sample.woff2"), b"wOF2font").unwrap();
+        RgbImage::from_pixel(8, 8, Rgb([1, 2, 3])).save(dir.join("square.png")).unwrap();
+        let mut sources = collect_files(std::slice::from_ref(&dir));
+        assert_eq!(sources.len(), 1, "only the image");
+        sources.push(Source::Bytes { name: "Pasted.otf".into(), data: b"OTTOfont".to_vec() });
         let sum = run(&lib, sources, None, |_, _| {}).unwrap();
-        assert!(sum.failed.is_empty(), "{:?}", sum.failed);
-        assert_eq!(sum.imported, 3);
-        assert_eq!(sum.kinds, std::collections::BTreeMap::from([(db::Kind::Image, 1), (db::Kind::Font, 2)]));
-
-        let mut g = lib.lock().unwrap();
-        let l = g.as_mut().unwrap();
-        let all = db::query_items(&l.conn, &db::ItemQuery { sort: db::SortKey::Name, ..Default::default() }).unwrap();
-        let ttf_item = all.iter().find(|i| i.name == "Sample.ttf").unwrap();
-        assert_eq!((ttf_item.kind, ttf_item.width, ttf_item.height), (db::Kind::Font, 0, 0));
-        assert_eq!(fs::read(l.file_path(ttf_item)).unwrap(), ttf, "stored as is");
-        let t = image::open(l.thumb_path(ttf_item)).unwrap();
-        assert_eq!((t.width(), t.height()), (fonts::THUMB_W, fonts::THUMB_H));
-
-        // 0 × 0 must not count as "square", and fonts are never hashed for look-alikes.
-        let square = db::ItemQuery {
-            filter: db::Filter { shapes: vec![db::Shape::Square], ..Default::default() },
-            ..Default::default()
-        };
-        let names: Vec<_> = db::query_items(&l.conn, &square).unwrap().into_iter().map(|i| i.name).collect();
-        assert_eq!(names, ["square.png"]);
-        assert!(db::missing_phashes(&l.conn).unwrap().is_empty());
-
-        // The family is stored, so the TTF and the WOFF of one font group and search together.
-        let meta = fonts::meta(&ttf).unwrap();
-        let family = meta.family.clone();
-        let fonts_of = |conn: &rusqlite::Connection| -> Vec<(Option<String>, Option<u32>, Option<String>)> {
-            let q = db::ItemQuery { search: format!("\"{family}\""), sort: db::SortKey::Name, ..Default::default() };
-            db::query_items(conn, &q).unwrap().into_iter().map(|i| (i.font_family, i.font_weight, i.font_script)).collect()
-        };
-        let found = fonts_of(&l.conn);
-        assert_eq!(found.len(), 2, "found by family name");
-        assert!(found.iter().all(|f| f.0.as_deref() == Some(family.as_str())
-            && f.1.is_some_and(|w| w >= 100)
-            && f.2.as_deref() == Some(meta.script)));
-
-        // Rotating skips fonts.
-        let ids: Vec<String> = all.iter().map(|i| i.id.clone()).collect();
-        assert_eq!(orient(l, &ids, OrientOp::RotateCw).unwrap(), 1);
-
-        // Fonts imported before the family was stored get it filled in.
-        l.conn.execute("UPDATE items SET font_family = NULL, font_weight = NULL, font_script = NULL", []).unwrap();
-        drop(g);
-        assert_eq!(compute_missing_font_meta(&lib).unwrap(), 2);
-        assert_eq!(compute_missing_font_meta(&lib).unwrap(), 0);
-        assert_eq!(fonts_of(&lib.lock().unwrap().as_ref().unwrap().conn), found);
+        assert_eq!(sum.imported, 1);
+        assert_eq!(sum.failed.len(), 1, "{:?}", sum.failed);
+        for ext in ["ttf", "otf", "woff", "woff2", "ttc", "otc"] {
+            assert!(!SUPPORTED_EXTS.contains(&ext), "{ext}");
+        }
     }
 
     #[test]
@@ -1095,7 +955,7 @@ mod tests {
         let t = image::open(l.thumb_path(by("memo.xls"))).unwrap();
         assert_eq!((t.width(), t.height()), (files::CARD_W, files::CARD_H));
         assert!(db::missing_phashes(&l.conn).unwrap().is_empty(), "no look-alikes for files");
-        assert_eq!(db::counts(&l.conn, None).unwrap().kinds, std::collections::BTreeMap::from([(db::Kind::File, 3)]));
+        assert_eq!(db::counts(&l.conn).unwrap().kinds, std::collections::BTreeMap::from([(db::Kind::File, 3)]));
     }
 
     #[test]

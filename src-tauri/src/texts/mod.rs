@@ -155,7 +155,6 @@ pub fn new_item(root: &Path, name: String, ext: String, data: Vec<u8>, hash: Str
         thumb,
         phash: None,
         preview: None,
-        font: None,
         body: Some(body(&decoded.text)),
         duration_ms: None,
     })

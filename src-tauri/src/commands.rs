@@ -1,6 +1,6 @@
 //! Commands invoked from the frontend. All return `Result<_, String>` so
-//! errors surface as rejected promises in JS. Font-only commands are in
-//! fonts/commands.rs.
+//! errors surface as rejected promises in JS. Commands of one kind only are
+//! in its module (files/commands.rs, texts/commands.rs, ...).
 
 use crate::changes;
 use crate::db::{self, Counts, Folder, Item, ItemQuery, SelectionInfo, Tag};
@@ -85,8 +85,9 @@ pub struct AppSettings {
     startup: Startup,
     /// Look for a new version a few seconds after launch.
     auto_update: bool,
-    /// Sidebar entries hidden per mode, for the libraries that follow the
-    /// app's sidebar (library.db `sidebar` is not "own"). Read by the frontend.
+    /// Sidebar entries hidden, for the libraries that follow the app's sidebar
+    /// (library.db `sidebar` is not "own"). Read and written by the frontend,
+    /// which keeps them under "stock" (once one list per mode).
     sidebar_hidden: std::collections::BTreeMap<String, Vec<String>>,
 }
 
@@ -529,8 +530,8 @@ pub async fn facet_counts(app: AppHandle, query: ItemQuery) -> CmdResult<db::Fac
 }
 
 #[tauri::command]
-pub fn get_counts(state: State<AppState>, mode: Option<db::Mode>) -> CmdResult<Counts> {
-    with_lib(&state, |lib| db::counts(&lib.conn, mode).map_err(err))
+pub fn get_counts(state: State<AppState>) -> CmdResult<Counts> {
+    with_lib(&state, |lib| db::counts(&lib.conn).map_err(err))
 }
 
 #[tauri::command]
@@ -772,7 +773,7 @@ pub fn reorder_tray(state: State<AppState>, ids: Vec<String>, before: Option<Str
 // -------------------------------------------------------- contact sheet
 
 /// One item for the contact sheet: oriented, fitted inside `max_side` px,
-/// as PNG or JPEG (sheet.rs). A font or file gives its thumbnail.
+/// as PNG or JPEG (sheet.rs). A file gives its thumbnail.
 #[tauri::command]
 pub async fn sheet_image(app: AppHandle, id: String, max_side: u32) -> CmdResult<tauri::ipc::Response> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -1318,7 +1319,7 @@ pub struct ShareInfo {
 fn share_state(app: &AppHandle) -> CmdResult<ShareStatus> {
     let state = app.state::<AppState>();
     let (shares, folders) = with_lib(&state, |lib| {
-        Ok((share::list(&lib.conn).map_err(err)?, db::list_folders(&lib.conn, None).map_err(err)?))
+        Ok((share::list(&lib.conn).map_err(err)?, db::list_folders(&lib.conn).map_err(err)?))
     })?;
     let hosts = if shares.is_empty() { vec![] } else { share::lan_hosts() };
     let path = |id: &str| {
@@ -1475,16 +1476,13 @@ pub fn supported_exts() -> Vec<&'static str> {
 // -------------------------------------------------------------- folders
 
 #[tauri::command]
-pub fn list_folders(state: State<AppState>, mode: Option<db::Mode>) -> CmdResult<Vec<Folder>> {
-    with_lib(&state, |lib| db::list_folders(&lib.conn, mode).map_err(err))
+pub fn list_folders(state: State<AppState>) -> CmdResult<Vec<Folder>> {
+    with_lib(&state, |lib| db::list_folders(&lib.conn).map_err(err))
 }
 
-/// A folder of `mode` (a subfolder is of its parent's).
 #[tauri::command]
-pub fn create_folder(state: State<AppState>, name: String, parent_id: Option<String>, mode: db::Mode) -> CmdResult<String> {
-    with_lib(&state, |lib| {
-        db::create_folder(&lib.conn, name.trim(), parent_id.as_deref(), mode).map_err(err)
-    })
+pub fn create_folder(state: State<AppState>, name: String, parent_id: Option<String>) -> CmdResult<String> {
+    with_lib(&state, |lib| db::create_folder(&lib.conn, name.trim(), parent_id.as_deref()).map_err(err))
 }
 
 #[tauri::command]
@@ -1590,20 +1588,20 @@ pub fn shift_folder(state: State<AppState>, id: String, by: i32) -> CmdResult<()
 }
 
 #[tauri::command]
-pub fn sort_folders_by_name(state: State<AppState>, parent_id: Option<String>, mode: db::Mode) -> CmdResult<()> {
-    with_lib(&state, |lib| db::sort_folders_by_name(&mut lib.conn, parent_id.as_deref(), mode).map_err(err))
+pub fn sort_folders_by_name(state: State<AppState>, parent_id: Option<String>) -> CmdResult<()> {
+    with_lib(&state, |lib| db::sort_folders_by_name(&mut lib.conn, parent_id.as_deref()).map_err(err))
 }
 
 // -------------------------------------------------------- smart folders
 
 #[tauri::command]
-pub fn list_smart_folders(state: State<AppState>, mode: Option<db::Mode>) -> CmdResult<Vec<db::SmartFolder>> {
-    with_lib(&state, |lib| db::list_smart_folders(&lib.conn, mode).map_err(err))
+pub fn list_smart_folders(state: State<AppState>) -> CmdResult<Vec<db::SmartFolder>> {
+    with_lib(&state, |lib| db::list_smart_folders(&lib.conn).map_err(err))
 }
 
 #[tauri::command]
-pub fn create_smart_folder(state: State<AppState>, name: String, rule: db::Rule, mode: db::Mode) -> CmdResult<String> {
-    with_lib(&state, |lib| db::create_smart_folder(&lib.conn, name.trim(), &rule, mode).map_err(err))
+pub fn create_smart_folder(state: State<AppState>, name: String, rule: db::Rule) -> CmdResult<String> {
+    with_lib(&state, |lib| db::create_smart_folder(&lib.conn, name.trim(), &rule).map_err(err))
 }
 
 #[tauri::command]
@@ -1625,8 +1623,8 @@ pub fn delete_smart_folder(state: State<AppState>, id: String) -> CmdResult<()> 
 }
 
 #[tauri::command]
-pub fn list_exts(state: State<AppState>, mode: Option<db::Mode>) -> CmdResult<Vec<(String, i64)>> {
-    with_lib(&state, |lib| db::list_exts(&lib.conn, mode).map_err(err))
+pub fn list_exts(state: State<AppState>) -> CmdResult<Vec<(String, i64)>> {
+    with_lib(&state, |lib| db::list_exts(&lib.conn).map_err(err))
 }
 
 #[tauri::command]
@@ -1649,8 +1647,8 @@ pub fn remove_from_folder(state: State<AppState>, ids: Vec<String>, folder_id: S
 // ----------------------------------------------------------------- tags
 
 #[tauri::command]
-pub fn list_tags(state: State<AppState>, mode: Option<db::Mode>) -> CmdResult<Vec<Tag>> {
-    with_lib(&state, |lib| db::list_tags(&lib.conn, mode).map_err(err))
+pub fn list_tags(state: State<AppState>) -> CmdResult<Vec<Tag>> {
+    with_lib(&state, |lib| db::list_tags(&lib.conn).map_err(err))
 }
 
 #[tauri::command]

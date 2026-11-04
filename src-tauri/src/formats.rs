@@ -11,8 +11,6 @@ use std::io::Cursor;
 
 pub const SUPPORTED_EXTS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "svg", "heic", "heif", "avif",
-    // Fonts (see fonts.rs).
-    "ttf", "otf", "woff", "woff2", "ttc", "otc",
     // Files: PDF and office documents (see files/mod.rs `EXTS`).
     "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key",
     // Texts (see texts/mod.rs `EXTS`).
@@ -26,11 +24,6 @@ pub fn is_image(ext: &str) -> bool {
     matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp" | "tif" | "tiff" | "svg" | "heic" | "heif" | "avif")
 }
 
-/// Font files are imported with a rendered sample as their thumbnail.
-pub fn is_font(ext: &str) -> bool {
-    matches!(ext, "ttf" | "otf" | "woff" | "woff2" | "ttc" | "otc")
-}
-
 /// Formats the web view can't show reliably on every platform (WebView2 has
 /// no HEIC / TIFF support), so a JPEG copy is kept for full-size display.
 pub fn needs_preview(ext: &str) -> bool {
@@ -40,15 +33,6 @@ pub fn needs_preview(ext: &str) -> bool {
 /// The file type from the content (magic bytes), for data whose name may not
 /// say it: images saved from the web often have no or a wrong extension.
 pub fn sniff(data: &[u8]) -> Option<&'static str> {
-    let head = |n: usize| data.get(..n);
-    match head(4)? {
-        b"wOFF" => return Some("woff"),
-        b"wOF2" => return Some("woff2"),
-        b"ttcf" => return Some("ttc"),
-        b"OTTO" => return Some("otf"),
-        &[0, 1, 0, 0] | b"true" => return Some("ttf"),
-        _ => {}
-    }
     // ISO media (HEIF / AVIF): `ftyp` box with the major and compatible brands.
     if data.get(4..8) == Some(b"ftyp") && data.len() >= 16 {
         let len = (u32::from_be_bytes(data[..4].try_into().ok()?) as usize).clamp(16, data.len().min(256));
@@ -86,7 +70,6 @@ pub fn name_for_content(name: &str, data: &[u8]) -> String {
         "jpeg" => "jpg",
         "tif" => "tiff",
         "heif" => "heic",
-        "otc" => "ttc",
         e => e,
     }
     .to_string();
@@ -292,6 +275,18 @@ mod wic {
 mod tests {
     use super::*;
 
+    /// A single font installed with the OS (one that isn't a collection), if there is one.
+    fn system_font() -> Option<Vec<u8>> {
+        [
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/System/Library/Fonts/Geneva.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        ]
+        .iter()
+        .find_map(|p| std::fs::read(p).ok())
+    }
+
     #[test]
     fn svg_uses_document_size_and_rasterises() {
         let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
@@ -327,7 +322,7 @@ mod tests {
     fn svg_text_is_drawn() {
         // One font that isn't any generic family's default, as on a system
         // without Times New Roman: the text must still be drawn.
-        let Some(font) = crate::fonts::tests::system_font(crate::fonts::tests::SINGLE) else { return };
+        let Some(font) = system_font() else { return };
         let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
             <text x="10" y="70" font-size="60" fill="#000">Hi</text></svg>"##;
         let draws = |db: resvg::usvg::fontdb::Database| {
@@ -372,7 +367,7 @@ mod tests {
         assert_eq!(name_for_content("a.jpeg", b"\xff\xd8\xff\xe0rest"), "a.jpeg");
         assert_eq!(sniff(b"\xef\xbb\xbf  <?xml version=\"1.0\"?><svg/>"), Some("svg"));
         assert_eq!(sniff(b"<html><body>no</body></html>"), None);
-        assert_eq!(sniff(b"wOF2...."), Some("woff2"));
+        assert_eq!(sniff(b"wOF2...."), None, "fonts aren't a kind (docs/FONT_APP.md)");
         assert_eq!(sniff(b"\0\0\0\x1cftypavif\0\0\0\0avifmif1miaf"), Some("avif"));
         assert_eq!(sniff(b"\0\0\0\x18ftypheic\0\0\0\0mif1heic"), Some("heic"));
         assert_eq!(sniff(b"\0\0\0\x18ftypisom\0\0\0\0isommp41"), None, "MP4 is not an image");

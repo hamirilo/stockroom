@@ -15,7 +15,7 @@ use crate::library::Library;
 pub const MAX_SIDE: u32 = 4096;
 
 /// The file `render` reads for `item`: an image itself (or its display
-/// copy), the thumbnail of a font or another file.
+/// copy), else its thumbnail.
 pub fn source_path(lib: &Library, item: &Item) -> PathBuf {
     if item.kind == Kind::Image {
         lib.display_path(item)

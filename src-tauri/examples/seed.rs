@@ -51,9 +51,9 @@ fn main() {
     )
     .unwrap();
     // A little structure so the sidebar has something to show.
-    let animals = db::create_folder(&l.conn, "動物", None, db::Mode::Stock).unwrap();
-    let cats = db::create_folder(&l.conn, "ねこ", Some(&animals), db::Mode::Stock).unwrap();
-    db::create_folder(&l.conn, "風景", None, db::Mode::Stock).unwrap();
+    let animals = db::create_folder(&l.conn, "動物", None).unwrap();
+    let cats = db::create_folder(&l.conn, "ねこ", Some(&animals)).unwrap();
+    db::create_folder(&l.conn, "風景", None).unwrap();
     let ids: Vec<String> = all.iter().map(|i| i.id.clone()).collect();
     db::move_to_folder(&l.conn, &ids[..ids.len() / 4], &animals).unwrap();
     db::move_to_folder(&l.conn, &ids[..ids.len() / 8], &cats).unwrap();

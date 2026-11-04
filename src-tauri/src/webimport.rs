@@ -244,8 +244,7 @@ fn handle(head: &Head, body: &mut dyn Read, port: u16, shared: &Shared, host: &d
                 name: String,
                 parent_id: Option<String>,
             }
-            // What the extension saves is images and files: the stock's folders and tags (docs/MODES.md).
-            let folders = db::list_folders(&l.conn, Some(db::Mode::Stock)).map_err(|e| e.to_string())?;
+            let folders = db::list_folders(&l.conn).map_err(|e| e.to_string())?;
             let out: Vec<F> = folders
                 .into_iter()
                 .map(|f| F { id: f.id, name: f.name, parent_id: f.parent_id })
@@ -253,7 +252,7 @@ fn handle(head: &Head, body: &mut dyn Read, port: u16, shared: &Shared, host: &d
             Ok(json!(out))
         }),
         ("GET", "/tags") => with_lib(&|l| {
-            let tags = db::list_tags(&l.conn, Some(db::Mode::Stock)).map_err(|e| e.to_string())?;
+            let tags = db::list_tags(&l.conn).map_err(|e| e.to_string())?;
             Ok(json!(tags.into_iter().map(|t| t.name).collect::<Vec<_>>()))
         }),
         ("POST", "/import") => {
@@ -316,7 +315,7 @@ fn import_one(
     if let Some(f) = folder {
         let guard = lib.lock().unwrap();
         let Some(l) = guard.as_ref() else { return error(503, "アプリでライブラリが開かれていません") };
-        match db::list_folders(&l.conn, None) {
+        match db::list_folders(&l.conn) {
             Ok(all) if all.iter().any(|x| x.id == f) => {}
             Ok(_) => return error(400, "保存先のフォルダが見つかりません。拡張機能で選び直してください"),
             Err(e) => return error(500, &e.to_string()),
@@ -486,7 +485,7 @@ mod tests {
         let hd = [("Host", h.as_str()), ("Authorization", auth.as_str())];
         let folder = {
             let g = host.lib.lock().unwrap();
-            db::create_folder(&g.as_ref().unwrap().conn, "Web 保存", None, db::Mode::Stock).unwrap()
+            db::create_folder(&g.as_ref().unwrap().conn, "Web 保存", None).unwrap()
         };
         let (status, folders) = call(p, "GET", "/folders", &hd, b"");
         assert_eq!((status, folders[0]["name"].as_str()), (200, Some("Web 保存")));
@@ -534,7 +533,7 @@ mod tests {
         let hd = [("Host", h.as_str()), ("Authorization", auth.as_str())];
         let folder = {
             let g = host.lib.lock().unwrap();
-            db::create_folder(&g.as_ref().unwrap().conn, "あとで読む", None, db::Mode::Stock).unwrap()
+            db::create_folder(&g.as_ref().unwrap().conn, "あとで読む", None).unwrap()
         };
         let body = json!({
             "url": "https://example.com/post?utm_campaign=x",

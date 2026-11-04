@@ -1,7 +1,7 @@
 //! Copying / moving items into another library, with what the user added to
-//! them: name, note, rating, favourite, pin, rotation, source URL, font
-//! metadata, tags (matched by name) and the folder they are in (the folder
-//! path is recreated by name). Files are copied, never hard-linked, so the
+//! them: name, note, rating, favourite, pin, rotation, source URL, tags
+//! (matched by name) and the folder they are in (the folder path is
+//! recreated by name). Files are copied, never hard-linked, so the
 //! libraries stay independent.
 //!
 //! The source library is read through its database file (ATTACH), so the
@@ -184,12 +184,16 @@ fn copy_attached(
     for (n, item) in src.items.iter().enumerate() {
         progress(n, total);
         // Same file already there (or the same item, from an earlier copy).
+        // A left-over font there doesn't count (`db::NOT_FONT`).
         let existing: Option<String> = lib
             .conn
             .query_row(
-                "SELECT id FROM main.items
-                 WHERE id = ?1 OR hash = (SELECT hash FROM src.items WHERE id = ?1)
-                 ORDER BY id = ?1 DESC LIMIT 1",
+                &format!(
+                    "SELECT id FROM main.items
+                     WHERE (id = ?1 OR hash = (SELECT hash FROM src.items WHERE id = ?1)) AND {}
+                     ORDER BY id = ?1 DESC LIMIT 1",
+                    db::NOT_FONT
+                ),
                 [&item.id],
                 |r| r.get(0),
             )
@@ -227,11 +231,9 @@ fn copy_attached(
                     )?;
                 }
             }
-            // The destination's tags and folders of the item's mode (docs/MODES.md).
-            let mode = db::Mode::of(item.kind);
             for tag in &item.tag_ids {
                 let Some((name, color)) = src.tags.get(tag) else { continue };
-                let tag_id = db::ensure_tag(&tx, name, mode)?;
+                let tag_id = db::ensure_tag(&tx, name)?;
                 tx.execute("UPDATE main.tags SET color = ?2 WHERE id = ?1 AND color IS NULL", params![tag_id, color])?;
                 tx.execute(
                     "INSERT OR IGNORE INTO main.item_tags (item_id, tag_id) VALUES (?1, ?2)",
@@ -244,7 +246,7 @@ fn copy_attached(
                     None => {
                         let mut parent: Option<String> = None;
                         for (name, color) in src.folder_path(fid) {
-                            let id = db::find_or_create_folder(&tx, parent.as_deref(), name, mode)?;
+                            let id = db::find_or_create_folder(&tx, parent.as_deref(), name)?;
                             tx.execute(
                                 "UPDATE main.folders SET color = ?2 WHERE id = ?1 AND color IS NULL",
                                 params![id, color],
@@ -343,7 +345,6 @@ mod tests {
             thumb: format!("{id}.jpg"),
             phash: None,
             preview: None,
-            font: None,
             body: None,
             duration_ms: None,
         };
@@ -383,7 +384,7 @@ mod tests {
         let a = Library::create(&tmp.path().join("A.library")).unwrap();
         let b_root = tmp.path().join("B.library");
         let b = Library::create(&b_root).unwrap();
-        db::set_library_setting(&b.conn, "modes", Some(&serde_json::json!(["font"]))).unwrap();
+        db::set_library_setting(&b.conn, "modes", Some(&serde_json::json!(["video"]))).unwrap();
         drop(b);
         add(&a, "i1", "h1");
         add(&a, "i2", "h2");
@@ -402,8 +403,8 @@ mod tests {
         add(&a, "i2", "h2");
         add(&b, "x2", "h2"); // already in B under another id
 
-        let parent = db::create_folder(&a.conn, "Work", None, db::Mode::Stock).unwrap();
-        let child = db::create_folder(&a.conn, "Logos", Some(&parent), db::Mode::Stock).unwrap();
+        let parent = db::create_folder(&a.conn, "Work", None).unwrap();
+        let child = db::create_folder(&a.conn, "Logos", Some(&parent)).unwrap();
         db::set_color(&a.conn, db::ColorTarget::Folder, &child, Some("red")).unwrap();
         db::move_to_folder(&a.conn, &["i1".into(), "i2".into()], &child).unwrap();
         db::add_tags(&mut a.conn, &["i1".into(), "i2".into()], &["brand".into()]).unwrap();
@@ -428,12 +429,12 @@ mod tests {
         let x2 = items.iter().find(|i| i.id == "x2").unwrap();
         assert!(x2.favorite, "merged into the existing copy");
         assert_eq!(i1.folder_id, x2.folder_id);
-        let folders = db::list_folders(&b.conn, None).unwrap();
+        let folders = db::list_folders(&b.conn).unwrap();
         let logos = folders.iter().find(|f| f.name == "Logos").unwrap();
         assert_eq!(Some(&logos.id), i1.folder_id.as_ref());
         assert_eq!(logos.color.as_deref(), Some("red"));
         assert!(folders.iter().any(|f| f.name == "Work" && Some(&f.id) == logos.parent_id.as_ref()));
-        let tags = db::list_tags(&b.conn, None).unwrap();
+        let tags = db::list_tags(&b.conn).unwrap();
         assert_eq!(tags.len(), 1);
         assert_eq!(tags[0].count, 2);
 

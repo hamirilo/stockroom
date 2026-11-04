@@ -35,12 +35,9 @@ tauri-plugin-dialog = "2.8.1"
 clipboard-rs = "0.3.5"
 tauri-plugin-drag = "2.1.1"
 resvg = "0.48"
-# Fonts: metadata / character map (already used by resvg), WOFF / WOFF2 unpacking.
+# Whether an installed font has Latin letters, for SVG text (formats.rs). The
+# same version resvg uses, so it adds nothing to the build.
 skrifa = "0.44"
-woff2-patched = "0.4"
-# Checking a WOFF2 file's sizes before woff2-patched unpacks it (fonts/mod.rs).
-brotli = { version = "7", default-features = false, features = ["std"] }
-flate2 = "1"
 tempfile = "3.27.0"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
