@@ -1,5 +1,5 @@
 // Parent picker dialog (⌘ menu "親に紐づける…", docs/LINKS.md): choose the item
-// the selection becomes the children of. Parents are items of the stock that
+// the selection becomes the children of. Parents are items that
 // aren't children themselves (one level) and aren't part of the selection.
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Search } from "lucide-react";
@@ -44,7 +44,7 @@ function Dialog() {
       })
       .then((items) => {
         if (!live) return;
-        setRows(items.filter((i) => i.kind !== "font" && !i.parentId && !picked.has(i.id)).slice(0, MAX_ROWS));
+        setRows(items.filter((i) => !i.parentId && !picked.has(i.id)).slice(0, MAX_ROWS));
         setCursor(0);
       })
       .catch(() => live && setRows([]));

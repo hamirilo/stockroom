@@ -1,4 +1,4 @@
-// The comparison of the stock shelf's images, shown in place of the list:
+// The comparison of the shelf's images, shown in place of the list:
 // the images side by side in frames of one size, all of them in view. Zooming
 // or moving one moves them all, at the same place of each image, so the same
 // part can be looked at in each. docs/COMPARE.md.
@@ -20,7 +20,7 @@ const CAPTION = 52;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-// Remembered between sessions like the font comparison's background (localStorage, best effort).
+// Remembered between sessions (localStorage, best effort).
 const loadLight = () => {
   try {
     return localStorage.getItem("compareImagesLight") === "true";

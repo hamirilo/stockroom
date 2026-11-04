@@ -9,9 +9,7 @@
  * key ranges, "=" the ⌘+ key.
  */
 import { type ItemKind } from "./api";
-import { MODES, modeLabel } from "./modes";
 import { command } from "./commands";
-import type { Layout } from "../store";
 
 export type ShortcutRow = {
   label: string;
@@ -19,8 +17,6 @@ export type ShortcutRow = {
   keys: string[];
   /** Kinds it works for (all when absent). */
   kinds?: ItemKind[];
-  /** A different label in some layouts. */
-  labelIn?: Partial<Record<Layout, string>>;
 };
 
 export type ShortcutSection = { id: string; title: string; rows: ShortcutRow[] };
@@ -47,7 +43,6 @@ export function shortcutSections(): ShortcutSection[] {
       id: "general",
       title: "全体",
       rows: [
-        { label: MODES.map(modeLabel).join(" / "), keys: MODES.map((_, i) => `Mod+${i + 1}`) },
         cmd("view.sidebar", { label: "サイドバーの表示・非表示" }),
         {
           label: "種類で絞る（画像・ファイル・テキスト・動画・ブックマーク）/ 絞らない",
@@ -59,10 +54,7 @@ export function shortcutSections(): ShortcutSection[] {
         cmd("edit.search"),
         cmd("edit.filter", { label: "絞り込みの行へ" }),
         cmd("go.folder", { label: "フォルダを開く（名前で探す）" }),
-        {
-          ...pair("view.zoomIn", "view.zoomOut", "サムネイルを大きく / 小さく"),
-          labelIn: { specimen: "見本の文字を大きく / 小さく" },
-        },
+        pair("view.zoomIn", "view.zoomOut", "サムネイルを大きく / 小さく"),
         cmd("app.settings", { label: "設定" }),
         cmd("help.shortcuts", { label: "ショートカット一覧" }),
       ],

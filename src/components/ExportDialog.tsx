@@ -8,8 +8,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { FolderDown, FolderOpen } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { listTargets, writeLibrary } from "../lib/actions";
-import { api, modeOf, type Folder, type Item, type ItemKind } from "../lib/api";
-import { itemsNoun, MODES, modeLabel } from "../lib/modes";
+import { api, KINDS, type Folder, type Item } from "../lib/api";
+import { itemsNoun } from "../lib/kinds";
 import { notifyIfAway } from "../lib/osNotify";
 import { composing } from "../lib/ime";
 import { useStore, type ListSource } from "../store";
@@ -182,7 +182,7 @@ function Dialog({ source, title }: { source: ListSource; title: string }) {
 
 /**
  * ライブラリ全体を書き出し: every item not in the trash, into a new
- * "<library name>" folder in "<mode>/<folders>/…". The copying runs after the
+ * "<library name>" folder in "<folders>/…" (unfiled items at its top). The copying runs after the
  * dialog closes, with progress and a キャンセル (`writeLibrary`).
  */
 function LibraryDialog({ title }: { title: string }) {
@@ -191,13 +191,7 @@ function LibraryDialog({ title }: { title: string }) {
   const [dest, setDest] = useState<string | null>(() => load(LAST_DEST));
   useEscapeToClose();
 
-  const byMode = MODES.map((m) => {
-    const n = (Object.entries(kinds) as [ItemKind, number][])
-      .filter(([k]) => modeOf(k) === m)
-      .reduce((a, [, c]) => a + c, 0);
-    return { m, n };
-  }).filter((x) => x.n > 0);
-  const total = byMode.reduce((a, x) => a + x.n, 0);
+  const total = KINDS.reduce((a, k) => a + (kinds[k.kind] ?? 0), 0);
 
   const run = () => {
     if (!dest || !total) return;
@@ -209,7 +203,7 @@ function LibraryDialog({ title }: { title: string }) {
   return (
     <Frame
       title={title}
-      summary={`${total.toLocaleString()} 件${byMode.length > 1 ? `（${byMode.map((x) => `${modeLabel(x.m)} ${x.n.toLocaleString()}`).join("・")}）` : ""}`}
+      summary={`${total.toLocaleString()} 件`}
       ready={!!dest && total > 0}
       busy={false}
       run={run}
@@ -217,7 +211,7 @@ function LibraryDialog({ title }: { title: string }) {
       <DestField
         dest={dest}
         setDest={setDest}
-        note={`「${name}」フォルダを作り、フォルダ構成どおりに書き出します（同じ名前があれば「${name} (2)」）。ゴミ箱の項目は含めません`}
+        note={`「${name}」フォルダを作り、フォルダ構成どおりに書き出します。未分類のものはその直下に置きます（同じ名前があれば「${name} (2)」）。ゴミ箱の項目は含めません`}
       />
     </Frame>
   );

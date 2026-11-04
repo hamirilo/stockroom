@@ -3,7 +3,6 @@ import { RotateLeft, RotateRight } from "../lib/icons";
 import { deleteSelection, exportSelection, orient } from "../lib/actions";
 import { appliesTo, command, isEnabled } from "../lib/commands";
 import { comboText } from "../lib/shortcuts";
-import { isSystemId } from "../lib/api";
 import { useStore } from "../store";
 import { showItemMenu } from "./Grid";
 
@@ -23,9 +22,6 @@ export function SelectionBar() {
   if (count < 2 || isTrash) return null;
   const ids = [...state.selected];
   const rotatable = appliesTo(command("item.rotateCw"), state);
-  // Installed fonts are only looked at (docs/SYSTEM_FONTS.md).
-  const system = ids.some(isSystemId);
-  const readOnly = system ? "（この端末のフォントは読み取り専用です）" : "";
 
   const cmd = (id: string) => {
     const c = command(id);
@@ -45,7 +41,7 @@ export function SelectionBar() {
     );
   };
   const more = (e: React.MouseEvent) => {
-    const index = state.items.findIndex((i) => i.id === ids[0] || i.familyIds?.includes(ids[0]));
+    const index = state.items.findIndex((i) => i.id === ids[0]);
     if (index < 0) return;
     const r = e.currentTarget.getBoundingClientRect();
     showItemMenu({ clientX: r.left, clientY: r.top - 4 }, state.items[index], index);
@@ -80,18 +76,16 @@ export function SelectionBar() {
         )}
         <Sep />
         <Btn
-          title={`フォルダへ移動…（${comboText("Mod+Shift+J")}）${readOnly}`}
+          title={`フォルダへ移動…（${comboText("Mod+Shift+J")}）`}
           onClick={() => state.setPicker("move")}
           label="移動"
-          disabled={system}
         >
           <FolderInput size={15} />
         </Btn>
         <Btn
-          title={`書き出し…（${comboText("Mod+E")}）${readOnly}`}
+          title={`書き出し…（${comboText("Mod+E")}）`}
           onClick={() => exportSelection(ids)}
           label="書き出し"
-          disabled={system}
         >
           <Download size={15} />
         </Btn>
@@ -100,11 +94,10 @@ export function SelectionBar() {
         </Btn>
         <div className="mx-2 h-5 w-px shrink-0 bg-danger/40" />
         <Btn
-          title={`ゴミ箱へ移動（${comboText("Mod+Backspace")}）${readOnly}`}
+          title={`ゴミ箱へ移動（${comboText("Mod+Backspace")}）`}
           onClick={() => deleteSelection(ids)}
           label="ゴミ箱へ"
           danger
-          disabled={system}
         >
           <Trash2 size={15} />
         </Btn>

@@ -8,7 +8,7 @@
 import { Info, Layers } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { dragRegion } from "../lib/titleBar";
-import { FONT_SHELF_MAX, useStore, type PanelTab } from "../store";
+import { useStore, type PanelTab } from "../store";
 import { Inspector } from "./Inspector";
 import { Shelf } from "./Shelf";
 
@@ -63,7 +63,6 @@ function TabButton({
 }) {
   const on = tab === current;
   const shelf = useStore((s) => s.shelf.length);
-  const fonts = useStore((s) => s.mode === "font");
   // Added while the shelf is out of view: its count lights up.
   const flash = useStore((s) => (tab === "shelf" && s.flash?.target === "tray" ? s.flash.n : null));
   return (
@@ -83,7 +82,7 @@ function TabButton({
           key={flash ?? undefined}
           className={`min-w-5 rounded-full px-1.5 tabular-nums ${flash !== null && !on ? "animate-pop bg-accent-fill text-white" : "bg-white/10 text-dim"}`}
         >
-          {fonts ? `${shelf}/${FONT_SHELF_MAX}` : shelf}
+          {shelf}
         </span>
       )}
     </button>

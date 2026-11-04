@@ -79,7 +79,7 @@ function PickerDialog({ mode }: { mode: "move" | "goto" }) {
   };
 
   const createAndMove = async () => {
-    const id = await api.createFolder(query.trim(), null, useStore.getState().mode).catch((e) => {
+    const id = await api.createFolder(query.trim(), null).catch((e) => {
       useStore.getState().toast(String(e), true);
       return null;
     });

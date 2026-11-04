@@ -1,6 +1,6 @@
 // Making bookmarks: a URL pasted into the list. docs/BOOKMARKS.md
 import { buildHas } from "../../lib/limits";
-import { currentFolderId, notifyUnusedKinds, usedModes, useStore } from "../../store";
+import { currentFolderId, notifyUnusedKinds, usedKinds, useStore } from "../../store";
 import { bookmarksApi } from "./api";
 
 const st = () => useStore.getState();
@@ -13,13 +13,12 @@ export function pastedUrl(text: string): string | null {
 
 /**
  * Shows item `id` in the viewer's list: where it is if it's there, else in
- * "すべて" of the stock with the conditions cleared. False when it can't be
+ * "すべて" with the conditions cleared. False when it can't be
  * shown (the library isn't used for bookmarks).
  */
 async function reveal(id: string): Promise<boolean> {
   const find = () => st().items.findIndex((i) => i.id === id);
   if (find() < 0) {
-    if (st().mode !== "stock") st().setMode("stock");
     if (st().filter.kinds.length && !st().filter.kinds.includes("bookmark")) st().setKinds([]);
     st().setView({ kind: "all" });
     await st().refresh();
@@ -39,12 +38,10 @@ export async function pasteBookmark(url: string) {
   const s = st();
   // A build without bookmarks (src/lib/limits.ts).
   if (!s.library || !buildHas("bookmark")) return;
-  // The font mode has no bookmarks; pasting there is most likely a slip.
-  if (s.mode !== "stock") return;
   try {
     const { id, duplicate } = await bookmarksApi.create(url, currentFolderId());
     await st().refresh();
-    if (!usedModes(st()).includes("bookmark")) return notifyUnusedKinds({ bookmark: 1 });
+    if (!usedKinds(st()).includes("bookmark")) return notifyUnusedKinds({ bookmark: 1 });
     st().notify({
       title: duplicate ? "すでにブックマークにあります" : "ブックマークに追加しました",
       kind: "success",

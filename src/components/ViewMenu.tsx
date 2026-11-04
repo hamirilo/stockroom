@@ -1,7 +1,6 @@
 // Toolbar controls for how the list looks, each on its own: the layout
 // (one click), grouping into sections (one click), and what to show per thumbnail.
 import {
-  ALargeSmall,
   Check,
   ChevronDown,
   Columns3,
@@ -16,52 +15,31 @@ import { useShallow } from "zustand/react/shallow";
 import { command } from "../lib/commands";
 import type { GroupBy } from "../lib/grouping";
 import type { ItemKind } from "../lib/api";
-import {
-  LIBRARY_GROUPS,
-  listKinds,
-  MODE_GROUPS,
-  MODE_LAYOUTS,
-  shownGroupBy,
-  useStore,
-  type Layout,
-  type Mode,
-  type ShowInfo,
-} from "../store";
+import { listKinds, useStore, type Layout, type ShowInfo } from "../store";
 import { Slider } from "./Slider";
 
-/** Every grouping; each mode offers its own subset (MODE_GROUPS). */
+/** Every grouping, in the order offered. */
 export const GROUPS: { key: GroupBy; label: string; hint: string }[] = [
   { key: "none", label: "なし", hint: "区切らずに並べる" },
-  { key: "category", label: "書体", hint: "明朝・ゴシック・丸ゴシック…に分ける" },
-  { key: "script", label: "言語", hint: "日本語・欧文・中国語・韓国語に分ける" },
   { key: "month", label: "年月", hint: "追加した年月ごとに分ける（新しい順）" },
   { key: "rating", label: "評価", hint: "★5 から未評価まで" },
   { key: "tag", label: "タグ", hint: "複数のタグがあるものは各タグに出る" },
   { key: "folder", label: "フォルダ", hint: "「すべて」やサブフォルダ表示で便利" },
 ];
 
-/** Every layout; each mode offers its own subset (MODE_LAYOUTS). */
+/** Every layout. */
 export const LAYOUTS: { key: Layout; label: string; icon: React.ReactNode; hint: string }[] = [
   { key: "justified", label: "標準", icon: <Rows3 size={15} />, hint: "行の高さをそろえ、縦横比のまま並べる" },
   { key: "waterfall", label: "Pinterest風", icon: <Columns3 size={15} />, hint: "列の幅をそろえ、縦に詰めて並べる" },
   { key: "grid", label: "グリッド", icon: <LayoutGrid size={15} />, hint: "同じ大きさの枠に収めて並べる" },
   { key: "list", label: "リスト", icon: <LayoutList size={15} />, hint: "1 行ずつ詳しく表示" },
-  {
-    key: "specimen",
-    label: "見本",
-    icon: <ALargeSmall size={15} />,
-    hint: "フォントを 1 行ずつ大きく並べ、同じ文字で見比べる",
-  },
 ];
 
 /**
  * Layouts always on the toolbar; the others are in the display menu. The
- * stock puts the images' own first when the list can hold images.
+ * images' own come first when the list can hold images.
  */
-const PRIMARY: Record<Mode, Layout[]> = {
-  stock: ["grid", "list"],
-  font: ["specimen", "grid"],
-};
+const PRIMARY: Layout[] = ["grid", "list"];
 const PRIMARY_IMAGES: Layout[] = ["justified", "waterfall"];
 
 /** What a thumbnail can show; `only`: when the list can hold one of those kinds. */
@@ -132,10 +110,9 @@ const heading = "px-2 pt-1 pb-1 text-[11px] font-semibold text-dim";
 export function LayoutSwitch() {
   const layout = useStore((s) => s.layout);
   const setLayout = useStore((s) => s.setLayout);
-  const mode = useStore((s) => s.mode);
   const images = useStore((s) => listKinds(s).includes("image"));
-  const primary = mode === "stock" && images ? PRIMARY_IMAGES : PRIMARY[mode];
-  // In the mode's order ([見本｜グリッド]), then one from the menu while in use.
+  const primary = images ? PRIMARY_IMAGES : PRIMARY;
+  // In that order, then one from the menu while in use.
   const shown = [
     ...primary.map((k) => LAYOUTS.find((l) => l.key === k)!),
     ...LAYOUTS.filter((l) => l.key === layout && !primary.includes(l.key)),
@@ -161,20 +138,15 @@ export function LayoutSwitch() {
 }
 
 /**
- * Splitting the list into sections: every choice of the mode side by side,
+ * Splitting the list into sections: every choice side by side,
  * one click each, so nothing on the row moves when it changes (docs/UI.md).
  * When the toolbar is narrow the same choices fold into a menu in its place.
  */
 export function GroupMenu() {
-  const groupBy = useStore(shownGroupBy);
-  // The installed fonts have no rating, tags or folder (docs/SYSTEM_FONTS.md).
-  const system = useStore((s) => s.view.kind === "system");
-  const off = (g: GroupBy) => system && LIBRARY_GROUPS.includes(g);
+  const groupBy = useStore((s) => s.groupBy);
   const setGroupBy = useStore((s) => s.setGroupBy);
   const isSimilar = useStore((s) => s.view.kind === "similar");
-  const mode = useStore((s) => s.mode);
-  const groups = GROUPS.filter((g) => MODE_GROUPS[mode].includes(g.key));
-  const current = groups.find((g) => g.key === groupBy) ?? groups[0];
+  const current = GROUPS.find((g) => g.key === groupBy) ?? GROUPS[0];
   return (
     <div className="flex h-7 shrink-0 items-center gap-1.5">
       <span className={`@max-2xl:hidden ${isSimilar ? "text-off" : "text-dim"}`}>グループ</span>
@@ -196,28 +168,22 @@ export function GroupMenu() {
           onChange={(e) => setGroupBy(e.target.value as GroupBy)}
           className="absolute inset-0 cursor-default opacity-0"
         >
-          {groups.map((g) => (
-            <option key={g.key} value={g.key} disabled={off(g.key)}>
+          {GROUPS.map((g) => (
+            <option key={g.key} value={g.key}>
               {g.label}
             </option>
           ))}
         </select>
       </label>
       <div role="group" aria-label="グループ分け" className="flex h-full items-stretch rounded-md track @max-2xl:hidden">
-        {groups.map((g) => {
+        {GROUPS.map((g) => {
           const on = groupBy === g.key && !isSimilar;
           return (
             <button
               key={g.key}
-              disabled={isSimilar || off(g.key)}
+              disabled={isSimilar}
               aria-pressed={on}
-              title={
-                isSimilar
-                  ? "グループ分け（重複の候補では使えません）"
-                  : off(g.key)
-                    ? `${g.label}：この端末のフォントには使えません（ライブラリのフォントだけ）`
-                    : `${g.label}：${g.hint}`
-              }
+              title={isSimilar ? "グループ分け（重複の候補では使えません）" : `${g.label}：${g.hint}`}
               onClick={() => setGroupBy(g.key)}
               className={`rounded px-2 whitespace-nowrap disabled:off ${
                 on ? "thumb font-medium" : "text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
@@ -234,8 +200,7 @@ export function GroupMenu() {
 
 /**
  * Opens every linked parent's children under it, or closes them all (docs/LINKS.md).
- * Offered whenever the stock mode is open; disabled when nothing is linked, so it
- * doesn't move. `none` also tells the display menu to grey its own copy out.
+ * Always offered; disabled when nothing is linked, so it doesn't move. `none` also tells the display menu to grey its own copy out.
  */
 function useParents() {
   const links = useStore((s) => s.librarySettings.links);
@@ -284,16 +249,13 @@ export function DisplayMenu() {
   const thumbSize = useStore((s) => s.thumbSize);
   const setThumbSize = useStore((s) => s.setThumbSize);
   const layout = useStore((s) => s.layout);
-  const mode = useStore((s) => s.mode);
   const kinds = useStore(useShallow(listKinds));
-  // The font mode sizes its text and tiles on the specimen text row.
-  const sized = mode !== "font";
   const setLayout = useStore((s) => s.setLayout);
   const parents = useParents();
   return (
     <Dropdown title="表示（レイアウト・サムネイルの大きさ・表示する情報）" width="w-64" button={<SlidersHorizontal size={15} />}>
       <div className={heading}>レイアウト</div>
-      {LAYOUTS.filter((l) => MODE_LAYOUTS[mode].includes(l.key)).map((l) => (
+      {LAYOUTS.map((l) => (
         <button
           key={l.key}
           data-close
@@ -310,46 +272,38 @@ export function DisplayMenu() {
           {layout === l.key && <Check size={13} className="shrink-0 text-accent" />}
         </button>
       ))}
-      {sized && (
-        <>
-          <div className="mx-1.5 my-1 border-t border-line" />
-          <div className={heading}>サムネイルの大きさ</div>
-          <label className="flex items-center gap-2 px-2 py-1.5" title="⌘+ / ⌘-">
-            <Slider
-              min={80}
-              max={360}
-              step={10}
-              value={thumbSize}
-              disabled={layout === "list"}
-              onChange={(e) => setThumbSize(Number(e.target.value))}
-              className="min-w-0 flex-1 disabled:off"
-            />
-            <span className="w-10 text-right text-dim tabular-nums">{thumbSize}</span>
-          </label>
-        </>
-      )}
-      {mode === "stock" && (
-        <>
-          <div className="mx-1.5 my-1 border-t border-line" />
-          <div className={heading}>紐づけ</div>
-          <div className="flex items-center gap-2 px-2 py-1.5" title={parentsTitle(parents.none)}>
-            {[
-              { open: false, label: "すべて閉じる" },
-              { open: true, label: "すべて開く" },
-            ].map((b) => (
-              <button
-                key={b.label}
-                data-close
-                disabled={parents.none || parents.allOpen === b.open}
-                onClick={() => parents.set(b.open)}
-                className="h-6 flex-1 rounded border border-edge whitespace-nowrap disabled:off"
-              >
-                {b.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      <div className="mx-1.5 my-1 border-t border-line" />
+      <div className={heading}>サムネイルの大きさ</div>
+      <label className="flex items-center gap-2 px-2 py-1.5" title="⌘+ / ⌘-">
+        <Slider
+          min={80}
+          max={360}
+          step={10}
+          value={thumbSize}
+          disabled={layout === "list"}
+          onChange={(e) => setThumbSize(Number(e.target.value))}
+          className="min-w-0 flex-1 disabled:off"
+        />
+        <span className="w-10 text-right text-dim tabular-nums">{thumbSize}</span>
+      </label>
+      <div className="mx-1.5 my-1 border-t border-line" />
+      <div className={heading}>紐づけ</div>
+      <div className="flex items-center gap-2 px-2 py-1.5" title={parentsTitle(parents.none)}>
+        {[
+          { open: false, label: "すべて閉じる" },
+          { open: true, label: "すべて開く" },
+        ].map((b) => (
+          <button
+            key={b.label}
+            data-close
+            disabled={parents.none || parents.allOpen === b.open}
+            onClick={() => parents.set(b.open)}
+            className="h-6 flex-1 rounded border border-edge whitespace-nowrap disabled:off"
+          >
+            {b.label}
+          </button>
+        ))}
+      </div>
       <div className="mx-1.5 my-1 border-t border-line" />
       <div className={heading}>サムネイルの下に表示</div>
       {INFO.filter((i) => !i.only || i.only.some((k) => kinds.includes(k))).map((i) => (

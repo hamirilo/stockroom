@@ -23,47 +23,27 @@ import {
   type View,
 } from "./lib/api";
 import { buildHas, OFF_SETTINGS } from "./lib/limits";
-import { fontApi } from "./features/fonts/api";
-import { fontShelf, querySystemFonts, refreshFontLinks, systemFonts } from "./features/fonts/system";
 import { filesApi, onFileThumbs } from "./features/files/api";
-import {
-  kindsNoun,
-  listHasPixels,
-  modeLabel,
-  modeOf,
-  MODES,
-  modesFor,
-  queryKinds,
-  inScope,
-  ruleKinds,
-  usedKinds,
-  type KindState,
-  type Mode,
-} from "./lib/modes";
+import { listHasPixels, queryKinds, inScope, ruleKinds, usedKinds, type KindState } from "./lib/kinds";
 import {
   DEFAULT_LIBRARY_SETTINGS,
-  openingMode,
+  HIDDEN_KEY,
   parseLibrarySettings,
   parseSidebarHidden,
   SIDEBAR_ENTRIES,
   type LibrarySettings,
-  type SidebarHidden,
 } from "./lib/librarySettings";
-import { groupItems, rowIds, similarSections, type GroupBy, type Links, type Section } from "./lib/grouping";
+import { groupItems, similarSections, type GroupBy, type Links, type Section } from "./lib/grouping";
 import { warn } from "./lib/log";
-import { MAX_OWN_PATTERNS } from "./features/fonts/patterns";
 import { notifyIfAway } from "./lib/osNotify";
 
 /**
- * What the app shows: the stock (images and files) or the fonts
- * (docs/MODES.md). Everything (the list, counts, folders, tags, smart
- * folders, the shelf) is of the current mode; each mode remembers its own
- * layout and grouping. Inside the stock, the kind filter (`filter.kinds`)
- * narrows the list to some kinds (see `listKinds`).
+ * Every kind the library is used for is listed together; the kind filter
+ * (`filter.kinds`, the sidebar's range) narrows the list to some kinds (see
+ * `listKinds`). Fonts moved to their own app (docs/FONT_APP.md).
  */
-export { MODES, type Mode } from "./lib/modes";
-// The kinds a list holds (lib/modes.ts), used across the components.
-export { listHasPixels, listIs, listKinds, listNoun, listWithin, queryKinds, shownKinds } from "./lib/modes";
+// The kinds a list holds (lib/kinds.ts), used across the components.
+export { listHasPixels, listIs, listKinds, listNoun, listWithin, queryKinds, shownKinds, usedKinds } from "./lib/kinds";
 
 /** x/y = current pointer, sx/sy = where the drag started (for snap-back). */
 type DragPos = { x: number; y: number; sx: number; sy: number };
@@ -84,23 +64,16 @@ export interface DuplicateReview {
   effects: DuplicateEffect[] | null;
 }
 
-export type Layout = "justified" | "grid" | "waterfall" | "list" | "specimen";
+export type Layout = "justified" | "grid" | "waterfall" | "list";
 
-/** Layouts of each mode, the first being its default. */
-export const MODE_LAYOUTS: Record<Mode, Layout[]> = {
-  // Images keep their shape; files take a fixed one (layouts.ts `aspect`).
-  stock: ["justified", "waterfall", "grid", "list"],
-  // No list for fonts: the specimen with small text does its job (docs/FONT_UI.md).
-  font: ["specimen", "grid"],
-};
+/**
+ * The layouts, the first being the default (the toolbar's are in ViewMenu.tsx).
+ * Images keep their shape; files take a fixed one (layouts.ts `aspect`).
+ */
+const LAYOUTS: Layout[] = ["justified", "waterfall", "grid", "list"];
 
-/** Groupings of each mode. */
-export const MODE_GROUPS: Record<Mode, GroupBy[]> = {
-  // No 種類 grouping: the filter row's 種類 narrows to one kind instead (docs/UI.md).
-  stock: ["none", "month", "rating", "tag", "folder"],
-  // Fonts are always one row per family (▸ opens its styles), so no family grouping.
-  font: ["none", "category", "script", "month", "rating", "tag", "folder"],
-};
+/** The groupings. No 種類 grouping: the sidebar's range narrows to one kind instead (docs/UI.md). */
+const GROUPS: GroupBy[] = ["none", "month", "rating", "tag", "folder"];
 
 /** What the grid shows under each thumbnail. */
 export interface ShowInfo {
@@ -195,7 +168,6 @@ interface State {
   /** The app's settings (settings.json); null until read at launch. */
   appSettings: AppSettings | null;
 
-  mode: Mode;
   view: View;
   search: string;
   tagFilter: number[];
@@ -204,17 +176,8 @@ interface State {
   sort: SortKey;
   desc: boolean;
   thumbSize: number;
-  /** Font specimen layout: the text every font shows ("" = each font's own sample) and its size in px. */
-  specimenText: string;
-  specimenSize: number;
-  /** Font grid: the size of a tile (px), set on the specimen text row in place of the thumbnail size. */
-  tileSize: number;
-  /** Font mode: families whose styles are listed under their row (▸), for the session. */
-  openFamilies: ReadonlySet<string>;
   /** Parents whose children are listed under them (▸, docs/LINKS.md). */
   openParents: ReadonlySet<string>;
-  /** Fonts lacking most of `specimenText` show their own sample instead (an English font with Japanese text). */
-  specimenFallback: boolean;
   inspectorOpen: boolean;
   sidebarOpen: boolean;
   /** The list's table of contents (the sections to jump to) is open. Not kept: it closes on its own. */
@@ -280,13 +243,13 @@ interface State {
   items: Item[];
   /** The query result as returned (one entry per image). */
   rawItems: Item[];
-  /** What is on the mode's shelf (the `tray` table, of the mode's kinds), in its own order. */
+  /** What is on the shelf (the `tray` table, of the kinds in use), in its own order. */
   shelf: Item[];
   /** What the details panel on the right shows: the selection's information or the shelf; changed only by the user. */
   panelTab: PanelTab;
-  /** The comparison of the shelf (fonts, or the stock's images) is shown in place of the list. */
+  /** The comparison of the shelf's images is shown in place of the list. */
   comparing: boolean;
-  /** Stock comparison: the zoom (1 = whole) and the point at the frames' centre (0-1), shared by all images. */
+  /** Comparison: the zoom (1 = whole) and the point at the frames' centre (0-1), shared by all images. */
   compareLook: CompareLook;
   /** Bands of `items`: similar-view groups, or the `groupBy` sections. */
   sections: Section[];
@@ -298,8 +261,6 @@ interface State {
   counts: Counts;
   /** Bumped after every refresh so dependents (inspector) can re-fetch. */
   rev: number;
-  /** Font files installed on this computer (docs/SYSTEM_FONTS.md); null until first listed. */
-  systemCount: number | null;
 
   selected: Set<string>;
   /** Start of a shift-range. */
@@ -321,20 +282,17 @@ interface State {
   analyzing: boolean;
   toasts: Toast[];
 
-  /** Opens a library in the mode it was left in (see `openingMode`). */
   setLibrary: (lib: LibraryInfo | null) => Promise<void>;
-  /** Switches mode; starts in "all" with no conditions, on the mode's own layout and grouping. */
-  setMode: (mode: Mode) => void;
-  /** Narrows the stock to these kinds (none = every kind of it the library is used for). */
+  /** Narrows the list to these kinds (none = every kind the library is used for). */
   setKinds: (kinds: ItemKind[]) => void;
-  /** Kinds the library is used for / switches to drop or bring back a kind. */
-  setUsedModes: (modes: ItemKind[]) => void;
+  /** Kinds the library is used for (drops or brings back a kind). */
+  setUsedKinds: (kinds: ItemKind[]) => void;
   /** Reflects the links setting (already stored by `api.setLinksEnabled`) and lists again. */
   setLinks: (on: boolean) => void;
   /** What a parent in the trash does to its children; saved with the library. */
   setLinksTrash: (v: "with" | "keep") => void;
-  /** Hides (or shows again) sidebar entries of a mode, in `scope` (default: the one in effect). */
-  setSidebarHidden: (mode: Mode, ids: string[], scope?: SidebarScope) => void;
+  /** Hides (or shows again) sidebar entries, in `scope` (default: the one in effect). */
+  setSidebarHidden: (ids: string[], scope?: SidebarScope) => void;
   /** The library gets its own sidebar entries, or follows the app's again. */
   setSidebarOwn: (own: boolean) => void;
   loadAppSettings: () => Promise<void>;
@@ -347,19 +305,10 @@ interface State {
   setTagMatchAll: (on: boolean) => void;
   setSort: (sort: SortKey, desc: boolean) => void;
   setThumbSize: (n: number) => void;
-  setSpecimenText: (text: string) => void;
-  setSpecimenSize: (px: number) => void;
-  setTileSize: (px: number) => void;
-  /** Saves the typed specimen text as the library's own pattern / forgets one. */
-  saveSpecimenPattern: (text: string) => void;
-  removeSpecimenPattern: (text: string) => void;
-  /** Opens or closes a family's styles under its row (font mode, specimen layout). */
-  toggleFamily: (family: string) => void;
-  /** Opens or closes a parent's children under its row (stock, links on). */
+  /** Opens or closes a parent's children under its row (links on). */
   toggleParent: (id: string) => void;
   /** Opens every parent's children in the list, or closes them all. */
   setAllParents: (open: boolean) => void;
-  setSpecimenFallback: (on: boolean) => void;
   toggleInspector: () => void;
   setPanelTab: (tab: PanelTab) => void;
   /**
@@ -413,7 +362,7 @@ interface State {
    * more than once, and a range runs between the places clicked.
    */
   select: (id: string, mode: "only" | "toggle" | "range", at?: number) => void;
-  /** Selects exactly `ids` (a family row's fonts are expanded by the caller, see `rowIds`). */
+  /** Selects exactly `ids`. */
   setSelection: (ids: string[]) => void;
   openViewer: (index: number | null) => void;
 
@@ -481,20 +430,20 @@ const loadJson = (key: string): object => {
 };
 
 /**
- * The mode's saved layout, else its default. The stock falls back to what
- * "すべて" had, then the image mode of earlier versions (and the "layout"
- * key from before modes).
+ * The saved layout and grouping (`layout:stock` / `groupBy:stock`, named in
+ * versions with a font mode), else what "すべて" had, then the image mode of
+ * earlier versions and the keys from before modes.
  */
-const loadLayout = (mode: Mode): Layout => {
-  const keys = mode === "stock" ? ["layout:stock", "layout:all", "layout:image", "layout"] : [`layout:${mode}`];
-  const saved = keys.map(load).find((v) => v !== null);
-  return MODE_LAYOUTS[mode].find((l) => l === saved) ?? MODE_LAYOUTS[mode][0];
+const LAYOUT_KEYS = ["layout:stock", "layout:all", "layout:image", "layout"];
+const GROUP_KEYS = ["groupBy:stock", "groupBy:all", "groupBy:image", "groupBy"];
+const loadLayout = (): Layout => {
+  const saved = LAYOUT_KEYS.map(load).find((v) => v !== null);
+  return LAYOUTS.find((l) => l === saved) ?? LAYOUTS[0];
 };
-const loadGroupBy = (mode: Mode): GroupBy => {
-  const keys = mode === "stock" ? ["groupBy:stock", "groupBy:all", "groupBy:image", "groupBy"] : [`groupBy:${mode}`];
-  const saved = keys.map(load).find((v) => v !== null);
+const loadGroupBy = (): GroupBy => {
+  const saved = GROUP_KEYS.map(load).find((v) => v !== null);
   // "year" was merged into "month" (年月).
-  return MODE_GROUPS[mode].find((g) => g === (saved === "year" ? "month" : saved)) ?? "none";
+  return GROUPS.find((g) => g === (saved === "year" ? "month" : saved)) ?? "none";
 };
 
 /** Conditions only images have (shape, pixel size), cleared when the list isn't of images alone. */
@@ -523,10 +472,6 @@ export function activeConditions(s: {
     (s.tagFilter.length ? 1 : 0) +
     (s.minRating ? 1 : 0) +
     // The kinds picked aren't one: they are the range the sidebar sets (docs/KINDS.md).
-    (f.fontScripts.length ? 1 : 0) +
-    (f.fontCategories.length ? 1 : 0) +
-    (f.fontWeights.length ? 1 : 0) +
-    (f.fontFeatures.length ? 1 : 0) +
     (f.exts.length ? 1 : 0) +
     (f.shapes.length ? 1 : 0) +
     (f.minWidth != null || f.maxWidth != null || f.minHeight != null || f.maxHeight != null ? 1 : 0) +
@@ -569,16 +514,7 @@ function indexOf(items: Item[], id: string, at: number | null | undefined): numb
   return at != null && items[at]?.id === id ? at : items.findIndex((i) => i.id === id);
 }
 
-/** Ids the row at `at` stands for (a family row: all its fonts); `id` when it isn't there. */
-function idsAt(items: Item[], id: string, at: number): string[] {
-  const row = items[at];
-  return row?.id === id ? rowIds([row]) : [id];
-}
-
-/** Most fonts on the font shelf: what the comparison can line up (docs/FONT_UI.md). */
-export const FONT_SHELF_MAX = 8;
-
-/** Stock comparison: how far the images are zoomed (1 = each whole in its frame) and where (docs/COMPARE.md). */
+/** Comparison: how far the images are zoomed (1 = each whole in its frame) and where (docs/COMPARE.md). */
 export type CompareLook = { k: number; cx: number; cy: number };
 export const WHOLE_LOOK: CompareLook = { k: 1, cx: 0.5, cy: 0.5 };
 export const COMPARE_ZOOM = { min: 1, max: 32, step: 1.25 };
@@ -588,22 +524,12 @@ export const zoomLook = (l: CompareLook, f: number): CompareLook => {
   return k === 1 ? WHOLE_LOOK : { ...l, k };
 };
 
-/** Smallest and largest font grid tile, and the default. */
-export const TILE_SIZE = { min: 120, max: 320, initial: 180 } as const;
-
-const NO_FAMILIES: ReadonlySet<string> = new Set();
 const NO_PARENTS: ReadonlySet<string> = new Set();
 
-/**
- * The display list and its sections for the current view / grouping. The
- * font mode lists one row per family; only the specimen layout opens them.
- */
+/** The display list and its sections for the current view / grouping. */
 function arrange(s: {
-  mode: Mode;
-  layout: Layout;
   view: View;
   groupBy: GroupBy;
-  openFamilies: ReadonlySet<string>;
   openParents: ReadonlySet<string>;
   librarySettings: LibrarySettings;
   rawItems: Item[];
@@ -611,27 +537,14 @@ function arrange(s: {
   folders: Folder[];
 }): { items: Item[]; sections: Section[] } {
   if (s.view.kind === "similar") return { items: s.rawItems, sections: similarSections(s.rawItems) };
-  const families = s.mode === "font" ? { open: s.layout === "specimen" ? s.openFamilies : NO_FAMILIES } : null;
-  return groupItems(s.rawItems, shownGroupBy(s), s.tags, s.folders, families, linksFold(s));
+  return groupItems(s.rawItems, s.groupBy, s.tags, s.folders, linksFold(s));
 }
 
-/** Children go under their parents in the stock's lists, links on (not the trash, the shelf or the installed fonts). */
-function linksFold(s: {
-  mode: Mode;
-  view: View;
-  openParents: ReadonlySet<string>;
-  librarySettings: LibrarySettings;
-}): Links {
-  const listsFolded = s.view.kind !== "trash" && s.view.kind !== "tray" && s.view.kind !== "system";
-  return s.mode === "stock" && s.librarySettings.links && listsFolded ? { open: s.openParents } : null;
+/** Children go under their parents in the lists, links on (not the trash or the shelf). */
+function linksFold(s: { view: View; openParents: ReadonlySet<string>; librarySettings: LibrarySettings }): Links {
+  const listsFolded = s.view.kind !== "trash" && s.view.kind !== "tray";
+  return s.librarySettings.links && listsFolded ? { open: s.openParents } : null;
 }
-
-/** Groupings by what only library items have (docs/SYSTEM_FONTS.md). */
-export const LIBRARY_GROUPS: GroupBy[] = ["month", "rating", "tag", "folder"];
-
-/** The grouping in effect: none for the installed fonts' list when it is by rating, tag or folder. */
-export const shownGroupBy = (s: { view: View; groupBy: GroupBy }): GroupBy =>
-  s.view.kind === "system" && LIBRARY_GROUPS.includes(s.groupBy) ? "none" : s.groupBy;
 
 /** Re-arranges the list after a display change, keeping the viewer on the item it showed. */
 function rearrange(s: State, patch: Partial<State>): Partial<State> {
@@ -642,9 +555,6 @@ function rearrange(s: State, patch: Partial<State>): Partial<State> {
   return { ...patch, items, sections, viewer };
 }
 
-// The mode comes from the library being opened (setLibrary).
-const initialMode: Mode = "stock";
-
 let librarySeq = 0;
 
 /**
@@ -653,7 +563,7 @@ let librarySeq = 0;
  */
 function leaveHidden() {
   const s = useStore.getState();
-  const ids = sidebarHidden(s)[s.mode] ?? [];
+  const ids = sidebarHidden(s);
   const entry = entryOfView(s.view);
   if (entry && ids.includes(entry)) s.setView({ kind: "all" });
 }
@@ -667,10 +577,6 @@ export type ConditionKey =
   | "dims"
   | "date"
   | "size"
-  | "fontScripts"
-  | "fontCategories"
-  | "fontWeights"
-  | "fontFeatures"
   | "parents";
 
 /** What clearing each condition sets. */
@@ -682,16 +588,11 @@ export const CLEARED: Record<ConditionKey, { minRating?: 0; tagFilter?: number[]
   dims: { filter: { shapes: [], minWidth: null, maxWidth: null, minHeight: null, maxHeight: null } },
   date: { filter: { importedAfter: null, importedBefore: null } },
   size: { filter: { minSize: null, maxSize: null } },
-  fontScripts: { filter: { fontScripts: [] } },
-  fontCategories: { filter: { fontCategories: [] } },
-  fontWeights: { filter: { fontWeights: [] } },
-  fontFeatures: { filter: { fontFeatures: [] } },
   parents: { filter: { parentsOnly: false, childrenOnly: false, unlinkedOnly: false } },
 };
 
 type QueryState = Pick<
   State,
-  | "mode"
   | "view"
   | "search"
   | "tagFilter"
@@ -719,7 +620,7 @@ export function listQuery(s: QueryState, without?: ConditionKey): ItemQuery {
     tagMatchAll: st.tagMatchAll,
     includeSubfolders: st.showSubfolders,
     minRating: st.minRating,
-    // The mode's kinds, narrowed by the kind filter.
+    // The kinds in use, narrowed by the kind filter.
     filter: { ...st.filter, kinds: queryKinds(st) },
     similarLevel: st.similarLevel,
     sort: st.sort,
@@ -736,10 +637,7 @@ const shownQuery = (s: QueryState & { librarySettings: LibrarySettings }): ItemQ
  * null where it isn't known (the similar view).
  */
 export function placeTotal(
-  s: Pick<
-    State,
-    "mode" | "filter" | "view" | "counts" | "folders" | "tags" | "smartFolders" | "showSubfolders" | "systemCount"
-  >,
+  s: Pick<State, "filter" | "view" | "counts" | "folders" | "tags" | "smartFolders" | "showSubfolders">,
 ): number | null {
   const v = s.view;
   // The same numbers as the sidebar: of the kinds picked (docs/KINDS.md).
@@ -765,8 +663,6 @@ export function placeTotal(
     }
     case "similar":
       return null;
-    case "system":
-      return s.systemCount;
   }
 }
 
@@ -807,7 +703,6 @@ export function placeByKind(
       return own(v.id);
     }
     case "similar":
-    case "system":
       return null;
   }
 }
@@ -820,27 +715,20 @@ function saveLibrarySetting(key: string, value: unknown) {
   api.setLibrarySetting(key, value).catch((e) => useStore.getState().toast(String(e), true));
 }
 
-/** Kinds the open library is used for, in `KINDS` order. */
-export const usedModes = usedKinds;
-
-/** Modes the switch offers: those with kinds the library is used for (see `modesFor`). */
-export const shownModes = (s: { librarySettings: LibrarySettings }): Mode[] => modesFor(usedModes(s));
-
 type SidebarState = Pick<State, "library" | "librarySettings" | "appSettings">;
 
 /** Whose sidebar entries are in effect: the library's own, or the app's. */
 export const sidebarScope = (s: SidebarState): SidebarScope =>
   s.library && s.librarySettings.sidebarOwn ? "library" : "app";
 
-const NOTHING_HIDDEN: SidebarHidden = {};
+const NOTHING_HIDDEN: string[] = [];
 
-/** Sidebar entries hidden in `scope` (default: the one in effect), per mode. */
-export const sidebarHidden = (s: SidebarState, scope = sidebarScope(s)): SidebarHidden =>
-  scope === "library" ? s.librarySettings.hidden : (s.appSettings?.sidebarHidden ?? NOTHING_HIDDEN);
+/** Sidebar entries hidden in `scope` (default: the one in effect). */
+export const sidebarHidden = (s: SidebarState, scope = sidebarScope(s)): string[] =>
+  scope === "library" ? s.librarySettings.hidden : (s.appSettings?.sidebarHidden.stock ?? NOTHING_HIDDEN);
 
-/** Whether a sidebar entry (SIDEBAR_ENTRIES id) is hidden in the current mode. */
-export const isHidden = (s: SidebarState & { mode: Mode }, id: string) =>
-  sidebarHidden(s)[s.mode]?.includes(id) ?? false;
+/** Whether a sidebar entry (SIDEBAR_ENTRIES id) is hidden. */
+export const isHidden = (s: SidebarState, id: string) => sidebarHidden(s).includes(id);
 
 /** Sidebar entry a view is listed under, if it can be hidden. */
 export function entryOfView(v: View): string | null {
@@ -864,7 +752,6 @@ export const useStore = create<State>((set, get) => ({
   librarySettings: DEFAULT_LIBRARY_SETTINGS,
   appSettings: null,
 
-  mode: initialMode,
   view: { kind: "all" },
   search: "",
   tagFilter: [],
@@ -881,15 +768,10 @@ export const useStore = create<State>((set, get) => ({
   minRating: 0,
   filter: EMPTY_FILTER,
   editingSmart: null,
-  layout: loadLayout(initialMode),
-  specimenText: load("specimenText") ?? "",
-  specimenSize: loadNumber("specimenSize", 40),
-  tileSize: Math.min(TILE_SIZE.max, Math.max(TILE_SIZE.min, loadNumber("fontTileSize", TILE_SIZE.initial))),
-  openFamilies: NO_FAMILIES,
+  layout: loadLayout(),
   openParents: NO_PARENTS,
-  specimenFallback: load("specimenFallback") !== "false",
   showInfo: { name: true, dims: true, rating: true, meta: false, ...loadJson("showInfo") },
-  groupBy: loadGroupBy(initialMode),
+  groupBy: loadGroupBy(),
   viewerInfo: load("viewerInfo") === "true",
   viewerStrip: load("viewerStrip") !== "false",
   viewerBare: load("viewerBare") === "true",
@@ -932,13 +814,8 @@ export const useStore = create<State>((set, get) => ({
     tray: 0,
     kinds: {},
     byKind: { all: {}, unfiled: {}, untagged: {}, trash: {}, favorites: {}, pinned: {}, tray: {} },
-    fontScripts: {},
-    fontCategories: {},
-    fontWeights: {},
-    fontFeatures: {},
   },
   rev: 0,
-  systemCount: null,
 
   selected: new Set(),
   anchor: null,
@@ -957,44 +834,29 @@ export const useStore = create<State>((set, get) => ({
   setLibrary: async (library) => {
     const seq = ++librarySeq;
     let librarySettings = DEFAULT_LIBRARY_SETTINGS;
-    let mode = get().mode;
     if (library) {
       try {
-        const [raw, counts] = await Promise.all([api.getLibrarySettings(), api.getCounts()]);
-        librarySettings = parseLibrarySettings(raw);
-        mode = openingMode(librarySettings, counts.kinds);
+        librarySettings = parseLibrarySettings(await api.getLibrarySettings());
       } catch (e) {
         get().toast(String(e), true);
       }
       if (seq !== librarySeq) return; // another library was opened meanwhile
     }
-    // Left in the image or file mode of an earlier version: the stock of that
-    // kind, remembered as the stock from now on.
-    const filter = { ...EMPTY_FILTER, kinds: mode === "stock" ? librarySettings.lastKinds : [] };
-    if (library && librarySettings.lastKinds.length) {
-      librarySettings = { ...librarySettings, lastKinds: [] };
-      saveLibrarySetting("lastMode", mode);
-    }
-    const next = { mode, view: { kind: "all" } as View, filter, smartFolders: [], librarySettings };
     set({
       library,
       librarySettings,
-      mode,
-      layout: loadLayout(mode),
-      groupBy: loadGroupBy(mode),
       items: [],
       rawItems: [],
       sections: [],
       shelf: [],
       comparing: false,
-      openFamilies: NO_FAMILIES,
       openParents: NO_PARENTS,
       view: { kind: "all" },
       search: "",
       tagFilter: [],
       minRating: 0,
-      filter,
-      ...fitToKinds({ ...next, sort: get().sort }),
+      filter: EMPTY_FILTER,
+      ...fitToKinds({ view: { kind: "all" }, filter: EMPTY_FILTER, smartFolders: [], librarySettings, sort: get().sort }),
       editingSmart: null,
       recentTags: library ? loadRecentTags(library.root) : [],
       selected: new Set(),
@@ -1004,54 +866,14 @@ export const useStore = create<State>((set, get) => ({
     });
     if (library) {
       get().refresh();
-      // Fonts imported by older versions have no family yet (grouping, search).
-      fontApi
-        .index()
-        .then((n) => {
-          if (n > 0) get().refresh();
-        })
-        .catch(() => {});
       // Windows: office documents' thumbnails made by Office (when installed).
       watchFileThumbs();
       filesApi.prepareThumbs().catch(() => {});
     }
   },
-  setMode: (mode) => {
-    if (mode === get().mode) return;
-    // Remembered per library: it opens in this mode next time.
-    if (get().library) {
-      set({ librarySettings: { ...get().librarySettings, lastMode: mode } });
-      saveLibrarySetting("lastMode", mode);
-    }
-    const next = { ...get(), mode, view: { kind: "all" } as View, filter: EMPTY_FILTER };
-    set({
-      mode,
-      view: { kind: "all" },
-      search: "",
-      tagFilter: [],
-      minRating: 0,
-      filter: EMPTY_FILTER,
-      editingSmart: null,
-      layout: loadLayout(mode),
-      groupBy: loadGroupBy(mode),
-      // Only images have a pixel size.
-      ...fitToKinds(next),
-      items: [],
-      rawItems: [],
-      sections: [],
-      // Each mode has its own shelf.
-      shelf: [],
-      comparing: false,
-      selected: new Set(),
-      anchor: null,
-      focus: null,
-      viewer: null,
-    });
-    get().refresh();
-  },
   setKinds: (kinds) => {
     const s = get();
-    const used = usedModes(s);
+    const used = usedKinds(s);
     const picked = used.filter((k) => kinds.includes(k));
     // Every kind in use is the same list as none picked.
     const filter = { ...s.filter, kinds: picked.length === used.length ? [] : picked };
@@ -1066,33 +888,26 @@ export const useStore = create<State>((set, get) => ({
     set({ librarySettings: { ...get().librarySettings, linksTrash } });
     saveLibrarySetting("linksTrash", linksTrash === "with" ? null : linksTrash);
   },
-  setUsedModes: (modes) => {
-    const used = KINDS.map((k) => k.kind).filter((k) => modes.includes(k) && buildHas(k));
+  setUsedKinds: (kinds) => {
+    const used = KINDS.map((k) => k.kind).filter((k) => kinds.includes(k) && buildHas(k));
     if (!used.length) return;
-    set({ librarySettings: { ...get().librarySettings, modes: used } });
+    set({ librarySettings: { ...get().librarySettings, kinds: used } });
     // Every kind = nothing to remember (a kind added later is used too).
     saveLibrarySetting("modes", used.length === KINDS.length ? null : used);
-    if (!modesFor(used).includes(get().mode)) get().setMode(modesFor(used)[0]);
-    else {
-      // A kind dropped from the kind filter; what applied to it alone goes too.
-      const s = get();
-      const filter = { ...s.filter, kinds: s.filter.kinds.filter((k) => used.includes(k)) };
-      set({ filter, ...fitToKinds({ ...s, filter }) });
-      get().refresh();
-    }
+    // A kind dropped from the kind filter; what applied to it alone goes too.
+    const s = get();
+    const filter = { ...s.filter, kinds: s.filter.kinds.filter((k) => used.includes(k)) };
+    set({ filter, ...fitToKinds({ ...s, filter }) });
+    get().refresh();
   },
-  setSidebarHidden: (mode, ids, scope = sidebarScope(get())) => {
+  setSidebarHidden: (ids, scope = sidebarScope(get())) => {
     if (scope === "app") {
-      const app = get().appSettings;
-      if (!app) return;
-      const sidebarHidden = { ...app.sidebarHidden, [mode]: ids };
-      if (!ids.length) delete sidebarHidden[mode];
-      get().saveAppSettings({ sidebarHidden });
+      if (!get().appSettings) return;
+      // Under `stock`, where earlier versions read it.
+      get().saveAppSettings({ sidebarHidden: ids.length ? { stock: ids } : {} });
     } else {
-      const hidden = { ...get().librarySettings.hidden, [mode]: ids };
-      if (!ids.length) delete hidden[mode];
-      set({ librarySettings: { ...get().librarySettings, hidden } });
-      saveLibrarySetting(`hidden:${mode}`, ids.length ? ids : null);
+      set({ librarySettings: { ...get().librarySettings, hidden: ids } });
+      saveLibrarySetting(HIDDEN_KEY, ids.length ? ids : null);
     }
     leaveHidden();
   },
@@ -1101,9 +916,9 @@ export const useStore = create<State>((set, get) => ({
     if (!get().library || own === ls.sidebarOwn) return;
     let hidden = ls.hidden;
     // Starts from the app's entries, unless the library had its own before.
-    if (own && !Object.keys(hidden).length) {
-      hidden = { ...(get().appSettings?.sidebarHidden ?? {}) };
-      for (const [m, ids] of Object.entries(hidden)) saveLibrarySetting(`hidden:${m}`, ids);
+    if (own && !hidden.length) {
+      hidden = sidebarHidden(get(), "app");
+      if (hidden.length) saveLibrarySetting(HIDDEN_KEY, hidden);
     }
     set({ librarySettings: { ...ls, hidden, sidebarOwn: own } });
     saveLibrarySetting("sidebar", own ? "own" : "app");
@@ -1112,7 +927,8 @@ export const useStore = create<State>((set, get) => ({
   loadAppSettings: async () => {
     try {
       const app = await api.getAppSettings();
-      set({ appSettings: { ...app, sidebarHidden: parseSidebarHidden(app.sidebarHidden) } });
+      const hidden = parseSidebarHidden(app.sidebarHidden);
+      set({ appSettings: { ...app, sidebarHidden: hidden.length ? { stock: hidden } : {} } });
       leaveHidden();
     } catch (e) {
       get().toast(String(e), true);
@@ -1126,13 +942,12 @@ export const useStore = create<State>((set, get) => ({
     api.setAppSettings(next).catch((e) => get().toast(String(e), true));
   },
   setView: (view) => {
-    // The similar view and the installed fonts (read the first time) may take
-    // a moment to prepare; don't leave the old list up.
-    const slow = view.kind === "similar" || view.kind === "system";
+    // The similar view may take a moment to prepare; don't leave the old list up.
+    const slow = view.kind === "similar";
     const clear = slow && get().view.kind !== view.kind ? { items: [], rawItems: [], sections: [] } : {};
     // Conditions belong to the view they were set in: moving to another one
     // starts clean (re-selecting the open view keeps them).
-    // The kind filter stays: it is what the user browses, like a mode.
+    // The kind filter stays: it is the range the user browses (docs/KINDS.md).
     const moved = JSON.stringify(view) !== JSON.stringify(get().view);
     const reset = moved
       ? {
@@ -1179,35 +994,6 @@ export const useStore = create<State>((set, get) => ({
     set({ sort, desc });
     get().refresh();
   },
-  setSpecimenFallback: (specimenFallback) => {
-    set({ specimenFallback });
-    persist("specimenFallback", String(specimenFallback));
-  },
-  setSpecimenText: (specimenText) => {
-    set({ specimenText });
-    persist("specimenText", specimenText);
-  },
-  setSpecimenSize: (px) => {
-    const specimenSize = Math.min(160, Math.max(12, Math.round(px)));
-    set({ specimenSize });
-    persist("specimenSize", String(specimenSize));
-  },
-  setTileSize: (px) => {
-    const tileSize = Math.min(TILE_SIZE.max, Math.max(TILE_SIZE.min, Math.round(px)));
-    set({ tileSize });
-    persist("fontTileSize", String(tileSize));
-  },
-  saveSpecimenPattern: (text) => {
-    if (!text.trim() || !get().library) return;
-    const patterns = [text, ...get().librarySettings.patterns.filter((t) => t !== text)].slice(0, MAX_OWN_PATTERNS);
-    set({ librarySettings: { ...get().librarySettings, patterns } });
-    saveLibrarySetting("specimenPatterns", patterns);
-  },
-  removeSpecimenPattern: (text) => {
-    const patterns = get().librarySettings.patterns.filter((t) => t !== text);
-    set({ librarySettings: { ...get().librarySettings, patterns } });
-    saveLibrarySetting("specimenPatterns", patterns.length ? patterns : null);
-  },
   toggleParent: (id) => {
     const open = new Set(get().openParents);
     if (!open.delete(id)) open.add(id);
@@ -1217,11 +1003,6 @@ export const useStore = create<State>((set, get) => ({
     const here = new Set(get().rawItems.map((i) => i.id));
     const parents = open ? get().rawItems.flatMap((i) => (i.parentId && here.has(i.parentId) ? [i.parentId] : [])) : [];
     set(rearrange(get(), { openParents: parents.length ? new Set(parents) : NO_PARENTS }));
-  },
-  toggleFamily: (family) => {
-    const open = new Set(get().openFamilies);
-    if (!open.delete(family)) open.add(family);
-    set(rearrange(get(), { openFamilies: open }));
   },
   setThumbSize: (thumbSize) => {
     set({ thumbSize });
@@ -1283,10 +1064,8 @@ export const useStore = create<State>((set, get) => ({
       tagFilter = [v.id, ...tagFilter.filter((t) => t !== v.id)];
       tagMatchAll = true;
     }
-    // The kinds picked are a condition like the others (the smart folder is of
-    // the mode it is made in, which keeps it to the mode's kinds).
-    const kinds: ItemKind[] = s.mode === "font" ? [] : filter.kinds;
-    return { search, tagIds: tagFilter, tagMatchAll, minRating, filter: { ...filter, kinds } };
+    // The kinds picked are a condition like the others.
+    return { search, tagIds: tagFilter, tagMatchAll, minRating, filter };
   },
   startEditSmart: (sf) => {
     // Edit in the "all" view so the user sees exactly what the rule matches.
@@ -1298,18 +1077,17 @@ export const useStore = create<State>((set, get) => ({
       tagFilter: sf.rule.tagIds,
       tagMatchAll: sf.rule.tagMatchAll,
       minRating: sf.rule.minRating,
-      // The kinds go to the kind filter (in the font mode, they are its own). Shape and
-      // pixel size only match images, so a rule with them shows as of images.
-      filter: { ...EMPTY_FILTER, ...sf.rule.filter, kinds: get().mode === "stock" ? ruleKinds(sf.rule.filter) : [] },
+      // The kinds go to the kind filter. Shape and pixel size only match images
+      // and videos, so a rule with them shows as of those.
+      filter: { ...EMPTY_FILTER, ...sf.rule.filter, kinds: ruleKinds(sf.rule.filter) },
       selected: new Set(),
     });
     get().refresh();
   },
   stopEditSmart: () => set({ editingSmart: null }),
   setLayout: (layout) => {
-    persist(`layout:${get().mode}`, layout);
-    // Families open only in the specimen layout.
-    set(rearrange(get(), { layout }));
+    persist(LAYOUT_KEYS[0], layout);
+    set({ layout });
   },
   setShowInfo: (patch) => {
     const showInfo = { ...get().showInfo, ...patch };
@@ -1317,7 +1095,7 @@ export const useStore = create<State>((set, get) => ({
     persist("showInfo", JSON.stringify(showInfo));
   },
   setGroupBy: (groupBy) => {
-    persist(`groupBy:${get().mode}`, groupBy);
+    persist(GROUP_KEYS[0], groupBy);
     // The viewer follows the item it was showing to its new place.
     set(rearrange(get(), { groupBy }));
   },
@@ -1379,7 +1157,7 @@ export const useStore = create<State>((set, get) => ({
   refresh: async () => {
     if (!get().library) return;
     const seq = ++refreshSeq;
-    const { mode, view, similarLevel } = get();
+    const { view, similarLevel } = get();
     try {
       let dismissedGroups: number | null = null;
       if (view.kind === "similar") {
@@ -1391,18 +1169,14 @@ export const useStore = create<State>((set, get) => ({
         }
         dismissedGroups = await api.countDismissedDuplicates();
       }
-      // The installed fonts aren't in the library: listed by features/fonts/system.ts.
-      const system = view.kind === "system";
-      // Which fonts are both in the library and installed (marked on both sides).
-      if (mode === "font") refreshFontLinks();
-      const [rawItems, folders, tags, counts, smartFolders, exts, trayItems] = await Promise.all([
-        system ? querySystemFonts(listQuery(get())) : api.queryItems(shownQuery(get())),
-        api.listFolders(mode),
-        api.listTags(mode),
-        api.getCounts(mode),
-        api.listSmartFolders(mode),
-        api.listExts(mode),
-        // The mode's shelf, whatever the view and conditions.
+      const [rawItems, folders, tags, counts, smartFolders, exts, shelf] = await Promise.all([
+        api.queryItems(shownQuery(get())),
+        api.listFolders(),
+        api.listTags(),
+        api.getCounts(),
+        api.listSmartFolders(),
+        api.listExts(),
+        // The shelf, whatever the view and conditions.
         api.queryItems({
           view: { kind: "tray" },
           search: "",
@@ -1416,12 +1190,9 @@ export const useStore = create<State>((set, get) => ({
           desc: false,
         }),
       ]);
-      // The font shelf holds installed fonts too (docs/SYSTEM_FONTS.md).
-      const shelf = mode === "font" ? await fontShelf(trayItems) : trayItems;
-      const systemCount = system ? (await systemFonts()).length : null;
       if (seq !== refreshSeq) return; // a newer refresh superseded this one
       const { items, sections } = arrange({ ...get(), view, rawItems, tags, folders });
-      const present = new Set(rowIds(items));
+      const present = new Set(items.map((i) => i.id));
       const selected = new Set([...get().selected].filter((id) => present.has(id)));
       // Drop filters / views pointing at things that no longer exist.
       const tagIds = new Set(tags.map((t) => t.id));
@@ -1462,7 +1233,6 @@ export const useStore = create<State>((set, get) => ({
         selected,
         rev: get().rev + 1,
         ...(dismissedGroups !== null ? { dismissedGroups } : {}),
-        ...(systemCount !== null ? { systemCount } : {}),
         recentFolders: get().recentFolders.filter((f) => folderIds.has(f)),
         recentTags,
         viewer: viewerNow,
@@ -1484,24 +1254,21 @@ export const useStore = create<State>((set, get) => ({
     const a = mode === "range" && anchor !== null ? indexOf(items, anchor, anchorAt) : -1;
     if (mode === "range" && a >= 0 && b >= 0) {
       const [lo, hi] = a < b ? [a, b] : [b, a];
-      set({ selected: new Set(rowIds(items.slice(lo, hi + 1))), focus: id });
+      set({ selected: new Set(items.slice(lo, hi + 1).map((i) => i.id)), focus: id });
       return;
     }
     anchorAt = b >= 0 ? b : null;
-    // A family row stands for all its fonts; an opened style row for itself.
-    const own = idsAt(items, id, b);
     if (mode === "toggle") {
       const next = new Set(selected);
-      if (next.has(id)) own.forEach((m) => next.delete(m));
-      else own.forEach((m) => next.add(m));
+      if (!next.delete(id)) next.add(id);
       set({ selected: next, anchor: id, focus: id });
     } else {
-      set({ selected: new Set(own), anchor: id, focus: id });
+      set({ selected: new Set([id]), anchor: id, focus: id });
     }
   },
   setSelection: (ids) => {
     // The keyboard goes on from the last of them that is a row of the list
-    // (a closed family's other fonts aren't).
+    // (a closed parent's children aren't).
     const rows = new Set(get().items.map((i) => i.id));
     let last = ids.at(-1) ?? null;
     for (let n = ids.length - 1; n >= 0; n--) {
@@ -1572,7 +1339,7 @@ export const useStore = create<State>((set, get) => ({
     const parts = [];
     if (s.duplicates) parts.push(`${s.duplicates} 件はすでにあるためスキップ`);
     if (s.failed.length) parts.push(`${s.failed.length} 件は読み込めませんでした`);
-    // Dropped files can be of either kind, so no "画像" / "フォント" here.
+    // Dropped files can be of any kind, so no "画像" here.
     const title = s.imported ? `${s.imported} 件を追加しました` : "追加されたものはありません";
     const detail = parts.join(" / ") || undefined;
     get().notify({
@@ -1583,7 +1350,6 @@ export const useStore = create<State>((set, get) => ({
     if (since !== undefined) notifyIfAway(since, title, detail);
     if (s.failed.length) warn("import failures", s.failed);
     notifyUnusedKinds(s.kinds ?? {});
-    notifyOtherMode(s.kinds ?? {});
     if (s.kinds?.file) filesApi.prepareThumbs().catch(() => {});
   },
 }));
@@ -1605,7 +1371,7 @@ function watchFileThumbs() {
  */
 export function notifyUnusedKinds(kinds: Partial<Record<ItemKind, number>>) {
   const s = useStore.getState();
-  const used = usedModes(s);
+  const used = usedKinds(s);
   for (const { kind: m } of KINDS) {
     const n = kinds[m] ?? 0;
     // Kinds this build doesn't handle are never imported (src/lib/limits.ts).
@@ -1613,30 +1379,10 @@ export function notifyUnusedKinds(kinds: Partial<Record<ItemKind, number>>) {
     s.notify({
       title: `${kindLabel(m)} ${n} 件を取り込みました`,
       detail: "このライブラリでは使っていない種類です",
-      action: { label: `${kindLabel(m)}も使う`, onClick: () => useStore.getState().setUsedModes([...usedModes(useStore.getState()), m]) },
+      action: { label: `${kindLabel(m)}も使う`, onClick: () => useStore.getState().setUsedKinds([...usedKinds(useStore.getState()), m]) },
       duration: 12000,
     });
   }
-}
-
-/**
- * After an import: tells about items that went to the other mode (fonts
- * dropped in the stock, images in the fonts), with a button to go there.
- * Kinds the library isn't used for are `notifyUnusedKinds`'s.
- */
-export function notifyOtherMode(kinds: Partial<Record<ItemKind, number>>) {
-  const s = useStore.getState();
-  const used = usedModes(s);
-  const other = MODES.find((m) => m !== s.mode)!;
-  const arrived = KINDS.filter((k) => modeOf(k.kind) === other && used.includes(k.kind) && (kinds[k.kind] ?? 0) > 0);
-  if (!arrived.length) return;
-  const n = arrived.reduce((a, k) => a + (kinds[k.kind] ?? 0), 0);
-  s.notify({
-    title: `${kindsNoun(arrived.map((k) => k.kind))} ${n} 件は「${modeLabel(other)}」に入りました`,
-    detail: "フォルダやタグは、ストックとフォントで別々です",
-    action: { label: `${modeLabel(other)}を開く`, onClick: () => useStore.getState().setMode(other) },
-    duration: 10000,
-  });
 }
 
 export function currentFolderId(): string | null {

@@ -2,13 +2,11 @@
 import { listen } from "@tauri-apps/api/event";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, EMPTY_FILTER, isSystemId, kindLabel, kindOfExt, libraryIds, type DuplicateEffect, type Item, type ItemKind, type LibraryInfo, type LinkPlacement, type Mode, type OrientOp, type VideoThumbSource, type View } from "./api";
-import { itemsNoun, kindsNoun, MODES, modeLabel } from "./modes";
-import { fontApi } from "../features/fonts/api";
+import { api, EMPTY_FILTER, kindLabel, kindOfExt, type DuplicateEffect, type Item, type ItemKind, type LibraryInfo, type LinkPlacement, type OrientOp, type VideoThumbSource, type View } from "./api";
+import { itemsNoun, kindsNoun } from "./kinds";
 import {
   activeConditions,
   currentFolderId,
-  FONT_SHELF_MAX,
   isHidden,
   queryKinds,
   shelfShown,
@@ -17,7 +15,6 @@ import {
   type ListSource,
   type ToastAction,
 } from "../store";
-import { rowIds } from "./grouping";
 import { openGuarded } from "./libraryLock";
 import { showHud } from "../components/ActionHud";
 import { warn } from "./log";
@@ -69,7 +66,7 @@ export async function openLibraryAt(root: string) {
 
 /** Picks a folder for a new library without opening it (a destination to copy into). */
 export async function createLibraryOnly(): Promise<LibraryInfo | null> {
-  const path = await save({ title: "新しいライブラリの保存先", defaultPath: "MyFonts.library" });
+  const path = await save({ title: "新しいライブラリの保存先", defaultPath: "MyPictures.library" });
   if (!path) return null;
   try {
     return await api.createLibrary(path, false);
@@ -102,7 +99,7 @@ export async function transferTo(
     st().setImporting({ label, ...e.payload }),
   );
   try {
-    const r = await api.transferItems(dest.root, "ids" in scope ? { ids: libraryIds(scope.ids) } : scope, move);
+    const r = await api.transferItems(dest.root, "ids" in scope ? { ids: scope.ids } : scope, move);
     const n = r.copied + r.duplicates;
     const parts = [];
     if (r.duplicates) parts.push(`${r.duplicates} 件はすでにあったため、タグとフォルダだけ統合`);
@@ -140,7 +137,7 @@ export async function transferTo(
 
 /**
  * The kind "<種類>をすべて別のライブラリへ" works on: the one the list is
- * narrowed to (the font mode, or the kind filter), if one.
+ * narrowed to (the kind filter, or the one kind in use), if one.
  */
 export function transferableKind(s = st()): ItemKind | null {
   const kinds = shownKinds(s);
@@ -231,7 +228,6 @@ export function importClipboardFiles(files: File[]) {
 
 /** Moves to trash, or deletes permanently when already in the trash. */
 export async function deleteSelection(ids: string[]) {
-  ids = libraryIds(ids);
   if (!ids.length) return;
   const before = st().items;
   if (st().view.kind === "trash") {
@@ -277,7 +273,7 @@ function selectSuccessor(before: Item[], gone: string[]) {
   const present = new Set(s.items.map((i) => i.id));
   let last = -1;
   before.forEach((row, n) => {
-    if (removed.has(row.id) || rowIds([row]).some((id) => removed.has(id))) last = n;
+    if (removed.has(row.id)) last = n;
   });
   if (last < 0) return;
   const next =
@@ -446,7 +442,6 @@ const folderName = (id: string) => st().folders.find((f) => f.id === id)?.name ?
 
 /** Moves items into a folder (an item is in one folder at most). */
 export async function moveToFolder(ids: string[], folderId: string) {
-  ids = libraryIds(ids);
   if (!ids.length) return;
   // A child goes where its parent goes, not on its own (docs/LINKS.md).
   const picked = new Set(ids);
@@ -476,7 +471,7 @@ function undoLinks(placements: LinkPlacement[]) {
 
 /** Makes `ids` children of `parentId`; they move to the parent's folder. */
 export async function linkItems(parentId: string, ids: string[]) {
-  ids = libraryIds(ids).filter((id) => id !== parentId);
+  ids = ids.filter((id) => id !== parentId);
   if (!ids.length) return;
   let moved: LinkPlacement[] = [];
   if (!(await st().run(async () => void (moved = await api.linkItems(parentId, ids))))) return;
@@ -522,7 +517,7 @@ export function linkedIn(ids: string[]): string[] {
 
 /** Takes children out of their parents; they stay in the parent's folder as plain items. */
 export async function unlinkItems(ids: string[]) {
-  ids = linkedIn(libraryIds(ids));
+  ids = linkedIn(ids);
   if (!ids.length) return;
   let was: LinkPlacement[] = [];
   if (!(await st().run(async () => void (was = await api.unlinkItems(ids))))) return;
@@ -559,11 +554,10 @@ export function moveToLastFolder(ids: string[]) {
   return moveToFolder(ids, last);
 }
 
-/** Creates a folder of the mode and starts renaming it in the sidebar. */
+/** Creates a folder and starts renaming it in the sidebar. */
 export async function createFolder(parentId: string | null, itemIds: string[] = []) {
   try {
-    const id = await api.createFolder("新しいフォルダ", parentId, st().mode);
-    itemIds = libraryIds(itemIds);
+    const id = await api.createFolder("新しいフォルダ", parentId);
     if (itemIds.length) await api.moveToFolder(itemIds, id);
     await st().refresh();
     if (!st().sidebarOpen) st().toggleSidebar();
@@ -588,7 +582,6 @@ export function createFolderHere() {
 type Feedback = { quiet?: boolean };
 
 export async function setRating(ids: string[], rating: number, { quiet }: Feedback = {}) {
-  ids = libraryIds(ids);
   if (!ids.length) return;
   await st().run(async () => {
     await api.setRating(ids, rating);
@@ -604,7 +597,6 @@ function allHave(ids: string[], flag: (i: Item) => boolean): boolean {
 
 /** F: adds to favourites, or removes when every selected image already is one. */
 export async function toggleFavorite(ids: string[], { quiet }: Feedback = {}) {
-  ids = libraryIds(ids);
   if (!ids.length) return;
   const on = !allHave(ids, (i) => i.favorite);
   const ok = await st().run(async () => {
@@ -618,7 +610,6 @@ export async function toggleFavorite(ids: string[], { quiet }: Feedback = {}) {
 
 /** P: pins to the top of every list, or unpins when all are pinned. */
 export async function togglePinned(ids: string[], { quiet }: Feedback = {}) {
-  ids = libraryIds(ids);
   if (!ids.length) return;
   const on = !allHave(ids, (i) => i.pinnedAt !== null);
   const ok = await st().run(async () => {
@@ -633,7 +624,6 @@ export async function togglePinned(ids: string[], { quiet }: Feedback = {}) {
 
 /** Rotates / flips the images without changing the files. */
 export async function orient(ids: string[], op: OrientOp, { quiet }: Feedback = {}) {
-  ids = libraryIds(ids);
   if (!ids.length) return;
   await st().run(async () => {
     await api.orientItems(ids, op);
@@ -649,42 +639,21 @@ export async function reorder(ids: string[], before: string | null) {
 }
 
 // --------------------------------------------------------------- shelf
-// The shelf under the list (the `tray` table): things gathered for a while,
-// one per mode. In the font mode it holds what is compared, at most
-// FONT_SHELF_MAX (docs/FONT_UI.md).
+// The shelf under the list (the `tray` table): things gathered for a while.
 
-/**
- * What putting `ids` on the shelf puts there: in the font mode a whole
- * family (its row selected) goes as its row's font, the one the comparison
- * starts from; a style opened under its family (▸) goes on its own.
- */
-export function shelfIds(ids: string[]): string[] {
-  const s = st();
-  if (s.mode !== "font") return ids;
-  const want = new Set(ids);
-  const whole = new Map<string, string>();
-  for (const row of s.items) {
-    if (row.familyIds && row.familyIds.every((id) => want.has(id))) row.familyIds.forEach((id) => whole.set(id, row.id));
-  }
-  return [...new Set(ids.map((id) => whole.get(id) ?? id))];
-}
-
-/** Whether `ids` (as `shelfIds` takes them) are all on the shelf. */
+/** Whether `ids` are all on the shelf. */
 export function onShelf(ids: string[]): boolean {
   const shelf = new Set(st().shelf.map((i) => i.id));
-  const want = shelfIds(ids);
-  return want.length > 0 && want.every((id) => shelf.has(id));
+  return ids.length > 0 && ids.every((id) => shelf.has(id));
 }
 
 /**
  * What dropping (or B on) `ids` would do to the shelf: how many are not on it
- * yet, and whether that goes past the font shelf's limit. The shelf shows it
- * while they are dragged over it.
+ * yet. The shelf shows it while they are dragged over it.
  */
-export function shelfAdding(ids: string[]): { fresh: number; full: boolean } {
+export function shelfAdding(ids: string[]): number {
   const there = new Set(st().shelf.map((i) => i.id));
-  const fresh = shelfIds(ids).filter((id) => !there.has(id)).length;
-  return { fresh, full: st().mode === "font" && there.size + fresh > FONT_SHELF_MAX };
+  return new Set(ids.filter((id) => !there.has(id))).size;
 }
 
 /** The toast's "シェルフを表示" while the shelf is out of view. */
@@ -692,38 +661,15 @@ const openShelfAction = (): ToastAction | undefined =>
   shelfShown(st()) ? undefined : { label: "シェルフを表示", onClick: () => st().setPanelTab("shelf") };
 
 /**
- * Puts `ids` on the shelf: library items, and on the font shelf the fonts
- * installed on this computer too (docs/SYSTEM_FONTS.md). Returns how many were added.
- */
-function trayAdd(ids: string[]): Promise<number> {
-  const system = ids.filter(isSystemId);
-  const items = libraryIds(ids);
-  return Promise.all([
-    items.length ? api.addToTray(items) : 0,
-    system.length ? fontApi.addSystemToTray(system) : 0,
-  ]).then(([a, b]) => a + b);
-}
-
-/**
- * Puts items (and installed fonts) on the shelf, after the ones already there.
+ * Puts items on the shelf, after the ones already there.
  * `show`: dropped there from the list, so the shelf stays the panel's tab once
  * something was added (docs/UI.md).
  */
 export async function addToTray(ids: string[], { show = false } = {}) {
   if (!ids.length) return;
-  const want = shelfIds(ids);
-  const { fresh, full } = shelfAdding(ids);
-  if (full) {
-    st().notify({
-      title: `シェルフは ${FONT_SHELF_MAX} 件までです。外してから追加してください`,
-      detail: `今 ${st().shelf.length} 件・追加しようとしたのは ${fresh} 件`,
-      kind: "error",
-    });
-    return;
-  }
   let added = 0;
   const ok = await st().run(async () => {
-    added = await trayAdd(want);
+    added = await api.addToTray(ids);
   });
   if (!ok) return;
   if (added && show) st().setPanelTab("shelf");
@@ -738,7 +684,7 @@ export async function addToTray(ids: string[], { show = false } = {}) {
 export async function toggleTray(ids: string[]) {
   if (!ids.length) return;
   if (!onShelf(ids)) return addToTray(ids);
-  return removeFromShelf(shelfIds(ids));
+  return removeFromShelf(ids);
 }
 
 /** Takes items off the shelf (they stay in the library), with an undo. */
@@ -747,7 +693,7 @@ export async function removeFromShelf(ids: string[]) {
   if (!(await st().run(() => api.removeFromTray(ids)))) return;
   st().toast(`${ids.length} 件をシェルフから外しました`, false, {
     label: "元に戻す",
-    onClick: () => st().run(() => trayAdd(ids)),
+    onClick: () => st().run(() => api.addToTray(ids)),
   });
 }
 
@@ -758,13 +704,12 @@ export function reorderShelf(ids: string[], before: string | null) {
 
 /** Takes everything off the shelf (the items themselves stay). */
 export async function clearTray() {
-  // Only the mode's shelf: the other mode keeps its own.
   const ids = st().shelf.map((i) => i.id);
   if (!ids.length) return;
   if (!(await st().run(() => api.removeFromTray(ids)))) return;
   st().toast(`シェルフを空にしました（${ids.length} 件）`, false, {
     label: "元に戻す",
-    onClick: () => st().run(() => trayAdd(ids)),
+    onClick: () => st().run(() => api.addToTray(ids)),
   });
 }
 
@@ -801,8 +746,8 @@ export async function listTargets(source: ListSource, subfolders = true): Promis
     case "shown":
       return displayOrder();
     case "tray":
-      // What the shelf shows, in its order (installed fonts stay where they are).
-      return st().shelf.filter((i) => !isSystemId(i.id));
+      // What the shelf shows, in its order.
+      return st().shelf;
     case "folder":
       return queryView({ kind: "folder", id: source.id }, { includeSubfolders: subfolders });
     case "smart":
@@ -877,8 +822,7 @@ export async function writeLibrary(dest: string) {
     st().setImporting({ label, ...e.payload, cancel }),
   );
   try {
-    const labels = Object.fromEntries(MODES.map((m) => [m, modeLabel(m)])) as Record<Mode, string>;
-    const r = await api.exportLibrary(dest, labels);
+    const r = await api.exportLibrary(dest);
     const title = r.cancelled ? `書き出しを中止しました（${r.copied} / ${r.total} 件）` : `${r.copied} 件を書き出しました`;
     const parts = [r.folder];
     if (r.failed.length) parts.push(`${r.failed.length} 件は失敗：${r.failed.slice(0, 2).join("、")}`);
@@ -919,12 +863,11 @@ export function transferList(source: ListSource) {
 
 /**
  * Items as the list shows them (one listed in several groups counts once, where
- * it first appears). Library items only: the installed fonts aren't taken out
- * or put on the shelf (docs/SYSTEM_FONTS.md).
+ * it first appears).
  */
 function displayOrder(): Item[] {
   const seen = new Set<string>();
-  return st().items.filter((i) => !isSystemId(i.id) && !seen.has(i.id) && seen.add(i.id));
+  return st().items.filter((i) => !seen.has(i.id) && seen.add(i.id));
 }
 
 /** まとめて出力… of the shelf, in its order. */
@@ -941,7 +884,7 @@ export function exportTray() {
 
 /** Opens "まとめて出力" for the listed items `ids`, in the order the list shows them. */
 export function openSheet(ids: string[]) {
-  const want = new Set(libraryIds(ids));
+  const want = new Set(ids);
   const items = displayOrder().filter((i) => want.has(i.id));
   if (items.length) st().setSheet(items);
 }
@@ -949,7 +892,6 @@ export function openSheet(ids: string[]) {
 // ---------------------------------------------------------- taking out
 
 export async function copySelection(ids: string[]) {
-  ids = libraryIds(ids);
   if (!ids.length) return;
   try {
     const n = await api.copyItems(ids);
@@ -960,12 +902,10 @@ export async function copySelection(ids: string[]) {
 }
 
 export function exportSelection(ids: string[]) {
-  ids = libraryIds(ids);
   if (ids.length) exportList({ kind: "ids", ids });
 }
 
 export async function openSelection(ids: string[]) {
-  ids = libraryIds(ids);
   if (!ids.length) return;
   if (ids.length > 10) {
     const ok = await ask(`${ids.length} 件を既定のアプリで開きます。よろしいですか？`, {
@@ -998,14 +938,14 @@ export async function createSmartFolder() {
   const empty = activeConditions(s) === 0;
   try {
     const rule = s.currentRule();
-    const id = await api.createSmartFolder("新しいスマートフォルダ", rule, s.mode);
+    const id = await api.createSmartFolder("新しいスマートフォルダ", rule);
     // The conditions now live in the folder; start it with a clean slate.
     // The kinds picked stay: they are the sidebar's range (docs/KINDS.md).
     useStore.setState({ search: "", tagFilter: [], minRating: 0, filter: { ...EMPTY_FILTER, kinds: s.filter.kinds } });
     s.setView({ kind: "smart", id });
     if (!st().sidebarOpen) st().toggleSidebar();
     st().setRenamingFolder(id);
-    if (empty) st().startEditSmart({ id, name: "新しいスマートフォルダ", rule, count: 0, byKind: {}, color: null, mode: s.mode });
+    if (empty) st().startEditSmart({ id, name: "新しいスマートフォルダ", rule, count: 0, byKind: {}, color: null });
   } catch (e) {
     s.toast(String(e), true);
   }
@@ -1071,14 +1011,13 @@ export async function shiftFolder(id: string, by: -1 | 1, toEnd = false) {
 }
 
 export async function sortFoldersByName(parentId: string | null) {
-  await st().run(() => api.sortFoldersByName(parentId, st().mode));
+  await st().run(() => api.sortFoldersByName(parentId));
 }
 
 // ------------------------------------------------------- tag clipboard
 
 /** ⌘⇧C: copies the tags of the selection (all of them, for several images). */
 export async function copyTags(ids: string[]) {
-  ids = libraryIds(ids);
   if (!ids.length) return;
   try {
     const info = await api.selectionInfo(ids);
@@ -1092,7 +1031,6 @@ export async function copyTags(ids: string[]) {
 
 /** ⌘⇧V: adds the copied tags to the selection. */
 export async function pasteTags(ids: string[]) {
-  ids = libraryIds(ids);
   const names = st().tagClipboard;
   if (!ids.length) return;
   if (!names.length) {

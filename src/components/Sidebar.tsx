@@ -16,15 +16,12 @@ import {
   Images,
   Inbox,
   Keyboard,
-  Monitor,
   MoreHorizontal,
   Pin,
-  Shapes,
   Share2,
   Tag as TagIcon,
   Tags,
   Trash2,
-  Type,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -44,20 +41,18 @@ import {
   transferList,
   trayList,
 } from "../lib/actions";
-import { api, kindLabel, modeOf, type Folder, type ItemKind, type KindCounts, type View } from "../lib/api";
-import { inScope, modeLabel, rangeKinds, type Mode } from "../lib/modes";
+import { api, kindLabel, type Folder, type ItemKind, type KindCounts, type View } from "../lib/api";
+import { inScope, rangeKinds } from "../lib/kinds";
 import { isMac } from "../lib/shortcuts";
 import {
   activeConditions,
   isHidden,
   listNoun,
-  MODES,
   placeByKind,
-  shownModes,
   sidebarEntryLabel,
   sidebarHidden,
   sidebarScope,
-  usedModes,
+  usedKinds,
   useStore,
   type ListSource,
 } from "../store";
@@ -87,22 +82,21 @@ function saveCollapsed(root: string, c: Set<string>) {
 }
 
 /**
- * "サイドバーから隠す" for an entry of the current mode, in the settings in
- * effect (the app's, or the library's own); the toast says which.
+ * "サイドバーから隠す" for an entry, in the settings in effect (the app's, or
+ * the library's own); the toast says which.
  */
 function hideItem(id: string): MenuItem {
   return {
     label: "サイドバーから隠す",
     onClick: () => {
       const s = useStore.getState();
-      const { mode } = s;
       const scope = sidebarScope(s);
-      const before = sidebarHidden(s, scope)[mode] ?? [];
-      s.setSidebarHidden(mode, [...before, id], scope);
+      const before = sidebarHidden(s, scope);
+      s.setSidebarHidden([...before, id], scope);
       s.notify({
         title: `「${sidebarEntryLabel(id)}」をサイドバーから隠しました`,
         detail: scope === "app" ? "すべてのライブラリ（アプリ全体の設定）" : "このライブラリだけ",
-        action: { label: "元に戻す", onClick: () => useStore.getState().setSidebarHidden(mode, before, scope) },
+        action: { label: "元に戻す", onClick: () => useStore.getState().setSidebarHidden(before, scope) },
       });
     },
   };
@@ -130,7 +124,7 @@ function useDropState(dropId: string | undefined) {
   return { over, flash };
 }
 
-export function Row({
+function Row({
   active,
   dropId,
   depth = 0,
@@ -490,7 +484,7 @@ function FolderTree() {
  * A titled block of the sidebar. With `hideId` it can be hidden from its
  * heading's menu (after `menu`), and renders nothing while hidden.
  */
-export function Section({
+function Section({
   title,
   action,
   hideId,
@@ -592,52 +586,6 @@ function SmartFolderList() {
   );
 }
 
-const MODE_ICON: Record<Mode, React.ReactNode> = {
-  stock: <Shapes size={14} />,
-  font: <Type size={14} />,
-};
-
-/**
- * What the app shows (the stock, or the fonts to compare): the sidebar's
- * header, a segment of the two (docs/UI.md「少なければ 1 つのセグメントに並べる」),
- * ⌘1 / ⌘2 in MODES order. Which kinds the library uses is in the settings
- * (種類). Images and files are narrowed in the stock with the range under it (KindRange).
- */
-function ModeSwitch() {
-  const mode = useStore((s) => s.mode);
-  const setMode = useStore((s) => s.setMode);
-  const kinds = useStore((s) => s.counts.kinds);
-  const shown = useStore(useShallow(shownModes));
-  const countOf = (m: Mode) =>
-    (Object.entries(kinds) as [ItemKind, number | undefined][])
-      .filter(([k]) => modeOf(k) === m)
-      .reduce((a, [, n]) => a + (n ?? 0), 0);
-
-  // A library used for one kind only has nothing to switch to.
-  if (shown.length < 2) return <div className="h-2 shrink-0" />;
-  return (
-    <div role="group" aria-label="表示する種類" className="m-2 flex rounded-lg track">
-      {shown.map((m) => {
-        const on = mode === m;
-        return (
-          <button
-            key={m}
-            aria-pressed={on}
-            onClick={() => setMode(m)}
-            title={`${modeLabel(m)}（${countOf(m)} 件・${comboText(`Mod+${MODES.indexOf(m) + 1}`)}）`}
-            className={`flex h-7 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md text-[13px] ${
-              on ? "thumb font-semibold" : "text-fg/80 hover:bg-hover hover:text-fg"
-            }`}
-          >
-            <span className={on ? "text-accent" : "text-dim"}>{MODE_ICON[m]}</span>
-            <span className="truncate">{modeLabel(m)}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 const KIND_ICON: Partial<Record<ItemKind, React.ReactNode>> = {
   image: <ImageIcon size={14} />,
   file: <FileText size={14} />,
@@ -651,14 +599,13 @@ const KIND_ICON: Partial<Record<ItemKind, React.ReactNode>> = {
  * this narrows one, given its total and its counts by kind.
  */
 function useInScope(): (total: number, byKind: KindCounts) => number {
-  const mode = useStore((s) => s.mode);
   const kinds = useStore(useShallow((s) => s.filter.kinds));
-  return (total, byKind) => inScope({ mode, filter: { kinds } }, total, byKind);
+  return (total, byKind) => inScope({ filter: { kinds } }, total, byKind);
 }
 
 /**
- * The range of kinds (docs/KINDS.md): what is looked at, under the mode
- * switch, apart from the places so that the two go together ("this folder's
+ * The range of kinds (docs/KINDS.md): what is looked at, at the top of the
+ * sidebar apart from the places so that the two go together ("this folder's
  * images"). One line, a menu: nothing picked is every kind (no 「すべて」 here,
  * that word is the place's). Click picks one, ⌘-click adds or takes off one.
  */
@@ -828,13 +775,11 @@ function TagList() {
 
 export function Sidebar() {
   const counts = useStore((s) => s.counts);
-  const systemCount = useStore((s) => s.systemCount);
   const sidebarWidth = useStore((s) => s.sidebarWidth);
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
-  const mode = useStore((s) => s.mode);
-  const usesImages = useStore((s) => usedModes(s).includes("image"));
-  const hidden = useStore(useShallow((s) => sidebarHidden(s)[s.mode] ?? []));
+  const usesImages = useStore((s) => usedKinds(s).includes("image"));
+  const hidden = useStore(useShallow(sidebarHidden));
   const showMenu = useMenu((s) => s.show);
   const scoped = useInScope();
 
@@ -844,24 +789,12 @@ export function Sidebar() {
   const looks: Entry[] = [
     {
       view: { kind: "all" },
-      label: mode === "font" ? "すべてのフォント" : "すべて",
+      label: "すべて",
       icon: <Images size={15} />,
       count: scoped(counts.all, counts.byKind.all),
     },
     { view: { kind: "unfiled" }, label: "未分類", icon: <Inbox size={15} />, count: scoped(counts.unfiled, counts.byKind.unfiled) },
     { view: { kind: "untagged" }, label: "タグなし", icon: <Tags size={15} />, count: scoped(counts.untagged, counts.byKind.untagged) },
-    // Read only, not in the library (docs/SYSTEM_FONTS.md); counted once first listed.
-    ...(mode === "font"
-      ? [
-          {
-            view: { kind: "system" } as View,
-            label: "この端末のフォント",
-            icon: <Monitor size={15} />,
-            count: systemCount ?? undefined,
-            title: "この端末にインストールされているフォント（読み取り専用。ライブラリには入りません）",
-          },
-        ]
-      : []),
   ];
   const marks: Entry[] = [
     { view: { kind: "favorites" }, label: "お気に入り", icon: <Heart size={15} />, count: scoped(counts.favorites, counts.byKind.favorites) },
@@ -870,7 +803,7 @@ export function Sidebar() {
   ];
   const tidying: Entry[] = [
     // Look-alikes are found by image hash: images only.
-    ...(mode === "stock" && usesImages ? [{ view: { kind: "similar" } as View, label: "重複の候補", icon: <Copy size={15} /> }] : []),
+    ...(usesImages ? [{ view: { kind: "similar" } as View, label: "重複の候補", icon: <Copy size={15} /> }] : []),
     { view: { kind: "trash" }, label: "ゴミ箱", icon: <Trash2 size={15} />, count: scoped(counts.trash, counts.byKind.trash) },
   ];
 
@@ -913,7 +846,7 @@ export function Sidebar() {
       <div {...dragRegion()} className="shrink-0" style={{ height: "var(--titlebar)" }} />
       {/* What to show is switched often, the library seldom: the kinds on
           top, the library at the bottom. */}
-      <ModeSwitch />
+      <div className="h-2 shrink-0" />
       <KindRange />
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {shown(looks).map(row)}

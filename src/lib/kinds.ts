@@ -1,15 +1,7 @@
-// What the app shows: the stock (images and files, found and used) or the
-// fonts (compared and picked), each with its own folders, tags and smart
-// folders. Images and files are narrowed with the range of kinds (the sidebar, docs/KINDS.md) inside the
-// stock. See docs/MODES.md and docs/ARCHITECTURE.md (モード).
-import { KINDS, kindLabel, kindOfExt, modeOf, type Filter, type ItemKind, type KindCounts, type Mode, type SmartFolder, type View } from "./api";
-
-export { modeOf, type Mode } from "./api";
-
-/** Modes in menu order; ⌘1 / ⌘2 follow it. */
-export const MODES: Mode[] = ["stock", "font"];
-
-export const modeLabel = (m: Mode) => (m === "stock" ? "ストック" : "フォント");
+// The kinds a list holds. Every kind the library is used for is listed
+// together; the sidebar's range ("種類で絞る", docs/KINDS.md) narrows them.
+// See docs/ARCHITECTURE.md.
+import { KINDS, kindLabel, kindOfExt, type Filter, type ItemKind, type KindCounts, type SmartFolder, type View } from "./api";
 
 /** What items of these kinds are called in a sentence ("条件に一致する画像はありません"). */
 export const kindsNoun = (kinds: ItemKind[]) => (kinds.length === 1 ? kindLabel(kinds[0]) : "アイテム");
@@ -17,61 +9,39 @@ export const kindsNoun = (kinds: ItemKind[]) => (kinds.length === 1 ? kindLabel(
 /** What these items are called: their kind when they are of one ("画像"), else "アイテム". */
 export const itemsNoun = (items: { kind: ItemKind }[]) => kindsNoun([...new Set(items.map((i) => i.kind))]);
 
-/**
- * Modes to switch between given the kinds a library is used for: the ones
- * with kinds in use (a library of fonts alone, or of no fonts, has one).
- */
-export const modesFor = (used: ItemKind[]): Mode[] => {
-  const modes = MODES.filter((m) => used.some((k) => modeOf(k) === m));
-  return modes.length ? modes : ["stock"];
-};
-
-/** Kinds a mode lists, of those the library is used for (in `KINDS` order). */
-export function kindsOfMode(m: Mode, used: ItemKind[]): ItemKind[] {
-  const of = KINDS.map((k) => k.kind).filter((k) => modeOf(k) === m);
-  const usedOf = of.filter((k) => used.includes(k));
-  // Never none: an empty kind list would ask for every kind.
-  return usedOf.length ? usedOf : of;
-}
-
 /** What decides the kinds a list holds (the store's state has it all). */
 export type KindState = {
-  mode: Mode;
   view: View;
   filter: Filter;
   smartFolders: SmartFolder[];
-  librarySettings: { modes: ItemKind[] };
+  librarySettings: { kinds: ItemKind[] };
 };
 
-/**
- * A sidebar count narrowed to the kinds picked (docs/KINDS.md): `total` when
- * none are (or in the font mode, which has no range).
- */
-export function inScope(s: { mode: Mode; filter: { kinds: ItemKind[] } }, total: number, byKind: KindCounts): number {
-  if (s.mode !== "stock" || !s.filter.kinds.length) return total;
+/** A sidebar count narrowed to the kinds picked (docs/KINDS.md): `total` when none are. */
+export function inScope(s: { filter: { kinds: ItemKind[] } }, total: number, byKind: KindCounts): number {
+  if (!s.filter.kinds.length) return total;
   return s.filter.kinds.reduce((n, k) => n + (byKind[k] ?? 0), 0);
 }
 
-/** The stock's kinds in `KINDS` order: the range's menu and its keys ⌥1… (docs/KINDS.md). */
-export const STOCK_KINDS: ItemKind[] = KINDS.map((k) => k.kind).filter((k) => modeOf(k) === "stock");
+/** Every kind in `KINDS` order: the range's menu and its keys ⌥1… (docs/KINDS.md). */
+export const ALL_KINDS: ItemKind[] = KINDS.map((k) => k.kind);
 
 /**
- * Kinds the sidebar's range offers (docs/KINDS.md): the stock's kinds in use,
- * none in the font mode or when one kind only is used (nothing to pick).
+ * Kinds the sidebar's range offers (docs/KINDS.md): the kinds in use, none
+ * when one kind only is used (nothing to pick).
  */
-export function rangeKinds(s: Pick<KindState, "mode" | "librarySettings">): ItemKind[] {
-  if (s.mode !== "stock") return [];
-  const used = usedKinds(s).filter((k) => modeOf(k) === "stock");
+export function rangeKinds(s: Pick<KindState, "librarySettings">): ItemKind[] {
+  const used = usedKinds(s);
   return used.length > 1 ? used : [];
 }
 
 /** Kinds the open library is used for, in `KINDS` order. */
 export const usedKinds = (s: Pick<KindState, "librarySettings">): ItemKind[] =>
-  KINDS.map((k) => k.kind).filter((k) => s.librarySettings.modes.includes(k));
+  ALL_KINDS.filter((k) => s.librarySettings.kinds.includes(k));
 
-/** Kinds the query asks for: the mode's, narrowed by the kind filter. */
-export function shownKinds(s: Pick<KindState, "mode" | "filter" | "librarySettings">): ItemKind[] {
-  const base = kindsOfMode(s.mode, usedKinds(s));
+/** Kinds the query asks for: those in use, narrowed by the kind filter. */
+export function shownKinds(s: Pick<KindState, "filter" | "librarySettings">): ItemKind[] {
+  const base = usedKinds(s);
   const picked = s.filter.kinds.filter((k) => base.includes(k));
   return picked.length ? picked : base;
 }
@@ -80,7 +50,7 @@ export function shownKinds(s: Pick<KindState, "mode" | "filter" | "librarySettin
  * `filter.kinds` of the query: none when every kind is shown. The similar
  * view is of images whatever the kind filter (look-alikes are found by image hash).
  */
-export const queryKinds = (s: Pick<KindState, "mode" | "view" | "filter" | "librarySettings">): ItemKind[] => {
+export const queryKinds = (s: Pick<KindState, "view" | "filter" | "librarySettings">): ItemKind[] => {
   if (s.view.kind === "similar") return ["image"];
   const kinds = shownKinds(s);
   return kinds.length === KINDS.length ? [] : kinds;

@@ -60,12 +60,10 @@ import {
   trayList,
   pickKind,
 } from "./actions";
-import { api, isSystemId, kindLabel, type Item, type ItemKind } from "./api";
-import { fontApi } from "../features/fonts/api";
+import { api, kindLabel, type Item, type ItemKind } from "./api";
 import { checkForUpdate, openReleaseNotes } from "./update";
-import { COMPARE_ZOOM, currentFolderId, listKinds, MODES, shelfShown, shownKinds, shownModes, useStore, zoomLook } from "../store";
-import { kindsNoun, modeLabel, rangeKinds, STOCK_KINDS } from "./modes";
-import { rowIds } from "./grouping";
+import { COMPARE_ZOOM, currentFolderId, listKinds, shelfShown, shownKinds, useStore, zoomLook } from "../store";
+import { ALL_KINDS, kindsNoun, rangeKinds } from "./kinds";
 import { useShortcutHelp } from "../components/ShortcutHelp";
 import { createText } from "../features/texts/actions";
 
@@ -97,14 +95,7 @@ const sel = (s: S) => [...s.selected];
 const typing = () => !!(document.activeElement as HTMLElement | null)?.closest?.("input, textarea, [contenteditable]");
 const any = (s: S) => s.selected.size > 0;
 const notTrash = (s: S) => s.view.kind !== "trash";
-/**
- * Something selected, and all of it library items: the fonts installed on this
- * computer can be looked at but not changed, copied or taken out (docs/SYSTEM_FONTS.md).
- */
-const mine = (s: S) => any(s) && !sel(s).some(isSystemId);
-/** The list is the library's (not the installed fonts). */
-const library = (s: S) => s.view.kind !== "system";
-const live = (s: S) => mine(s) && notTrash(s);
+const live = (s: S) => any(s) && notTrash(s);
 const selItems = (s: S): Item[] => {
   const byId = new Map(s.rawItems.map((i) => [i.id, i]));
   return sel(s).flatMap((id) => byId.get(id) ?? []);
@@ -113,8 +104,8 @@ const allHave = (s: S, f: (i: Item) => boolean) => {
   const xs = selItems(s);
   return xs.length > 0 && xs.every(f);
 };
-/** Links are on for this library and the list is the stock's (fonts have families instead). */
-export const linksOn = (s: S) => s.librarySettings.links && s.mode === "stock";
+/** Links are on for this library. */
+export const linksOn = (s: S) => s.librarySettings.links;
 /**
  * Every selected item is a child whose parent isn't selected: it can't change folder on its own,
  * it goes where its parent goes (docs/LINKS.md; db.rs `with_linked`).
@@ -139,17 +130,12 @@ const videoAndImage = (s: S): [Item, Item] | undefined => {
 };
 const lastFolder = (s: S) => s.folders.find((f) => f.id === s.recentFolders[0]);
 
-/**
- * ⌘+ / ⌘-: the size the slider sets. The font mode's is on the specimen text
- * row: the text in the specimen layout, the tiles in the grid.
- */
+/** ⌘+ / ⌘-: the size the slider sets. */
 function zoom(s: S, dir: 1 | -1) {
-  // The images compared from the stock shelf zoom together (docs/COMPARE.md).
-  if (s.comparing && s.mode === "stock") {
+  // The images compared from the shelf zoom together (docs/COMPARE.md).
+  if (s.comparing) {
     s.setCompareLook((l) => zoomLook(l, dir > 0 ? COMPARE_ZOOM.step : 1 / COMPARE_ZOOM.step));
-  } else if (s.mode === "font" && s.layout === "specimen") s.setSpecimenSize(s.specimenSize + 8 * dir);
-  else if (s.mode === "font") s.setTileSize(s.tileSize + 20 * dir);
-  else s.setThumbSize(Math.min(360, Math.max(80, s.thumbSize + 20 * dir)));
+  } else s.setThumbSize(Math.min(360, Math.max(80, s.thumbSize + 20 * dir)));
 }
 
 const ALL_COMMANDS: Command[] = [
@@ -184,14 +170,12 @@ const ALL_COMMANDS: Command[] = [
     title: "追加…",
     icon: ImagePlus,
     label: (s) => `${kindsNoun(shownKinds(s))}を追加…`,
-    enabled: library,
     run: () => void importFilesDialog(),
   },
   {
     id: "list.importFolder",
     title: "フォルダから追加…",
     icon: FolderInput,
-    enabled: library,
     run: () => void importFolderDialog(),
   },
   { id: "library.new", title: "新しいライブラリ…", run: () => void createLibraryDialog() },
@@ -203,26 +187,13 @@ const ALL_COMMANDS: Command[] = [
       const kind = transferableKind(s);
       return kind ? `${kindLabel(kind)}をすべて別のライブラリへ…` : "すべてを別のライブラリへ…";
     },
-    // A kind at a time (in the stock, narrow to the kind first).
+    // A kind at a time (narrow to the kind first).
     enabled: (s) => {
       const kind = transferableKind(s);
       return !!kind && (s.counts.kinds[kind] ?? 0) > 0;
     },
     run: () => transferAllOfKind(),
   },
-
-  // -------------------------------------------------------------- modes
-  ...MODES.map(
-    (m, i): Command => ({
-      id: `mode.${m}`,
-      title: modeLabel(m),
-      keys: [`Mod+${i + 1}`],
-      // A kind the library isn't used for does nothing (the keys stay fixed).
-      enabled: (s) => shownModes(s).includes(m),
-      checked: (s) => s.mode === m,
-      run: (s) => s.setMode(m),
-    }),
-  ),
 
   // ------------------------------------- the range of kinds (docs/KINDS.md)
   // The sidebar's range: ⌥1… a kind, ⌥0 every kind. Keys are fixed per kind;
@@ -235,7 +206,7 @@ const ALL_COMMANDS: Command[] = [
     checked: (s) => s.filter.kinds.length === 0,
     run: () => pickKind(null),
   },
-  ...STOCK_KINDS.map(
+  ...ALL_KINDS.map(
     (k, i): Command => ({
       id: `kinds.${k}`,
       title: kindLabel(k),
@@ -282,14 +253,12 @@ const ALL_COMMANDS: Command[] = [
   {
     id: "view.zoomIn",
     title: "拡大",
-    label: (s) => (s.mode === "font" && s.layout === "specimen" ? "文字を大きく" : "拡大"),
     keys: ["Mod+="],
     run: (s) => zoom(s, 1),
   },
   {
     id: "view.zoomOut",
     title: "縮小",
-    label: (s) => (s.mode === "font" && s.layout === "specimen" ? "文字を小さく" : "縮小"),
     keys: ["Mod+-"],
     run: (s) => zoom(s, -1),
   },
@@ -332,7 +301,7 @@ const ALL_COMMANDS: Command[] = [
     id: "edit.selectAll",
     title: "すべてを選択",
     keys: ["Mod+A"],
-    run: (s) => s.setSelection(rowIds(s.items)),
+    run: (s) => s.setSelection(s.items.map((i) => i.id)),
   },
   { id: "edit.deselect", title: "選択を解除", keys: ["Esc"], enabled: any, run: (s) => s.setSelection([]) },
   {
@@ -340,14 +309,14 @@ const ALL_COMMANDS: Command[] = [
     title: "コピー",
     icon: Copy,
     keys: ["Mod+C"],
-    enabled: mine,
+    enabled: any,
     run: (s) => void copySelection(sel(s)),
   },
   {
     id: "item.copyTags",
     title: "タグをコピー",
     keys: ["Mod+Shift+C"],
-    enabled: mine,
+    enabled: any,
     run: (s) => void copyTags(sel(s)),
   },
   {
@@ -362,7 +331,7 @@ const ALL_COMMANDS: Command[] = [
     title: "名前を変更",
     keys: ["F2", "Mod+R"],
     // Nothing selected in a folder: the folder's own name.
-    enabled: (s) => (s.selected.size === 1 && mine(s)) || (s.selected.size === 0 && s.view.kind === "folder"),
+    enabled: (s) => s.selected.size === 1 || (s.selected.size === 0 && s.view.kind === "folder"),
     run: (s) => {
       if (s.selected.size === 1) s.requestItemRename();
       else if (s.view.kind === "folder") s.setRenamingFolder(s.view.id);
@@ -376,7 +345,7 @@ const ALL_COMMANDS: Command[] = [
     keys: ["Mod+Backspace", "Delete"],
     // ⌘⌫ / Ctrl+Backspace reach the menu while typing too: in a text field
     // (the text editor, the search box) they are for deleting words.
-    enabled: (s) => mine(s) && !typing(),
+    enabled: (s) => any(s) && !typing(),
     run: (s) => void deleteSelection(sel(s)),
   },
 
@@ -393,16 +362,12 @@ const ALL_COMMANDS: Command[] = [
       if (i >= 0) s.openViewer(i);
     },
   },
-  { id: "item.open", title: "既定のアプリで開く", enabled: mine, run: (s) => void openSelection(sel(s)) },
+  { id: "item.open", title: "既定のアプリで開く", enabled: any, run: (s) => void openSelection(sel(s)) },
   {
     id: "item.reveal",
     title: "Finder / エクスプローラで表示",
     enabled: (s) => s.selected.size === 1,
-    // An installed font: its file in the OS's font folder.
-    run: (s) => {
-      const id = sel(s)[0];
-      void s.run(() => (isSystemId(id) ? fontApi.revealSystem(id) : api.revealItem(id)));
-    },
+    run: (s) => void s.run(() => api.revealItem(sel(s)[0])),
   },
   {
     id: "item.favorite",
@@ -427,11 +392,9 @@ const ALL_COMMANDS: Command[] = [
   {
     id: "item.tray",
     title: "シェルフ",
-    // In the font mode a selected family goes on the shelf as one font (`shelfIds`).
     label: (s) => (sel(s).length && onShelf(sel(s)) ? "シェルフから外す" : "シェルフに追加"),
     icon: Layers,
     keys: ["B"],
-    // Installed fonts go on the font shelf too, to be compared (docs/SYSTEM_FONTS.md).
     enabled: (s) => any(s) && notTrash(s),
     checked: (s) => sel(s).length > 0 && onShelf(sel(s)),
     run: (s) => void toggleTray(sel(s)),
@@ -496,7 +459,6 @@ const ALL_COMMANDS: Command[] = [
     id: "list.export",
     title: "書き出し…",
     keys: ["Mod+E"],
-    enabled: library,
     run: () => exportList(selectionOrShown()),
   },
   {
@@ -506,18 +468,16 @@ const ALL_COMMANDS: Command[] = [
     enabled: (s) => !!s.library && Object.values(s.counts.kinds).some((n) => (n ?? 0) > 0),
     run: () => exportLibrary(),
   },
-  { id: "list.sheet", title: "まとめて出力…", enabled: library, run: () => void sheetList(selectionOrShown()) },
+  { id: "list.sheet", title: "まとめて出力…", run: () => void sheetList(selectionOrShown()) },
   {
     id: "list.transfer",
     title: "別のライブラリへ…",
     icon: FolderInput,
-    enabled: library,
     run: () => void transferList(selectionOrShown()),
   },
   {
     id: "list.tray",
     title: "シェルフにすべて追加",
-    enabled: library,
     run: () => void trayList({ kind: "shown" }),
   },
 
@@ -546,7 +506,7 @@ const ALL_COMMANDS: Command[] = [
   {
     id: "item.unfile",
     title: "未分類に戻す",
-    enabled: (s) => mine(s) && s.view.kind === "folder" && !onlyChildren(s),
+    enabled: (s) => any(s) && s.view.kind === "folder" && !onlyChildren(s),
     run: (s) => {
       const folder = currentFolderId();
       if (folder) void s.run(() => api.removeFromFolder(sel(s), folder));
@@ -623,16 +583,12 @@ const ALL_COMMANDS: Command[] = [
     id: "text.new",
     title: "新規テキスト",
     keys: ["Mod+N"],
-    // Texts are of the stock (docs/TEXT.md).
-    enabled: (s) => s.mode === "stock",
     run: () => void createText(),
   },
   {
     id: "smart.new",
     title: "新しいスマートフォルダ",
     keys: ["Mod+Shift+Alt+N"],
-    // It saves the conditions on screen, which are of the installed fonts there.
-    enabled: library,
     run: () => void createSmartFolder(),
   },
   ...(

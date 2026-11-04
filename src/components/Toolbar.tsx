@@ -11,7 +11,6 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Plus,
-  RefreshCw,
   Search,
   Tag as TagIcon,
   Trash2,
@@ -26,14 +25,12 @@ import {
   reviewDuplicates,
   similarGroups,
 } from "../lib/actions";
-import { SpecimenControls } from "../features/fonts/SpecimenControls";
-import { reloadSystemFonts } from "../features/fonts/system";
 import { type Folder, type ItemKind, type SimilarLevel, type SmartFolder, type SortKey, type Tag, type View } from "../lib/api";
 import { colorHex } from "../lib/colors";
 import { command } from "../lib/commands";
 import { useShallow } from "zustand/react/shallow";
-import { activeConditions, listKinds, placeTotal, useStore, type Mode } from "../store";
-import { PIXEL_KINDS } from "../lib/modes";
+import { activeConditions, listKinds, placeTotal, useStore } from "../store";
+import { PIXEL_KINDS } from "../lib/kinds";
 import { composing } from "../lib/ime";
 import { FilterRow } from "./FilterRow";
 import { DisplayMenu, GroupMenu, LayoutSwitch, ParentsToggle } from "./ViewMenu";
@@ -54,19 +51,18 @@ export const SORTS: { key: SortKey; label: string; only?: ItemKind[] }[] = [
   { key: "manual", label: "手動（ドラッグで並べ替え）" },
 ];
 
-const searchHelp = (mode: Mode) =>
-  [
-    mode === "font" ? "名前・ファミリー名・メモ・タグを検索" : "名前・メモ・タグ・テキストの本文を検索",
-    "  空白区切り … すべてを含む",
-    "  -語 … 除外",
-    "  A OR B / A || B … どちらか",
-    "  ( ) … グループ化、\"語句\" … 完全一致",
-  ].join("\n");
+const SEARCH_HELP = [
+  "名前・メモ・タグ・テキストの本文を検索",
+  "  空白区切り … すべてを含む",
+  "  -語 … 除外",
+  "  A OR B / A || B … どちらか",
+  "  ( ) … グループ化、\"語句\" … 完全一致",
+].join("\n");
 
-function viewTitle(view: View, mode: Mode, folders: Folder[], smart: SmartFolder[], tags: Tag[]): string {
+function viewTitle(view: View, folders: Folder[], smart: SmartFolder[], tags: Tag[]): string {
   switch (view.kind) {
     case "all":
-      return mode === "font" ? "すべてのフォント" : "すべて";
+      return "すべて";
     case "unfiled":
       return "未分類";
     case "untagged":
@@ -87,8 +83,6 @@ function viewTitle(view: View, mode: Mode, folders: Folder[], smart: SmartFolder
       return smart.find((f) => f.id === view.id)?.name ?? "";
     case "tag":
       return tags.find((t) => t.id === view.id)?.name ?? "";
-    case "system":
-      return "この端末のフォント";
   }
 }
 
@@ -109,7 +103,6 @@ export function Toolbar() {
   const conditions = useStore(activeConditions);
   // "5 / 13 件" while narrowed: of the place's items without conditions.
   const total = useStore((s) => (activeConditions(s) > 0 ? placeTotal(s) : null));
-  const mode = useStore((s) => s.mode);
   const smart = view.kind === "smart" ? smartFolders.find((f) => f.id === view.id) : undefined;
 
   // Debounce typing so each keystroke doesn't hit the DB.
@@ -153,7 +146,7 @@ export function Toolbar() {
               />
             )}
             <span className="truncate">
-              {editingSmart ? `「${editingSmart.name}」の条件` : viewTitle(view, mode, folders, smartFolders, tags)}
+              {editingSmart ? `「${editingSmart.name}」の条件` : viewTitle(view, folders, smartFolders, tags)}
             </span>
             {selectedCount > 0 ? (
               <span className="flex shrink-0 items-center gap-1 self-center rounded-full bg-accent/20 py-0.5 pr-0.5 pl-2.5 text-xs font-normal text-accent tabular-nums">
@@ -181,7 +174,7 @@ export function Toolbar() {
         </div>
         <div className="flex flex-1 items-center justify-end gap-2">
           <label
-            title={searchHelp(mode)}
+            title={SEARCH_HELP}
             className="flex h-8 min-w-28 shrink basis-60 items-center gap-2 rounded-md border border-transparent bg-white/7 px-2 focus-within:border-accent @max-xl:min-w-0 @max-xl:flex-1"
           >
             <Search size={14} className="shrink-0 text-dim" />
@@ -201,8 +194,6 @@ export function Toolbar() {
           <InspectorToggle className="flex @max-xl:hidden" />
         </div>
       </div>
-      {/* The font mode's text row stays whatever the layout (docs/UI.md). */}
-      {mode === "font" && <SpecimenControls />}
       {/* One band for the conditions, this view's own controls and how the list
           looks (docs/NAVIGATION.md). It folds a step at a time as the toolbar
           narrows instead of growing a row (docs/UI.md). */}
@@ -228,7 +219,6 @@ function ViewControls() {
   const count = useStore((s) => s.rawItems.length);
   const dismissedGroups = useStore((s) => s.dismissedGroups);
   const keepPick = useStore((s) => s.keepPick);
-  const [reloading, setReloading] = useState(false);
   const isSimilar = view.kind === "similar";
   const groups = useMemo(() => (isSimilar ? similarGroups(items) : []), [isSimilar, items]);
 
@@ -256,23 +246,6 @@ function ViewControls() {
         className={`${viewAction} border border-danger/60 text-danger hover:bg-danger/10`}
       >
         <Trash2 size={14} /> <span className="@max-5xl:hidden">ゴミ箱を空にする</span>
-      </button>
-    );
-
-  // Fonts installed or removed since they were read (docs/SYSTEM_FONTS.md).
-  if (view.kind === "system")
-    return (
-      <button
-        title="フォントのフォルダを読み直して、インストール・削除したフォントを反映"
-        disabled={reloading}
-        onClick={() => {
-          setReloading(true);
-          void reloadSystemFonts().finally(() => setReloading(false));
-        }}
-        className={`${viewAction} ghost disabled:off`}
-      >
-        <RefreshCw size={14} className={reloading ? "animate-spin" : ""} />
-        <span className="@max-5xl:hidden">読み込み直す</span>
       </button>
     );
 
@@ -326,11 +299,9 @@ function DisplayControls() {
   const desc = useStore((s) => s.desc);
   const setSort = useStore((s) => s.setSort);
   const layout = useStore((s) => s.layout);
-  const mode = useStore((s) => s.mode);
   const view = useStore((s) => s.view);
   const kinds = useStore(useShallow(listKinds));
   const sorts = SORTS.filter((s) => !s.only || (kinds.length > 0 && kinds.every((k) => s.only!.includes(k))));
-  const isSystem = view.kind === "system";
   const canManual = view.kind === "folder";
   const manual = sort === "manual";
   const sortLabel = manual ? "手動" : (SORTS.find((s) => s.key === sort)?.label ?? "");
@@ -358,16 +329,8 @@ function DisplayControls() {
               className="absolute inset-0 cursor-default opacity-0"
             >
               {sorts.map((s) => (
-                <option
-                  key={s.key}
-                  value={s.key}
-                  disabled={(s.key === "manual" && !canManual) || (isSystem && s.key === "rating")}
-                >
-                  {s.key === "manual" && !canManual
-                    ? "手動（フォルダのみ）"
-                    : isSystem && s.key === "rating"
-                      ? "評価（ライブラリのフォントのみ）"
-                      : s.label}
+                <option key={s.key} value={s.key} disabled={s.key === "manual" && !canManual}>
+                  {s.key === "manual" && !canManual ? "手動（フォルダのみ）" : s.label}
                 </option>
               ))}
             </select>
@@ -383,12 +346,11 @@ function DisplayControls() {
         </button>
       </div>
       <GroupMenu />
-      {mode === "stock" && <ParentsToggle />}
+      <ParentsToggle />
       <Divider className="@max-5xl:hidden" />
       <LayoutSwitch />
       <DisplayMenu />
-      {/* The font mode's sizes are on the specimen text row. */}
-      {mode !== "font" && <ThumbSize hidden={layout === "list"} />}
+      <ThumbSize hidden={layout === "list"} />
     </>
   );
 }

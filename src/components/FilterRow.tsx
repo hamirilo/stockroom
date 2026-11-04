@@ -21,20 +21,9 @@ import {
   SIZE_PRESETS,
   startOfToday,
 } from "../lib/rule";
-import { FontConditions } from "../features/fonts/FontFilters";
 import { activeConditions, CLEARED, listHasPixels, listQuery, useStore, type ConditionKey } from "../store";
 import { RangeCalendar } from "./RangeCalendar";
 import { Dropdown } from "./ViewMenu";
-import { systemFacetCounts } from "../features/fonts/system";
-
-/**
- * Conditions the fonts installed on this computer don't have (they have no
- * rating, tags or import date): greyed out there, with why (docs/SYSTEM_FONTS.md).
- */
-function useNotForSystem(what: string): { disabled?: boolean; title?: string } {
-  const system = useStore((s) => s.view.kind === "system");
-  return system ? { disabled: true, title: `この端末のフォントには${what}がありません（ライブラリのフォントだけ）` } : {};
-}
 
 /** The conditions a row shows: the open ones (editable), or a smart folder's (locked). */
 export interface Cond {
@@ -51,9 +40,8 @@ export function useFacets(key: ConditionKey, open: boolean): Facets | null {
   useEffect(() => {
     if (!open) return;
     let live = true;
-    const s = useStore.getState();
-    // The installed fonts aren't in the library: counted where they are listed.
-    (s.view.kind === "system" ? systemFacetCounts(listQuery(s, key)) : api.facetCounts(listQuery(s, key)))
+    api
+      .facetCounts(listQuery(useStore.getState(), key))
       .then((f) => live && setFacets(f))
       .catch(() => {});
     return () => {
@@ -265,7 +253,6 @@ const condOf = (r: Rule): Cond => ({ tagFilter: r.tagIds, tagMatchAll: r.tagMatc
  * first one in the same place whatever the view (docs/UI.md).
  */
 export function FilterRow({ viewControls, display }: { viewControls?: React.ReactNode; display?: React.ReactNode }) {
-  const mode = useStore((s) => s.mode);
   const smart = useStore((s) => (s.view.kind === "smart" ? s.smartFolders.find((f) => f.id === (s.view as { id: string }).id) : undefined));
   const editing = useStore((s) => s.editingSmart);
   const own = useStore(
@@ -300,22 +287,12 @@ export function FilterRow({ viewControls, display }: { viewControls?: React.Reac
       )}
       <RatingCondition {...common} />
       <TagCondition {...common} />
-      {mode === "stock" ? (
-        <>
-          <ExtCondition {...common} />
-          <DimsCondition {...common} />
-          <DateCondition {...common} />
-          <SizeCondition {...common} />
-          <LinksCondition {...common} />
-          <KindCondition {...common} />
-        </>
-      ) : (
-        <>
-          <FontConditions {...common} />
-          <ExtCondition {...common} />
-          <DateCondition {...common} />
-        </>
-      )}
+      <ExtCondition {...common} />
+      <DimsCondition {...common} />
+      <DateCondition {...common} />
+      <SizeCondition {...common} />
+      <LinksCondition {...common} />
+      <KindCondition {...common} />
       </div>
       {/* This view's own controls, right of the conditions so that nothing
           further right moves when the view changes (docs/UI.md). */}
@@ -367,13 +344,10 @@ function ConditionActions() {
   const active = useStore(activeConditions);
   const clearConditions = useStore((s) => s.clearConditions);
   const none = active === 0;
-  const noSave = none || view.kind === "system";
   const saveTitle =
-    view.kind === "system"
-      ? "スマートフォルダはライブラリのフォントだけを集めます（この端末のフォントの条件は保存できません）"
-      : view.kind === "tag"
-        ? "今の条件（このタグも）をスマートフォルダとして保存（⌘⇧⌥N）"
-        : "今の検索と絞り込みの条件をスマートフォルダとして保存（⌘⇧⌥N）";
+    view.kind === "tag"
+      ? "今の条件（このタグも）をスマートフォルダとして保存（⌘⇧⌥N）"
+      : "今の検索と絞り込みの条件をスマートフォルダとして保存（⌘⇧⌥N）";
   return (
     <>
       <div className={`flex items-center gap-1.5 @max-6xl:hidden ${none ? "invisible" : ""}`}>
@@ -381,7 +355,7 @@ function ConditionActions() {
           すべて解除
         </button>
         <button
-          disabled={noSave}
+          disabled={none}
           onClick={() => createSmartFolder()}
           title={saveTitle}
           className="flex h-7 items-center gap-1.5 rounded-md px-2 ghost disabled:off"
@@ -396,7 +370,7 @@ function ConditionActions() {
           </button>
           <button
             data-close
-            disabled={noSave}
+            disabled={none}
             onClick={() => createSmartFolder()}
             title={saveTitle}
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-white/8 disabled:off"
@@ -415,10 +389,8 @@ export type CondProps = { cond: Cond; locked: boolean; onLocked: () => void };
 function RatingCondition({ cond, locked, onLocked }: CondProps) {
   const setMinRating = useStore((s) => s.setMinRating);
   const n = cond.minRating;
-  const notForSystem = useNotForSystem("評価");
   return (
     <Pill
-      {...notForSystem}
       label="評価"
       value={n ? `★${n} 以上` : ""}
       locked={locked}
@@ -463,10 +435,8 @@ function TagCondition({ cond, locked, onLocked }: CondProps) {
   const refresh = () => useStore.getState().refresh();
   const names = cond.tagFilter.map((id) => tags.find((t) => t.id === id)?.name).filter(Boolean);
   const all = cond.tagMatchAll && names.length > 1;
-  const notForSystem = useNotForSystem("タグ");
   return (
     <Pill
-      {...notForSystem}
       label="タグ"
       value={names.length ? `${names.join("・")}${all ? "（すべて）" : ""}` : ""}
       locked={locked}
@@ -573,11 +543,9 @@ function LinksCondition({ cond, locked, onLocked }: CondProps) {
   const links = useStore((s) => s.librarySettings.links);
   const setFilter = useStore((s) => s.setFilter);
   const role = linkRole(cond.filter);
-  const notForSystem = useNotForSystem("親子の紐づけ");
   if (!links && !role) return null;
   return (
     <Pill
-      {...notForSystem}
       label="紐づけ"
       value={LINK_ROLES.find((r) => r.role === role)?.label.replace(/（.*）/, "") ?? ""}
       locked={locked}
@@ -697,10 +665,8 @@ function DimsMenu({ open, f }: { open: boolean; f: Filter }) {
 function DateCondition({ cond, locked, onLocked }: CondProps) {
   const setFilter = useStore((s) => s.setFilter);
   const f = cond.filter;
-  const notForSystem = useNotForSystem("追加日");
   return (
     <Pill
-      {...notForSystem}
       label="追加日"
       value={describeDate(f)}
       locked={locked}

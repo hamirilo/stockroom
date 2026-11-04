@@ -15,13 +15,11 @@ import {
 import { RotateLeft, RotateRight } from "../lib/icons";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { openSelection, orient, setRating, toggleFavorite, togglePinned, toggleTray } from "../lib/actions";
-import { formatBytes, isSystemId, sizeLabel, orientTransform, type Item } from "../lib/api";
+import { formatBytes, sizeLabel, orientTransform, type Item } from "../lib/api";
 import { colorHex } from "../lib/colors";
 import { folderPaths } from "../lib/grouping";
 import { dragRegion } from "../lib/titleBar";
 import { useStore } from "../store";
-import { FontView } from "../features/fonts/FontView";
-import { FontMark } from "../features/fonts/ShelfChip";
 import { FileView } from "../features/files/FileView";
 import { VideoView } from "../features/videos/VideoView";
 import { BookmarkView } from "../features/bookmarks/BookmarkView";
@@ -67,7 +65,7 @@ export function Viewer() {
   const suppressClick = useRef(false);
 
   const open = item !== undefined;
-  // Fonts, files and texts get their own body (sample text, document, text) instead of the zoomable image.
+  // Files, texts, videos and bookmarks get their own body instead of the zoomable image.
   const isImage = item?.kind === "image";
   useEffect(() => setZoom("fit"), [item?.id]);
   useEffect(() => {
@@ -332,9 +330,7 @@ export function Viewer() {
       )}
       <div className="flex min-h-0 flex-1">
         <div className="relative min-h-0 min-w-0 flex-1">
-          {item.kind === "font" ? (
-            <FontView item={item} />
-          ) : item.kind === "file" ? (
+          {item.kind === "file" ? (
             <FileView item={item} />
           ) : item.kind === "text" ? (
             <TextView key={item.id} item={item} />
@@ -447,8 +443,6 @@ function Details({ item, items }: { item: Item; items: Item[] }) {
     [folders, item.folderId],
   );
   const label = "mb-1.5 text-[11px] font-semibold text-white/45";
-  // Installed fonts: their details only, nothing to rate or tag (docs/SYSTEM_FONTS.md).
-  const system = isSystemId(item.id);
   return (
     <aside className="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-white/10 bg-black/40 p-4 text-sm text-white/85 animate-fade-in">
       <div>
@@ -464,79 +458,60 @@ function Details({ item, items }: { item: Item; items: Item[] }) {
           <dd>
             {item.ext.toUpperCase()} · {formatBytes(item.size)}
           </dd>
-          <dt className="text-white/45">{system ? "更新日" : "追加日"}</dt>
+          <dt className="text-white/45">追加日</dt>
           <dd>{new Date(item.importedAt).toLocaleString("ja-JP")}</dd>
-          {system && (
-            <>
-              <dt className="text-white/45">場所</dt>
-              <dd className="break-all">{item.filePath}</dd>
-            </>
-          )}
         </dl>
       </div>
-      {system ? (
-        <p className="text-xs leading-5 text-white/55">
-          この端末にインストールされているフォントです。読み取り専用で、評価・タグ・フォルダ・メモはライブラリのフォントだけに使えます。
-        </p>
-      ) : (
-        <>
-          <div>
-            <div className={label}>評価</div>
-            <RatingStars value={item.rating} onChange={(n) => setRating([item.id], n, { quiet: true })} size={18} />
-            <div className="mt-2.5">
-              <FlagButtons ids={[item.id]} items={items} />
-            </div>
+      <div>
+        <div className={label}>評価</div>
+        <RatingStars value={item.rating} onChange={(n) => setRating([item.id], n, { quiet: true })} size={18} />
+        <div className="mt-2.5">
+          <FlagButtons ids={[item.id]} items={items} />
+        </div>
+      </div>
+      <div>
+        <div className={label}>タグ</div>
+        {itemTags.length === 0 ? (
+          <span className="text-xs text-white/45">なし</span>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {itemTags.map((t) => {
+              const hex = colorHex(t.color);
+              return (
+                <span
+                  key={t.id}
+                  className="flex max-w-full items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-xs"
+                >
+                  {hex && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: hex }} />}
+                  <span className="truncate">{t.name}</span>
+                </span>
+              );
+            })}
           </div>
-          <div>
-            <div className={label}>タグ</div>
-            {itemTags.length === 0 ? (
-              <span className="text-xs text-white/45">なし</span>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {itemTags.map((t) => {
-                  const hex = colorHex(t.color);
-                  return (
-                    <span
-                      key={t.id}
-                      className="flex max-w-full items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-xs"
-                    >
-                      {hex && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: hex }} />}
-                      <span className="truncate">{t.name}</span>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <div>
-            <div className={label}>フォルダ</div>
-            {folder ? (
-              <span className="flex items-center gap-1.5 text-xs">
-                <FolderIcon size={12} className="shrink-0 text-white/45" />
-                <span className="truncate">{folder.path}</span>
-              </span>
-            ) : (
-              <span className="text-xs text-white/45">未分類</span>
-            )}
-          </div>
-          <div>
-            <div className={label}>メモ</div>
-            {item.note.trim() ? (
-              <p className="text-xs whitespace-pre-wrap text-white/75">{item.note}</p>
-            ) : (
-              <span className="text-xs text-white/45">なし</span>
-            )}
-          </div>
-        </>
-      )}
-      <p className="mt-auto pt-2 text-[11px] leading-5 text-white/35">
-        {!system && (
-          <>
-            1〜5 で評価、0 で解除、Shift+数字で評価して次へ
-            <br />F お気に入り / P ピン留め /{" "}
-          </>
         )}
-        I 詳細 / T サムネイル / H 画像のみ
+      </div>
+      <div>
+        <div className={label}>フォルダ</div>
+        {folder ? (
+          <span className="flex items-center gap-1.5 text-xs">
+            <FolderIcon size={12} className="shrink-0 text-white/45" />
+            <span className="truncate">{folder.path}</span>
+          </span>
+        ) : (
+          <span className="text-xs text-white/45">未分類</span>
+        )}
+      </div>
+      <div>
+        <div className={label}>メモ</div>
+        {item.note.trim() ? (
+          <p className="text-xs whitespace-pre-wrap text-white/75">{item.note}</p>
+        ) : (
+          <span className="text-xs text-white/45">なし</span>
+        )}
+      </div>
+      <p className="mt-auto pt-2 text-[11px] leading-5 text-white/35">
+        1〜5 で評価、0 で解除、Shift+数字で評価して次へ
+        <br />F お気に入り / P ピン留め / I 詳細 / T サムネイル / H 画像のみ
         {item.kind === "image" && (
           <>
             <br />⌘⇧L / ⌘⇧R 左右に回転
@@ -605,19 +580,14 @@ function Strip({ items, index, onPick }: { items: Item[]; index: number; onPick:
               }`}
               style={{ left: left(i), width: STRIP, height: STRIP }}
             >
-              {isSystemId(it.id) ? (
-                // Installed fonts have no rendered sample: a few characters in the font.
-                <FontMark item={it} className="flex h-full w-full items-center justify-center text-2xl text-white/80" />
-              ) : (
-                <img
-                  src={convertFileSrc(it.thumbPath)}
-                  alt=""
-                  draggable={false}
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-cover"
-                />
-              )}
+              <img
+                src={convertFileSrc(it.thumbPath)}
+                alt=""
+                draggable={false}
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover"
+              />
             </button>
           );
         })}
