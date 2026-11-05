@@ -6,12 +6,14 @@ import {
   CopyCheck,
   FolderSearch,
   Minus,
+  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Plus,
   Search,
+  Sun,
   Tag as TagIcon,
   Trash2,
   X,
@@ -28,6 +30,7 @@ import {
 import { type Folder, type ItemKind, type SimilarLevel, type SmartFolder, type SortKey, type Tag, type View } from "../lib/api";
 import { colorHex } from "../lib/colors";
 import { command } from "../lib/commands";
+import { useShownTheme } from "../lib/appearance";
 import { useShallow } from "zustand/react/shallow";
 import { activeConditions, listKinds, placeTotal, useStore } from "../store";
 import { PIXEL_KINDS } from "../lib/kinds";
@@ -170,6 +173,7 @@ export function Toolbar() {
             )}
           </h1>
           <div className="flex-1" />
+          <ThemeToggle className="hidden @max-xl:flex" />
           <InspectorToggle className="hidden @max-xl:flex" />
         </div>
         <div className="flex flex-1 items-center justify-end gap-2">
@@ -191,6 +195,7 @@ export function Toolbar() {
               <X size={14} />
             </button>
           </label>
+          <ThemeToggle className="flex @max-xl:hidden" />
           <InspectorToggle className="flex @max-xl:hidden" />
         </div>
       </div>
@@ -380,6 +385,22 @@ function ThumbSize({ hidden }: { hidden: boolean }) {
         <Plus size={13} />
       </button>
     </div>
+  );
+}
+
+/** Light / dark in one click (docs/UI.md「色」). Shows where a click goes; sits left of the details-panel toggle. */
+function ThemeToggle({ className }: { className: string }) {
+  const shown = useShownTheme();
+  const toLight = shown === "dark";
+  return (
+    <button
+      title={`${toLight ? "ライト" : "ダーク"}にする（⌘/Ctrl+Shift+D）`}
+      aria-label={toLight ? "ライトにする" : "ダークにする"}
+      onClick={() => command("view.appearance").run(useStore.getState())}
+      className={`h-8 w-8 shrink-0 items-center justify-center rounded-md ghost ${className}`}
+    >
+      {toLight ? <Sun size={15} /> : <Moon size={15} />}
+    </button>
   );
 }
 
