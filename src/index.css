@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* `dark:` is the dark theme: the system's, or a surface that stays dark (.keep-dark). */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    @slot;
+  }
+  &:where(.keep-dark, .keep-dark *) {
+    @slot;
+  }
+}
+
 @theme {
   --color-bg: #1b1c1f;
   --color-panel: #232428;
@@ -211,6 +221,40 @@
     --color-danger: #d02a2a;
     --color-success: #167a48;
   }
+}
+
+/* A surface that stays dark in the light theme (the viewer): the dark values again. */
+.keep-dark {
+  color-scheme: dark;
+  color: var(--color-fg);
+  --color-bg: #1b1c1f;
+  --color-panel: #232428;
+  --color-raised: #2c2d32;
+  --color-line: #34353b;
+  --color-fg: #e6e6e8;
+  --color-dim: #9a9ba3;
+  --color-accent: #4c8dff;
+  --color-ink: #fff;
+  --color-field: #151619;
+  --color-band: rgb(0 0 0 / 0.18);
+  --color-scroll: #45464d;
+  --color-on-chosen: #fff;
+  --color-track-edge: rgb(255 255 255 / 0.06);
+  --color-control: rgb(255 255 255 / 0.08);
+  --color-edge: rgb(255 255 255 / 0.34);
+  --color-chosen: rgb(255 255 255 / 0.2);
+  --color-track: rgb(0 0 0 / 0.28);
+  --color-hover: rgb(255 255 255 / 0.1);
+  --color-press: rgb(255 255 255 / 0.16);
+  --color-frame: rgb(255 255 255 / 0.22);
+  --color-tonal: #344a73;
+  --color-tonal-edge: #7d9fd8;
+  --color-on-tonal: #d6e3ff;
+  --color-accent-fill: #2f6fe0;
+  --color-off: rgb(255 255 255 / 0.5);
+  --color-off-edge: rgb(255 255 255 / 0.14);
+  --color-danger: #ef5d5d;
+  --color-success: #3ec27f;
 }
 
 @media (prefers-reduced-motion: reduce) {
