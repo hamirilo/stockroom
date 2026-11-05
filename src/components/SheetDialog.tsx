@@ -423,14 +423,14 @@ export function SheetDialog() {
               : "並びは一覧の順です（シェルフからはシェルフの並び。ドラッグで並べ替えできます）"}
           </span>
           <div className="ml-auto flex gap-2">
-            <button onClick={close} disabled={!!busy} className="rounded-md px-3 py-1.5 hover:bg-white/5 disabled:off">
+            <button onClick={close} disabled={!!busy} className="rounded-md px-3 py-1.5 hover:bg-ink/5 disabled:off">
               キャンセル
             </button>
             {!isHtml && (
               <button
                 onClick={onCopy}
                 disabled={!!busy || big || !items.length}
-                className="flex items-center gap-1.5 rounded-md border border-edge bg-control px-3 py-1.5 enabled:hover:bg-white/12 disabled:off disabled:bg-transparent"
+                className="flex items-center gap-1.5 rounded-md border border-edge bg-control px-3 py-1.5 enabled:hover:bg-ink/12 disabled:off disabled:bg-transparent"
               >
                 <Copy size={14} />
                 画像をコピー

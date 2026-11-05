@@ -117,12 +117,12 @@ export function Pill({
         title={title ?? (on ? `${label}：${value}` : label)}
         aria-expanded={open}
         onClick={() => (locked ? onLocked?.() : setOpen((o) => !o))}
-        className={`flex h-7 items-center gap-1 rounded-md border border-transparent pr-1.5 pl-2.5 whitespace-nowrap disabled:off disabled:bg-transparent disabled:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)] ${
+        className={`flex h-7 items-center gap-1 rounded-md border border-transparent pr-1.5 pl-2.5 whitespace-nowrap disabled:off disabled:bg-transparent disabled:shadow-[inset_0_0_0_1px_rgb(from_var(--color-ink)_r_g_b/0.08)] ${
           on
             ? "bg-tonal text-on-tonal enabled:hover:brightness-110"
             : open
               ? "bg-press"
-              : "bg-white/8 enabled:hover:bg-white/12"
+              : "bg-ink/8 enabled:hover:bg-ink/12"
         } ${locked && on ? "opacity-80" : ""}`}
       >
         <span>{label}</span>
@@ -137,7 +137,7 @@ export function Pill({
               setOpen(false);
               onClear();
             }}
-            className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-white/20"
+            className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-ink/20"
           >
             <X size={12} />
           </span>
@@ -178,7 +178,7 @@ export function Option({
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-white/8 ${
+      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-ink/8 ${
         on ? "text-fg" : count === 0 ? "text-dim/60" : "text-fg/85"
       }`}
     >
@@ -272,7 +272,7 @@ export function FilterRow({ viewControls, display }: { viewControls?: React.Reac
     // where the title and the search box already stack.
     <div
       data-filter-row
-      className="-mx-4 flex min-h-10 flex-nowrap items-center gap-x-3 gap-y-1.5 bg-black/18 px-4 py-1.5 text-xs @max-xl:flex-wrap"
+      className="-mx-4 flex min-h-10 flex-nowrap items-center gap-x-3 gap-y-1.5 bg-band px-4 py-1.5 text-xs @max-xl:flex-wrap"
     >
       <span className="flex shrink-0 items-center gap-1.5 text-dim @max-7xl:hidden">
         <ListFilter size={13} /> 絞り込み
@@ -312,7 +312,7 @@ export function FilterRow({ viewControls, display }: { viewControls?: React.Reac
             <span className="max-w-48 truncate text-dim" title={editing.name}>
               「{editing.name}」の条件を編集中
             </span>
-            <button onClick={cancelSmartEdit} className="h-7 rounded-md px-2 text-dim hover:bg-white/5 hover:text-fg">
+            <button onClick={cancelSmartEdit} className="h-7 rounded-md px-2 text-dim hover:bg-ink/5 hover:text-fg">
               キャンセル
             </button>
             <button
@@ -365,7 +365,7 @@ function ConditionActions() {
       </div>
       <div className={`hidden @max-6xl:block ${none ? "invisible" : ""}`}>
         <Dropdown title="絞り込みの条件の操作" width="w-48" button={<Ellipsis size={15} />}>
-          <button data-close disabled={none} onClick={clearConditions} className="flex w-full rounded px-2 py-1.5 text-left hover:bg-white/8 disabled:off">
+          <button data-close disabled={none} onClick={clearConditions} className="flex w-full rounded px-2 py-1.5 text-left hover:bg-ink/8 disabled:off">
             すべて解除
           </button>
           <button
@@ -373,7 +373,7 @@ function ConditionActions() {
             disabled={none}
             onClick={() => createSmartFolder()}
             title={saveTitle}
-            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-white/8 disabled:off"
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-ink/8 disabled:off"
           >
             <FolderSearch size={13} /> 条件を保存
           </button>
@@ -421,7 +421,7 @@ function RatingMenu({ open, close, n, pick }: { open: boolean; close: () => void
             close();
           }}
         >
-          <span className="text-amber-400">{"★".repeat(k)}</span>
+          <span className="text-amber-500 dark:text-amber-400">{"★".repeat(k)}</span>
           <span className="text-dim">{k < 5 ? "以上" : ""}</span>
         </Option>
       ))}

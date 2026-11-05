@@ -26,7 +26,7 @@ export function RatingStars({
           <Star
             size={size}
             strokeWidth={1.5}
-            className={n <= shown ? "text-amber-400" : "text-dim/50"}
+            className={n <= shown ? "text-amber-500 dark:text-amber-400" : "text-dim/50"}
             fill={n <= shown ? "currentColor" : "none"}
           />
         </button>

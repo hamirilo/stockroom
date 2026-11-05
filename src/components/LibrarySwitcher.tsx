@@ -49,7 +49,7 @@ export function LibraryRow({
       onKeyDown={(e) => e.key === "Enter" && lib.exists && onClick()}
       className={`group flex items-center gap-2.5 rounded-md px-2 py-1.5 ${
         lib.exists ? "cursor-pointer" : "cursor-default opacity-45"
-      } ${active ? "bg-accent/20 ring-1 ring-accent/60" : lib.exists ? "hover:bg-white/5" : ""}`}
+      } ${active ? "bg-accent/20 ring-1 ring-accent/60" : lib.exists ? "hover:bg-ink/5" : ""}`}
     >
       <Library size={16} className={`shrink-0 ${lib.current || active ? "text-accent" : "text-dim"}`} />
       <div className="min-w-0 flex-1">
@@ -64,8 +64,8 @@ export function LibraryRow({
             e.stopPropagation();
             onFavorite();
           }}
-          className={`shrink-0 rounded p-1 hover:bg-white/10 ${
-            lib.favorite ? "text-yellow-400" : "text-dim opacity-0 group-hover:opacity-100 focus:opacity-100"
+          className={`shrink-0 rounded p-1 hover:bg-ink/10 ${
+            lib.favorite ? "text-yellow-600 dark:text-yellow-400" : "text-dim opacity-0 group-hover:opacity-100 focus:opacity-100"
           }`}
         >
           <Star size={14} fill={lib.favorite ? "currentColor" : "none"} />
@@ -78,7 +78,7 @@ export function LibraryRow({
             e.stopPropagation();
             onForget();
           }}
-          className="shrink-0 rounded p-1 text-dim opacity-0 group-hover:opacity-100 hover:bg-white/10 hover:text-fg focus:opacity-100"
+          className="shrink-0 rounded p-1 text-dim opacity-0 group-hover:opacity-100 hover:bg-ink/10 hover:text-fg focus:opacity-100"
         >
           <X size={14} />
         </button>
@@ -203,8 +203,8 @@ export function LibrarySwitcher() {
     <div className="shrink-0 border-t border-line p-1.5">
       <button
         ref={ref}
-        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-white/5 ${
-          bottom !== null ? "bg-white/5" : ""
+        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-ink/5 ${
+          bottom !== null ? "bg-ink/5" : ""
         }`}
         title={`ライブラリ：${library?.root ?? ""}`}
         onClick={toggle}

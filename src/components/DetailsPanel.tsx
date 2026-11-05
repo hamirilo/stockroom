@@ -43,7 +43,7 @@ export function DetailsPanel({ peek }: { peek: boolean }) {
     <aside className="flex shrink-0 flex-col border-l border-line bg-panel" style={{ width }}>
       <div {...dragRegion()} className="flex h-10 shrink-0 items-center gap-1 border-b border-line px-2" role="tablist">
         <TabButton tab="info" current={tab} icon={<Info size={14} />} label="情報" />
-        <TabButton tab="shelf" current={tab} icon={<Layers size={14} className="text-emerald-400" />} label="シェルフ" />
+        <TabButton tab="shelf" current={tab} icon={<Layers size={14} className="text-emerald-600 dark:text-emerald-400" />} label="シェルフ" />
       </div>
       {tab === "info" ? <Inspector /> : <Shelf />}
     </aside>
@@ -72,7 +72,7 @@ function TabButton({
       onClick={() => useStore.getState().setPanelTab(tab)}
       title={tab === "info" ? "選択したものの情報（⌘/Ctrl+I）" : "シェルフ（⌘/Ctrl+Alt+3）"}
       className={`flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md text-xs font-medium ${
-        on ? "bg-white/10 text-fg" : "text-dim hover:bg-white/5 hover:text-fg"
+        on ? "bg-ink/10 text-fg" : "text-dim hover:bg-ink/5 hover:text-fg"
       }`}
     >
       {icon}
@@ -80,7 +80,7 @@ function TabButton({
       {tab === "shelf" && (
         <span
           key={flash ?? undefined}
-          className={`min-w-5 rounded-full px-1.5 tabular-nums ${flash !== null && !on ? "animate-pop bg-accent-fill text-white" : "bg-white/10 text-dim"}`}
+          className={`min-w-5 rounded-full px-1.5 tabular-nums ${flash !== null && !on ? "animate-pop bg-accent-fill text-white" : "bg-ink/10 text-dim"}`}
         >
           {shelf}
         </span>

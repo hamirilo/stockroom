@@ -156,8 +156,8 @@ function Row({
         over
           ? "scale-[1.03] bg-accent-fill text-white shadow-lg shadow-accent/30"
           : active
-            ? "bg-accent/25 text-white"
-            : "hover:bg-white/5"
+            ? "bg-accent/25 text-fg"
+            : "hover:bg-ink/5"
       }`}
       style={{ paddingLeft: 8 + depth * 14 }}
     >
@@ -193,7 +193,7 @@ function Row({
         <button
           title="メニュー"
           aria-label="メニュー"
-          className="-mr-1 hidden h-5 w-5 shrink-0 items-center justify-center rounded text-dim group-hover:flex hover:bg-white/10 hover:text-fg"
+          className="-mr-1 hidden h-5 w-5 shrink-0 items-center justify-center rounded text-dim group-hover:flex hover:bg-ink/10 hover:text-fg"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
@@ -656,7 +656,7 @@ function KindRange() {
             ? "bg-tonal text-on-tonal enabled:hover:brightness-110"
             : open
               ? "bg-press"
-              : "bg-white/6 text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
+              : "bg-ink/6 text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
         } disabled:off disabled:bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--color-off-edge)]`}
       >
         <span className={`shrink-0 ${on ? "" : "text-dim"}`}>{icon}</span>
@@ -710,7 +710,7 @@ function KindOption({
       role="menuitemcheckbox"
       aria-checked={on}
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-white/8 ${
+      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-ink/8 ${
         on ? "text-fg" : count === 0 ? "text-dim/60" : "text-fg/85"
       }`}
     >
@@ -859,7 +859,7 @@ export function Sidebar() {
       </nav>
       <button
         onClick={() => useShortcutHelp.getState().setOpen(true)}
-        className="flex shrink-0 items-center gap-2 border-t border-line px-4 py-2 text-xs text-dim hover:bg-white/5 hover:text-fg"
+        className="flex shrink-0 items-center gap-2 border-t border-line px-4 py-2 text-xs text-dim hover:bg-ink/5 hover:text-fg"
       >
         <Keyboard size={14} />
         ショートカット一覧

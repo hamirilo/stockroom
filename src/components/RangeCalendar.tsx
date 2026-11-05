@@ -54,7 +54,7 @@ export function RangeCalendar({ from, to, max = dayStart(new Date()), onChange }
   };
 
   const shift = (months: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + months, 1));
-  const nav = "flex h-7 w-7 items-center justify-center rounded text-dim hover:bg-white/10 hover:text-fg";
+  const nav = "flex h-7 w-7 items-center justify-center rounded text-dim hover:bg-ink/10 hover:text-fg";
   const nextDisabled = new Date(month.getFullYear(), month.getMonth() + 1, 1) > max;
   const nextYearDisabled = new Date(month.getFullYear() + 1, month.getMonth(), 1) > max;
 
@@ -72,7 +72,7 @@ export function RangeCalendar({ from, to, max = dayStart(new Date()), onChange }
         <button
           title="今月へ"
           onClick={() => setMonth(new Date(max.getFullYear(), max.getMonth(), 1))}
-          className="rounded px-2 py-1 font-medium tabular-nums hover:bg-white/10"
+          className="rounded px-2 py-1 font-medium tabular-nums hover:bg-ink/10"
         >
           {month.getFullYear()}年{month.getMonth() + 1}月
         </button>
@@ -116,7 +116,7 @@ export function RangeCalendar({ from, to, max = dayStart(new Date()), onChange }
                     ? "bg-accent/25"
                     : disabled
                       ? ""
-                      : "rounded-md hover:bg-white/10"
+                      : "rounded-md hover:bg-ink/10"
               } ${inMonth || edge ? "" : "text-dim/50"}`}
             >
               {d.getDate()}

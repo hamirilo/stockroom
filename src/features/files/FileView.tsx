@@ -67,7 +67,7 @@ export function FileView({ item }: { item: Item }) {
       />
       <div className="flex shrink-0 items-center gap-4">
         {preview === undefined && !pdf && (
-          <span className="flex items-center gap-2 text-sm text-white/60">
+          <span className="flex items-center gap-2 text-sm text-ink/60">
             <Loader2 size={15} className="animate-spin" />
             プレビューを作成中…
           </span>

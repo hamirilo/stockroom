@@ -154,7 +154,7 @@ function PickerDialog({ mode }: { mode: "move" | "goto" }) {
                   onMouseMove={() => setCursor(i)}
                   onClick={() => activate(i)}
                   className={`flex h-8 w-full items-center gap-2 rounded-md pr-2 text-left ${
-                    i === cursor ? "bg-white/8" : ""
+                    i === cursor ? "bg-ink/8" : ""
                   }`}
                   style={{ paddingLeft: 8 + r.depth * 14 }}
                 >
@@ -172,7 +172,7 @@ function PickerDialog({ mode }: { mode: "move" | "goto" }) {
               onMouseMove={() => setCursor(rows.length)}
               onClick={createAndMove}
               className={`flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-accent ${
-                cursor === rows.length ? "bg-white/8" : ""
+                cursor === rows.length ? "bg-ink/8" : ""
               }`}
             >
               <FolderPlus size={15} /> 「{query.trim()}」を作成して移動

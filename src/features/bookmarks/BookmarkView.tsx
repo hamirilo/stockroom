@@ -21,17 +21,17 @@ export function BookmarkView({ item }: { item: Item }) {
         className="min-h-0 max-w-full rounded-md object-contain shadow-2xl"
       />
       <div className="flex max-w-xl flex-col items-center gap-1 text-center">
-        <div className="text-base font-semibold text-white/90">{item.name}</div>
+        <div className="text-base font-semibold text-ink/90">{item.name}</div>
         {url && (
-          <button className="max-w-full truncate text-sm text-white/55 hover:text-white/80 hover:underline" title={url} onClick={open}>
+          <button className="max-w-full truncate text-sm text-ink/55 hover:text-ink/80 hover:underline" title={url} onClick={open}>
             {urlLabel(url)}
           </button>
         )}
-        {item.note && <p className="mt-1 line-clamp-3 text-sm text-white/60">{item.note}</p>}
+        {item.note && <p className="mt-1 line-clamp-3 text-sm text-ink/60">{item.note}</p>}
       </div>
       {url && (
         <button
-          className="flex items-center gap-1.5 rounded-md bg-white/10 px-4 py-1.5 text-sm text-white hover:bg-white/20"
+          className="flex items-center gap-1.5 rounded-md bg-ink/10 px-4 py-1.5 text-sm text-fg hover:bg-ink/20"
           onClick={open}
         >
           <ExternalLink size={14} />

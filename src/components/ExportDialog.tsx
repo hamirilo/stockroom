@@ -253,7 +253,7 @@ function Frame({
         <div className="space-y-3 px-5 py-4">{children}</div>
 
         <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-          <button onClick={close} className="h-8 rounded-md border border-edge bg-control px-3 hover:bg-white/12">
+          <button onClick={close} className="h-8 rounded-md border border-edge bg-control px-3 hover:bg-ink/12">
             キャンセル
           </button>
           <button
@@ -287,7 +287,7 @@ function DestField({ dest, setDest, note }: { dest: string | null; setDest: (d: 
         </code>
         <button
           onClick={pick}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-edge bg-control px-3 text-xs hover:bg-white/12"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-edge bg-control px-3 text-xs hover:bg-ink/12"
         >
           <FolderOpen size={14} />
           選ぶ…

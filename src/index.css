@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* `dark:` is the dark theme: the system's, or a surface that stays dark (.keep-dark). */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    @slot;
+  }
+  &:where(.keep-dark, .keep-dark *) {
+    @slot;
+  }
+}
+
 @theme {
   --color-bg: #1b1c1f;
   --color-panel: #232428;
@@ -9,10 +19,18 @@
   --color-dim: #9a9ba3;
   --color-accent: #4c8dff;
   /*
-   * Control colours (docs/UI.md「色」). Dark only for now; a light theme
-   * would swap these values. White at an alpha, so a control reads the same
-   * on the toolbar, a panel or a dialog.
+   * Control colours (docs/UI.md「色」). Dark here; the light theme swaps these
+   * values below (follows the system). `ink` at an alpha (white in dark, black
+   * in light), so a control reads the same on the toolbar, a panel or a dialog.
    */
+  /* Text and overlays that flip with the theme: use `bg-ink/10`, not `bg-white/10`. */
+  --color-ink: #fff;
+  /* The editor's field, and the sunken filter band. */
+  --color-field: #151619;
+  --color-band: rgb(0 0 0 / 0.18);
+  --color-scroll: #45464d;
+  --color-on-chosen: #fff;
+  --color-track-edge: rgb(255 255 255 / 0.06);
   /* A control's face, one step above the surface it sits on. */
   --color-control: rgb(255 255 255 / 0.08);
   /* A control's outline: 3:1 against the panel (WCAG 1.4.11). */
@@ -169,6 +187,76 @@
   }
 }
 
+:root {
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --color-bg: #fbfbfc;
+    --color-panel: #f2f2f4;
+    --color-raised: #ffffff;
+    --color-line: #d9dadf;
+    --color-fg: #1d1d1f;
+    --color-dim: #5f626a;
+    --color-accent: #1a63d8;
+    --color-ink: #000;
+    --color-field: #ffffff;
+    --color-band: rgb(0 0 0 / 0.05);
+    --color-scroll: #c3c4ca;
+    --color-on-chosen: #1d1d1f;
+    --color-track-edge: rgb(0 0 0 / 0.04);
+    --color-control: rgb(0 0 0 / 0.05);
+    --color-edge: rgb(0 0 0 / 0.45);
+    --color-chosen: #ffffff;
+    --color-track: rgb(0 0 0 / 0.08);
+    --color-hover: rgb(0 0 0 / 0.06);
+    --color-press: rgb(0 0 0 / 0.1);
+    --color-frame: rgb(0 0 0 / 0.22);
+    --color-tonal: #d9e6ff;
+    --color-tonal-edge: #4c7fd4;
+    --color-on-tonal: #12336b;
+    --color-off: rgb(0 0 0 / 0.58);
+    --color-off-edge: rgb(0 0 0 / 0.14);
+    --color-danger: #d02a2a;
+    --color-success: #167a48;
+  }
+}
+
+/* A surface that stays dark in the light theme (the viewer): the dark values again. */
+.keep-dark {
+  color-scheme: dark;
+  color: var(--color-fg);
+  --color-bg: #1b1c1f;
+  --color-panel: #232428;
+  --color-raised: #2c2d32;
+  --color-line: #34353b;
+  --color-fg: #e6e6e8;
+  --color-dim: #9a9ba3;
+  --color-accent: #4c8dff;
+  --color-ink: #fff;
+  --color-field: #151619;
+  --color-band: rgb(0 0 0 / 0.18);
+  --color-scroll: #45464d;
+  --color-on-chosen: #fff;
+  --color-track-edge: rgb(255 255 255 / 0.06);
+  --color-control: rgb(255 255 255 / 0.08);
+  --color-edge: rgb(255 255 255 / 0.34);
+  --color-chosen: rgb(255 255 255 / 0.2);
+  --color-track: rgb(0 0 0 / 0.28);
+  --color-hover: rgb(255 255 255 / 0.1);
+  --color-press: rgb(255 255 255 / 0.16);
+  --color-frame: rgb(255 255 255 / 0.22);
+  --color-tonal: #344a73;
+  --color-tonal-edge: #7d9fd8;
+  --color-on-tonal: #d6e3ff;
+  --color-accent-fill: #2f6fe0;
+  --color-off: rgb(255 255 255 / 0.5);
+  --color-off-edge: rgb(255 255 255 / 0.14);
+  --color-danger: #ef5d5d;
+  --color-success: #3ec27f;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -320,7 +408,7 @@ textarea {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #45464d;
+  background: var(--color-scroll);
   border-radius: 5px;
   border: 2px solid transparent;
   background-clip: padding-box;
@@ -370,13 +458,13 @@ textarea {
 /* A segmented control: the items sit in a sunken track, the chosen one on a thumb. */
 @utility track {
   background-color: var(--color-track);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1px var(--color-track-edge);
   padding: 2px;
   gap: 2px;
 }
 @utility thumb {
   background-color: var(--color-chosen);
-  color: #fff;
+  color: var(--color-on-chosen);
   box-shadow:
     0 1px 2px rgb(0 0 0 / 0.4),
     inset 0 1px 0 rgb(255 255 255 / 0.08);

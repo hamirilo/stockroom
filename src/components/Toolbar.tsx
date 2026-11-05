@@ -130,7 +130,7 @@ export function Toolbar() {
           <button
             title={`サイドバーを${sidebarOpen ? "隠す" : "表示"}（Tab / ⌘⌥1）`}
             onClick={toggleSidebar}
-            className={`-ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-white/5 ${
+            className={`-ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-ink/5 ${
               sidebarOpen ? "text-dim" : "text-accent"
             }`}
           >
@@ -175,7 +175,7 @@ export function Toolbar() {
         <div className="flex flex-1 items-center justify-end gap-2">
           <label
             title={SEARCH_HELP}
-            className="flex h-8 min-w-28 shrink basis-60 items-center gap-2 rounded-md border border-transparent bg-white/7 px-2 focus-within:border-accent @max-xl:min-w-0 @max-xl:flex-1"
+            className="flex h-8 min-w-28 shrink basis-60 items-center gap-2 rounded-md border border-transparent bg-ink/7 px-2 focus-within:border-accent @max-xl:min-w-0 @max-xl:flex-1"
           >
             <Search size={14} className="shrink-0 text-dim" />
             <input
@@ -360,7 +360,7 @@ function ThumbSize({ hidden }: { hidden: boolean }) {
   const thumbSize = useStore((s) => s.thumbSize);
   const setThumbSize = useStore((s) => s.setThumbSize);
   const zoom = (id: "view.zoomIn" | "view.zoomOut") => command(id).run(useStore.getState());
-  const step = "flex h-6 w-5 shrink-0 items-center justify-center rounded text-dim hover:bg-white/8 hover:text-fg";
+  const step = "flex h-6 w-5 shrink-0 items-center justify-center rounded text-dim hover:bg-ink/8 hover:text-fg";
   return (
     // The first thing to fold: the display menu holds the same slider.
     <div className={`flex shrink-0 items-center @max-[96rem]:hidden ${hidden ? "hidden" : ""}`}>

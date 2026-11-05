@@ -76,7 +76,7 @@ export function DuplicateReview() {
           <span className="flex-1 text-[11px] text-dim">
             完全には削除されず、ゴミ箱から戻せます。引き継いだタグ・評価は戻しても残ります。
           </span>
-          <button onClick={close} className="h-8 rounded-md border border-edge bg-control px-3 hover:bg-white/12">
+          <button onClick={close} className="h-8 rounded-md border border-edge bg-control px-3 hover:bg-ink/12">
             キャンセル
           </button>
           <button

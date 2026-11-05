@@ -94,7 +94,7 @@ export function WebImportSettings() {
               <button
                 disabled={busy}
                 onClick={() => act(api.installExtension)}
-                className="flex h-7 items-center gap-1.5 rounded-md border border-edge bg-control px-2.5 text-xs enabled:hover:bg-white/12 disabled:off disabled:bg-transparent"
+                className="flex h-7 items-center gap-1.5 rounded-md border border-edge bg-control px-2.5 text-xs enabled:hover:bg-ink/12 disabled:off disabled:bg-transparent"
               >
                 <FolderOpen size={13} />
                 もう一度用意する
@@ -230,7 +230,7 @@ export function PairDialog() {
           </>
         )}
         <div className="flex justify-center gap-2">
-          <button onClick={() => answer(false)} className="h-9 rounded-md border border-edge bg-control px-4 hover:bg-white/12">
+          <button onClick={() => answer(false)} className="h-9 rounded-md border border-edge bg-control px-4 hover:bg-ink/12">
             許可しない
           </button>
           <button
