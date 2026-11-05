@@ -149,7 +149,7 @@ workbench の各ツールにも同じファイルを置いている（desktop-pl
 ### 一般（アプリ全体）
 
 - 外観：システムに合わせる／ライト／ダーク（`appearance: "system" | "light" | "dark"`、初期値 system。docs/UI.md「色」）。
-  ツールバーの ☀／☾ と表示メニュー（`view.appearance`）は、いまの見た目の反対を `appearance` に保存する。「システムに合わせる」へ戻すのはここ
+  ツールバーのボタンと表示メニュー「外観」（`view.appearance`）は、システム → ライト → ダークの順で `appearance` を切り替えて保存する
   起動の最初の描画で色が違わないよう、選んだ値を `localStorage` の `appearance` にも写しておく（正は `settings.json`）
 - 起動時：前回のライブラリを開く／ライブラリを選ぶ（`settings.json` に `startup: "last" | "choose"`）
 - 「アップデート」の節（`UpdateSection`）：

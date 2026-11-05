@@ -12,6 +12,7 @@
  * The menu is rebuilt when what it lists changes (library, kinds in use); otherwise only the names, greyed-out and check states are updated,
  * at most once a frame.
  */
+import { APPEARANCES, parseAppearance } from "./appearance";
 import { isTauri } from "@tauri-apps/api/core";
 import { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
 import { copySelection, openLibraryAt } from "./actions";
@@ -320,6 +321,16 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     cmd("view.zoomIn"),
     cmd("view.zoomOut"),
     sep(),
+    submenu(
+      "外観",
+      APPEARANCES.map((o) =>
+        live(
+          () => o.label,
+          () => st().saveAppSettings({ appearance: o.key }),
+          { checked: (x) => parseAppearance(x.appSettings?.appearance) === o.key },
+        ),
+      ),
+    ),
     cmd("view.appearance"),
     sep(),
     cmd("view.sidebar"),
