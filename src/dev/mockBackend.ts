@@ -650,7 +650,7 @@ const mockLibraries = [
 
 // library.db `settings` (JSON by key) and settings.json's app settings.
 const librarySettings: Record<string, unknown> = {};
-const appSettings = { startup: "last", autoUpdate: true, sidebarHidden: {} };
+const appSettings = { startup: "last", autoUpdate: true, appearance: "system", sidebarHidden: {} };
 
 const webImport = { enabled: false, running: false, port: 41620, error: null, extensionDir: null as string | null };
 const mcp = { enabled: false, running: false, port: 41621, error: null, token: "mock-token" };
