@@ -33,6 +33,7 @@ import {
   SIDEBAR_ENTRIES,
   type LibrarySettings,
 } from "./lib/librarySettings";
+import { applyAppearance, parseAppearance } from "./lib/appearance";
 import { groupItems, similarSections, type GroupBy, type Links, type Section } from "./lib/grouping";
 import { warn } from "./lib/log";
 import { notifyIfAway } from "./lib/osNotify";
@@ -928,7 +929,9 @@ export const useStore = create<State>((set, get) => ({
     try {
       const app = await api.getAppSettings();
       const hidden = parseSidebarHidden(app.sidebarHidden);
-      set({ appSettings: { ...app, sidebarHidden: hidden.length ? { stock: hidden } : {} } });
+      const appearance = parseAppearance(app.appearance);
+      set({ appSettings: { ...app, appearance, sidebarHidden: hidden.length ? { stock: hidden } : {} } });
+      applyAppearance(appearance);
       leaveHidden();
     } catch (e) {
       get().toast(String(e), true);
@@ -939,6 +942,7 @@ export const useStore = create<State>((set, get) => ({
     if (!app) return;
     const next = { ...app, ...patch };
     set({ appSettings: next });
+    if (patch.appearance) applyAppearance(patch.appearance);
     api.setAppSettings(next).catch((e) => get().toast(String(e), true));
   },
   setView: (view) => {

@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
-/* `dark:` is the dark theme: the system's, or a surface that stays dark (.keep-dark). */
+/*
+ * `dark:` is the dark theme: <html data-theme="dark"> (lib/appearance.ts sets it
+ * from the OS or the user's choice), or a surface that stays dark (.keep-dark).
+ */
 @custom-variant dark {
-  @media (prefers-color-scheme: dark) {
-    @slot;
-  }
-  &:where(.keep-dark, .keep-dark *) {
+  &:where([data-theme="dark"], [data-theme="dark"] *, .keep-dark, .keep-dark *) {
     @slot;
   }
 }
@@ -190,37 +190,35 @@
 :root {
   color-scheme: dark;
 }
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --color-bg: #fbfbfc;
-    --color-panel: #f2f2f4;
-    --color-raised: #ffffff;
-    --color-line: #d9dadf;
-    --color-fg: #1d1d1f;
-    --color-dim: #5f626a;
-    --color-accent: #1a63d8;
-    --color-ink: #000;
-    --color-field: #ffffff;
-    --color-band: rgb(0 0 0 / 0.05);
-    --color-scroll: #c3c4ca;
-    --color-on-chosen: #1d1d1f;
-    --color-track-edge: rgb(0 0 0 / 0.04);
-    --color-control: rgb(0 0 0 / 0.05);
-    --color-edge: rgb(0 0 0 / 0.45);
-    --color-chosen: #ffffff;
-    --color-track: rgb(0 0 0 / 0.08);
-    --color-hover: rgb(0 0 0 / 0.06);
-    --color-press: rgb(0 0 0 / 0.1);
-    --color-frame: rgb(0 0 0 / 0.22);
-    --color-tonal: #d9e6ff;
-    --color-tonal-edge: #4c7fd4;
-    --color-on-tonal: #12336b;
-    --color-off: rgb(0 0 0 / 0.58);
-    --color-off-edge: rgb(0 0 0 / 0.14);
-    --color-danger: #d02a2a;
-    --color-success: #167a48;
-  }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #fbfbfc;
+  --color-panel: #f2f2f4;
+  --color-raised: #ffffff;
+  --color-line: #d9dadf;
+  --color-fg: #1d1d1f;
+  --color-dim: #5f626a;
+  --color-accent: #1a63d8;
+  --color-ink: #000;
+  --color-field: #ffffff;
+  --color-band: rgb(0 0 0 / 0.05);
+  --color-scroll: #c3c4ca;
+  --color-on-chosen: #1d1d1f;
+  --color-track-edge: rgb(0 0 0 / 0.04);
+  --color-control: rgb(0 0 0 / 0.05);
+  --color-edge: rgb(0 0 0 / 0.45);
+  --color-chosen: #ffffff;
+  --color-track: rgb(0 0 0 / 0.08);
+  --color-hover: rgb(0 0 0 / 0.06);
+  --color-press: rgb(0 0 0 / 0.1);
+  --color-frame: rgb(0 0 0 / 0.22);
+  --color-tonal: #d9e6ff;
+  --color-tonal-edge: #4c7fd4;
+  --color-on-tonal: #12336b;
+  --color-off: rgb(0 0 0 / 0.58);
+  --color-off-edge: rgb(0 0 0 / 0.14);
+  --color-danger: #d02a2a;
+  --color-success: #167a48;
 }
 
 /* A surface that stays dark in the light theme (the viewer): the dark values again. */

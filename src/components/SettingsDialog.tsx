@@ -156,6 +156,19 @@ function GeneralPage() {
   const save = useStore((s) => s.saveAppSettings);
   return (
     <div>
+      <Section title="外観">
+        <RadioRows
+          name="appearance"
+          value={app?.appearance}
+          disabled={!app}
+          onChange={(appearance) => save({ appearance })}
+          options={[
+            { value: "system", label: "システムに合わせる", hint: "macOS・Windows の外観の設定に従います" },
+            { value: "light", label: "ライト" },
+            { value: "dark", label: "ダーク" },
+          ]}
+        />
+      </Section>
       <Section title="起動したとき">
         <RadioRows
           name="startup"
