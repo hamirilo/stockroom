@@ -7,6 +7,7 @@
  */
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useSyncExternalStore } from "react";
 
 export type Appearance = "system" | "light" | "dark";
 
@@ -62,4 +63,23 @@ export function applyAppearance(a: Appearance) {
 /** At launch, before the first render: the cached choice (the saved one arrives with the settings). */
 export function setUpAppearance() {
   applyAppearance(cached());
+}
+
+/** The theme on screen now ("system" resolved), for the quick switch. */
+export const shownTheme = (): "light" | "dark" => (document.documentElement.dataset.theme === "light" ? "light" : "dark");
+
+/** The other of light / dark: what the quick switch (toolbar button, 表示 menu) chooses. */
+export const otherTheme = (): "light" | "dark" => (shownTheme() === "light" ? "dark" : "light");
+
+/** Re-renders when `<html data-theme>` changes (a choice, or the OS under "system"). */
+export function useShownTheme(): "light" | "dark" {
+  return useSyncExternalStore(
+    (notify) => {
+      const mo = new MutationObserver(notify);
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      return () => mo.disconnect();
+    },
+    shownTheme,
+    () => "dark",
+  );
 }

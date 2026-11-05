@@ -320,6 +320,8 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     cmd("view.zoomIn"),
     cmd("view.zoomOut"),
     sep(),
+    cmd("view.appearance"),
+    sep(),
     cmd("view.sidebar"),
     cmd("view.inspector"),
     cmd("view.shelf"),

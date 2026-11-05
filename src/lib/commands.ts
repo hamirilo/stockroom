@@ -7,6 +7,7 @@
  * Keys are written like "Mod+Shift+R": Mod is ⌘ on macOS and Ctrl elsewhere.
  * The first key is the one menus show.
  */
+import { otherTheme } from "./appearance";
 import { OFF_COMMANDS } from "./limits";
 import {
   Copy,
@@ -218,6 +219,14 @@ const ALL_COMMANDS: Command[] = [
   ),
 
   // --------------------------------------------------------------- view
+  {
+    id: "view.appearance",
+    // Quick switch between light and dark (the toolbar button too); "system" is chosen in settings.
+    title: "ライト／ダークを切り替え",
+    label: () => (otherTheme() === "light" ? "ライトにする" : "ダークにする"),
+    keys: ["Mod+Shift+D"],
+    run: (s) => s.saveAppSettings({ appearance: otherTheme() }),
+  },
   {
     id: "view.sidebar",
     title: "サイドバー",
