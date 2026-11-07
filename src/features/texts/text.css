@@ -1,5 +1,5 @@
 /* The viewer's text pages (TextView.tsx): paper on the viewer's backdrop.
-   Light: GitHub-like. Dark: Monokai. The colours are the --tx-* values here;
+   Light: GitHub-like. Dark: a blue-grey editor look. The colours are the --tx-* values here;
    the rules below only name them. */
 .text-page,
 .csv-table {
@@ -26,25 +26,25 @@
 }
 :root[data-theme="dark"] .text-page,
 :root[data-theme="dark"] .csv-table {
-  --tx-bg: #272822;
-  --tx-fg: #f8f8f2;
-  --tx-heading: #a6e22e;
-  --tx-link: #66d9ef;
-  --tx-dim: #b3ad92;
-  --tx-rule: #49483e;
-  --tx-rule-soft: #3e3d32;
-  --tx-line: #49483e;
-  --tx-quote-bar: #75715e;
-  --tx-code-fg: #e6db74;
-  --tx-code-bg: #3e3d32;
-  --tx-block-bg: #1e1f1c;
-  --tx-head-bg: #3e3d32;
-  --tx-stripe: #2d2e27;
-  --tx-ph-line: #75715e;
-  --tx-ph-fg: #b3ad92;
-  --tx-csv-head: #3e3d32;
-  --tx-csv-num-bg: #2d2e27;
-  --tx-csv-num-fg: #75715e;
+  --tx-bg: #292d32;
+  --tx-fg: #d9d2bc;
+  --tx-heading: #7eb0e8;
+  --tx-link: #a8c898;
+  --tx-dim: #8b929a;
+  --tx-rule: #3d4048;
+  --tx-rule-soft: #353840;
+  --tx-line: #3d4048;
+  --tx-quote-bar: #4a4e57;
+  --tx-code-fg: #b8cc9e;
+  --tx-code-bg: #323640;
+  --tx-block-bg: #23262b;
+  --tx-head-bg: #323640;
+  --tx-stripe: #2e313b;
+  --tx-ph-line: #4a4e57;
+  --tx-ph-fg: #8b929a;
+  --tx-csv-head: #323640;
+  --tx-csv-num-bg: #2e313b;
+  --tx-csv-num-fg: #5c616a;
   --tx-shadow: rgb(0 0 0 / 0.6);
 }
 
