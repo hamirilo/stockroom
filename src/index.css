@@ -27,6 +27,7 @@
   --color-ink: #fff;
   /* The editor's field, and the sunken filter band. */
   --color-field: #151619;
+  --color-stage: #000;
   --color-band: rgb(0 0 0 / 0.18);
   --color-scroll: #45464d;
   --color-on-chosen: #fff;
@@ -201,6 +202,7 @@
   --color-accent: #1a63d8;
   --color-ink: #000;
   --color-field: #ffffff;
+  --color-stage: #ececef;
   --color-band: rgb(0 0 0 / 0.05);
   --color-scroll: #c3c4ca;
   --color-on-chosen: #1d1d1f;
@@ -221,7 +223,7 @@
   --color-success: #167a48;
 }
 
-/* A surface that stays dark in the light theme (the viewer): the dark values again. */
+/* A surface that stays dark in the light theme (the buttons floating over a photo): the dark values again. */
 .keep-dark {
   color-scheme: dark;
   color: var(--color-fg);
@@ -234,6 +236,7 @@
   --color-accent: #4c8dff;
   --color-ink: #fff;
   --color-field: #151619;
+  --color-stage: #000;
   --color-band: rgb(0 0 0 / 0.18);
   --color-scroll: #45464d;
   --color-on-chosen: #fff;
