@@ -56,7 +56,7 @@ export function VideoView({ item }: { item: Item }) {
           draggable={false}
           className="min-h-0 max-w-full rounded-md object-contain shadow-2xl"
         />
-        <p className="text-sm text-white/60">この動画は内蔵のプレーヤーで再生できません</p>
+        <p className="text-sm text-dim">この動画は内蔵のプレーヤーで再生できません</p>
         <button
           onClick={() => openSelection([item.id])}
           className="flex items-center gap-2 rounded-md bg-accent-fill px-4 py-2 text-sm font-medium text-white hover:brightness-110"
@@ -89,7 +89,7 @@ export function VideoView({ item }: { item: Item }) {
       onKeyDown={(e) => {
         if (e.key === " " || e.key.startsWith("Arrow")) e.preventDefault();
       }}
-      className="absolute inset-0 h-full w-full bg-black object-contain outline-none"
+      className="absolute inset-0 h-full w-full bg-stage object-contain outline-none"
     />
   );
 }

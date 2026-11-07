@@ -1,4 +1,52 @@
-/* The viewer's text pages (TextView.tsx): paper on the viewer's dark backdrop. */
+/* The viewer's text pages (TextView.tsx): paper on the viewer's backdrop.
+   Light: GitHub-like. Dark: a blue-grey editor look. The colours are the --tx-* values here;
+   the rules below only name them. */
+.text-page,
+.csv-table {
+  --tx-bg: #fff;
+  --tx-fg: #1f2328;
+  --tx-heading: #1f2328;
+  --tx-link: #0969da;
+  --tx-dim: #59636e;
+  --tx-rule: #e5e7eb;
+  --tx-rule-soft: #eef0f2;
+  --tx-line: #d1d9e0;
+  --tx-quote-bar: #d1d9e0;
+  --tx-code-fg: #1f2328;
+  --tx-code-bg: #eff1f3;
+  --tx-block-bg: #f6f8fa;
+  --tx-head-bg: #f6f8fa;
+  --tx-stripe: #fafbfc;
+  --tx-ph-line: #c5cbd3;
+  --tx-ph-fg: #6b7280;
+  --tx-csv-head: #f3f4f6;
+  --tx-csv-num-bg: #f9fafb;
+  --tx-csv-num-fg: #9ca3af;
+  --tx-shadow: rgb(0 0 0 / 0.45);
+}
+:root[data-theme="dark"] .text-page,
+:root[data-theme="dark"] .csv-table {
+  --tx-bg: #292d32;
+  --tx-fg: #d9d2bc;
+  --tx-heading: #7eb0e8;
+  --tx-link: #a8c898;
+  --tx-dim: #8b929a;
+  --tx-rule: #3d4048;
+  --tx-rule-soft: #353840;
+  --tx-line: #3d4048;
+  --tx-quote-bar: #4a4e57;
+  --tx-code-fg: #b8cc9e;
+  --tx-code-bg: #323640;
+  --tx-block-bg: #23262b;
+  --tx-head-bg: #323640;
+  --tx-stripe: #2e313b;
+  --tx-ph-line: #4a4e57;
+  --tx-ph-fg: #8b929a;
+  --tx-csv-head: #323640;
+  --tx-csv-num-bg: #2e313b;
+  --tx-csv-num-fg: #5c616a;
+  --tx-shadow: rgb(0 0 0 / 0.6);
+}
 
 .text-page {
   box-sizing: border-box;
@@ -7,11 +55,11 @@
   margin: 24px auto;
   padding: 40px 56px;
   border-radius: 6px;
-  background: #fff;
-  color: #1f2328;
+  background: var(--tx-bg);
+  color: var(--tx-fg);
   font-size: 15px;
   line-height: 1.75;
-  box-shadow: 0 20px 50px rgb(0 0 0 / 0.45);
+  box-shadow: 0 20px 50px var(--tx-shadow);
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -38,16 +86,17 @@
   margin: 1.6em 0 0.6em;
   font-weight: 700;
   line-height: 1.35;
+  color: var(--tx-heading);
 }
 .md-body h1 {
   font-size: 1.9em;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--tx-rule);
 }
 .md-body h2 {
   font-size: 1.45em;
   padding-bottom: 0.25em;
-  border-bottom: 1px solid #eef0f2;
+  border-bottom: 1px solid var(--tx-rule-soft);
 }
 .md-body h3 {
   font-size: 1.2em;
@@ -87,7 +136,7 @@
   vertical-align: -1px;
 }
 .md-body a {
-  color: #0969da;
+  color: var(--tx-link);
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
@@ -98,33 +147,35 @@
 }
 .md-body blockquote {
   padding: 0 1em;
-  color: #59636e;
-  border-left: 4px solid #d1d9e0;
+  color: var(--tx-dim);
+  border-left: 4px solid var(--tx-quote-bar);
 }
 .md-body code {
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 0.88em;
   padding: 0.15em 0.4em;
   border-radius: 4px;
-  background: #eff1f3;
+  background: var(--tx-code-bg);
+  color: var(--tx-code-fg);
 }
 .md-body pre {
   padding: 14px 16px;
   border-radius: 6px;
-  background: #f6f8fa;
+  background: var(--tx-block-bg);
   overflow-x: auto;
   line-height: 1.5;
 }
 .md-body pre code {
   padding: 0;
   background: none;
+  color: var(--tx-fg);
   font-size: 0.86em;
 }
 .md-body hr {
   height: 2px;
   margin: 1.6em 0;
   border: 0;
-  background: #e5e7eb;
+  background: var(--tx-rule);
 }
 .md-body table {
   display: block;
@@ -137,14 +188,14 @@
 .md-body th,
 .md-body td {
   padding: 6px 13px;
-  border: 1px solid #d1d9e0;
+  border: 1px solid var(--tx-line);
 }
 .md-body th {
   font-weight: 700;
-  background: #f6f8fa;
+  background: var(--tx-head-bg);
 }
 .md-body tr:nth-child(2n) td {
-  background: #fafbfc;
+  background: var(--tx-stripe);
 }
 .md-body summary {
   cursor: pointer;
@@ -152,9 +203,9 @@
 .md-body .md-img {
   display: inline-block;
   padding: 0.1em 0.5em;
-  border: 1px dashed #c5cbd3;
+  border: 1px dashed var(--tx-ph-line);
   border-radius: 4px;
-  color: #6b7280;
+  color: var(--tx-ph-fg);
   font-size: 0.85em;
 }
 
@@ -163,20 +214,20 @@
   margin: 0 auto;
   border-collapse: separate;
   border-spacing: 0;
-  background: #fff;
-  color: #1f2328;
+  background: var(--tx-bg);
+  color: var(--tx-fg);
   font-size: 13px;
   line-height: 1.45;
   border-radius: 6px;
-  box-shadow: 0 20px 50px rgb(0 0 0 / 0.45);
+  box-shadow: 0 20px 50px var(--tx-shadow);
   user-select: text;
 }
 .csv-table th,
 .csv-table td {
   max-width: 360px;
   padding: 5px 10px;
-  border-right: 1px solid #e5e7eb;
-  border-bottom: 1px solid #e5e7eb;
+  border-right: 1px solid var(--tx-rule);
+  border-bottom: 1px solid var(--tx-rule);
   text-align: left;
   vertical-align: top;
   white-space: pre-wrap;
@@ -186,16 +237,16 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #f3f4f6;
+  background: var(--tx-csv-head);
   font-weight: 700;
 }
 .csv-table .csv-num {
   min-width: 2.5em;
-  color: #9ca3af;
+  color: var(--tx-csv-num-fg);
   text-align: right;
-  background: #f9fafb;
+  background: var(--tx-csv-num-bg);
   font-variant-numeric: tabular-nums;
 }
 .csv-table th.csv-num {
-  background: #f3f4f6;
+  background: var(--tx-csv-head);
 }
