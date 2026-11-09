@@ -16,6 +16,11 @@ chrome.runtime.onInstalled.addListener(() => {
       title: "スクリーンショット（見えている範囲）を Stockroom に保存",
       contexts: ["page"],
     });
+    chrome.contextMenus.create({
+      id: "capture-full",
+      title: "スクリーンショット（ページ全体）を Stockroom に保存",
+      contexts: ["page"],
+    });
   });
 });
 
@@ -29,6 +34,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     openImageList(tab);
   } else if (info.menuItemId === "capture") {
     saveWithFeedback(tab, () => capture(tab));
+  } else if (info.menuItemId === "capture-full") {
+    saveWithFeedback(tab, () => captureFull(tab));
   } else if (info.menuItemId === "bookmark") {
     saveWithFeedback(tab, () => saveBookmark(tab), bookmarkMessage);
   }
@@ -44,6 +51,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   } else if (msg?.type === "capture" && msg.tab) {
     // From the popup, which closes as soon as the screenshot is taken.
     saveWithFeedback(msg.tab, () => capture(msg.tab));
+  } else if (msg?.type === "capture-full" && msg.tab) {
+    saveWithFeedback(msg.tab, () => captureFull(msg.tab));
   } else if (msg?.type === "bookmark" && msg.tab) {
     saveWithFeedback(msg.tab, () => saveBookmark(msg.tab), bookmarkMessage);
   } else if (msg?.type === "list-images" && msg.tab) {
@@ -57,6 +66,33 @@ async function capture(tab) {
   const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
   const blob = await (await fetch(dataUrl)).blob();
   return sendToApp(blob, fileName("", "image/png", tab.title || "スクリーンショット"), tab.url);
+}
+
+// Browsers cannot draw a bitmap taller than this.
+const MAX_FULL_HEIGHT = 16000;
+
+/** The whole page, including the part below the fold, as one PNG (via the DevTools protocol). */
+async function captureFull(tab) {
+  const target = { tabId: tab.id };
+  try {
+    await chrome.debugger.attach(target, "1.3");
+  } catch (e) {
+    throw new Error(`ページ全体を撮影できませんでした（開発者ツールが開かれている可能性があります）：${e.message}`);
+  }
+  try {
+    const { cssContentSize: size } = await chrome.debugger.sendCommand(target, "Page.getLayoutMetrics");
+    const width = Math.ceil(size.width);
+    const height = Math.min(Math.ceil(size.height), MAX_FULL_HEIGHT);
+    const { data } = await chrome.debugger.sendCommand(target, "Page.captureScreenshot", {
+      format: "png",
+      captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width, height, scale: 1 },
+    });
+    const blob = await (await fetch(`data:image/png;base64,${data}`)).blob();
+    return await sendToApp(blob, fileName("", "image/png", tab.title || "スクリーンショット"), tab.url);
+  } finally {
+    await chrome.debugger.detach(target).catch(() => {});
+  }
 }
 
 function openImageList(tab) {

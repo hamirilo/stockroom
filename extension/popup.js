@@ -18,6 +18,11 @@ $("bookmark").onclick = () => {
   chrome.runtime.sendMessage({ type: "bookmark", tab });
   window.close();
 };
+$("capture-full").disabled = $("capture").disabled || !scriptable;
+$("capture-full").onclick = () => {
+  chrome.runtime.sendMessage({ type: "capture-full", tab });
+  window.close();
+};
 $("capture").onclick = () => {
   // The background worker saves it and reports in the page; the popup can close.
   chrome.runtime.sendMessage({ type: "capture", tab });
