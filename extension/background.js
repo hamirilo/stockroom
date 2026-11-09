@@ -79,18 +79,46 @@ async function captureFull(tab) {
   } catch (e) {
     throw new Error(`ページ全体を撮影できませんでした（開発者ツールが開かれている可能性があります）：${e.message}`);
   }
+  const send = (method, params) => chrome.debugger.sendCommand(target, method, params);
+  // The tallest thing on the page: the document, or an inner scroll area when the page itself is
+  // only as tall as the window (sites with a fixed header and a scrolling main area).
+  const measure = async () => {
+    const { result } = await send("Runtime.evaluate", {
+      returnByValue: true,
+      expression: `(() => {
+        let h = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
+        for (const el of document.querySelectorAll("body *")) {
+          if (el.scrollHeight <= el.clientHeight + 1) continue;
+          const o = getComputedStyle(el).overflowY;
+          if (o === "auto" || o === "scroll" || o === "overlay") {
+            h = Math.max(h, el.getBoundingClientRect().top + window.scrollY + el.scrollHeight);
+          }
+        }
+        return { height: Math.ceil(h), width: window.innerWidth };
+      })()`,
+    });
+    return result.value;
+  };
   try {
-    const { cssContentSize: size } = await chrome.debugger.sendCommand(target, "Page.getLayoutMetrics");
-    const width = Math.ceil(size.width);
-    const height = Math.min(Math.ceil(size.height), MAX_FULL_HEIGHT);
-    const { data } = await chrome.debugger.sendCommand(target, "Page.captureScreenshot", {
+    const { height: first, width } = await measure();
+    // Make the window as tall as the page, so "100vh" areas grow and fixed bars appear only once.
+    let height = Math.min(first, MAX_FULL_HEIGHT);
+    await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 0, mobile: false });
+    // The taller window can change the layout (and the height); measure once more.
+    const again = Math.min((await measure()).height, MAX_FULL_HEIGHT);
+    if (again !== height) {
+      height = again;
+      await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 0, mobile: false });
+    }
+    await new Promise((r) => setTimeout(r, 300)); // let lazy images and layout settle
+    const { data } = await send("Page.captureScreenshot", {
       format: "png",
-      captureBeyondViewport: true,
       clip: { x: 0, y: 0, width, height, scale: 1 },
     });
     const blob = await (await fetch(`data:image/png;base64,${data}`)).blob();
     return await sendToApp(blob, fileName("", "image/png", tab.title || "スクリーンショット"), tab.url);
   } finally {
+    await send("Emulation.clearDeviceMetricsOverride").catch(() => {});
     await chrome.debugger.detach(target).catch(() => {});
   }
 }
