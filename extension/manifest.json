@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Stockroom に保存",
   "description": "Web ページの画像やページそのもの（ブックマーク）を、デスクトップアプリの Stockroom に保存します。",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/16.png",
