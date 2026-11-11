@@ -16,7 +16,9 @@ export const LIST_ROW = 48;
 const MIN_AR = 0.4;
 const MAX_AR = 3;
 
-export const rawAspect = (item: Item) => (item.width > 0 && item.height > 0 ? item.width / item.height : 1);
+/** 画像・動画は自分の寸法、ファイル・ブックマークなどはサムネイル自体の比率（無ければ正方形）。 */
+export const rawAspect = (item: Item) =>
+  item.width > 0 && item.height > 0 ? item.width / item.height : item.thumbAspect && item.thumbAspect > 0 ? item.thumbAspect : 1;
 export const clampedAspect = (item: Item) => Math.min(MAX_AR, Math.max(MIN_AR, rawAspect(item)));
 
 /** Thumbnail box; the label (if any) sits below it. */

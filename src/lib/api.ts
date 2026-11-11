@@ -193,6 +193,8 @@ export interface Item {
   displayPath: string;
   /** A video's thumbnail is one the user set, not the frame from the OS (docs/VIDEO.md). */
   ownThumb: boolean;
+  /** サムネイル画像の幅 ÷ 高さ。width / height が 0 の項目（ファイル・ブックマーク・テキスト）だけ。 */
+  thumbAspect?: number | null;
   /** Similar view only: items with the same number look alike. Best copy first. */
   group?: number;
   /** Similar view only: differing hash bits (of 64) from the group's best copy. */
