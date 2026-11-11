@@ -511,6 +511,8 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
     ...header,
     commandItem("item.show", { onClick: () => s.openViewer(index) }),
     commandItem("item.open"),
+    commandItem("item.openWith"),
+    commandItem("item.openForEdit"),
     commandItem("item.reveal", { onClick: () => s.run(() => api.revealItem(item.id)) }),
     { separator: true },
     {

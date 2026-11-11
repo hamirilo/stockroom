@@ -189,6 +189,8 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     cmd("library.transferAll"),
     sep(),
     cmd("item.open"),
+    cmd("item.openWith"),
+    cmd("item.openForEdit"),
     cmd("item.reveal"),
     ...(isMac ? [] : [sep(), cmd("app.settings"), sep(), PredefinedMenuItem.new({ item: "Quit", text: "終了" })]),
   ]);

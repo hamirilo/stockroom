@@ -105,7 +105,9 @@ fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
         if entry.file_type()?.is_dir() {
             copy_dir(&entry.path(), &target)?;
         } else {
-            fs::copy(entry.path(), target)?;
+            fs::copy(entry.path(), &target)?;
+            // Read-only only because it was opened in another app here (library::protect).
+            library::unprotect(&target)?;
         }
     }
     Ok(())

@@ -202,7 +202,44 @@ pub fn copy_file(root: &Path, id: &str, file_name: &str, from: &Path) -> Result<
 
 /// Removes the item `id`'s file (its whole folder). Missing is fine.
 pub fn remove_item_dir(root: &Path, id: &str) {
-    let _ = fs::remove_dir_all(item_dir(root, id));
+    let dir = item_dir(root, id);
+    // A file handed to another app is read-only (`protect`); Windows won't delete it as is.
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for e in entries.flatten() {
+            let _ = unprotect(&e.path());
+        }
+    }
+    let _ = fs::remove_dir_all(dir);
+}
+
+/// Makes a stored file read-only before another app gets it, so that app
+/// can't save over it: it opens read-only or asks for another name
+/// (docs/OPEN_EXTERNAL.md). Only the file: its folder stays as it is.
+pub fn protect(path: &Path) -> std::io::Result<()> {
+    let mut perms = fs::metadata(path)?.permissions();
+    if perms.readonly() {
+        return Ok(());
+    }
+    perms.set_readonly(true);
+    fs::set_permissions(path, perms)
+}
+
+/// Undoes `protect`: for the app's own writes into the library (saving a
+/// text, deleting) and for copies taken out of it (export, another library),
+/// which shouldn't stay read-only. Writable by the owner only, as a new file is.
+pub fn unprotect(path: &Path) -> std::io::Result<()> {
+    let mut perms = fs::metadata(path)?.permissions();
+    if !perms.readonly() {
+        return Ok(());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        perms.set_mode(perms.mode() | 0o200);
+    }
+    #[cfg(not(unix))]
+    perms.set_readonly(false);
+    fs::set_permissions(path, perms)
 }
 
 pub fn thumb_path(root: &Path, item: &Item) -> PathBuf {
@@ -242,6 +279,34 @@ fn write_lock(root: &Path, h: &Holder) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn protect_and_unprotect() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = store_file(tmp.path(), "i1", "a.pdf", b"%PDF-").unwrap();
+        protect(&path).unwrap();
+        assert!(fs::metadata(&path).unwrap().permissions().readonly());
+        // Twice is fine.
+        protect(&path).unwrap();
+        unprotect(&path).unwrap();
+        let perms = fs::metadata(&path).unwrap().permissions();
+        assert!(!perms.readonly());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(perms.mode() & 0o022, 0, "not writable by others");
+        }
+        unprotect(&path).unwrap();
+    }
+
+    #[test]
+    fn removes_a_protected_item() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = store_file(tmp.path(), "i1", "a.pdf", b"%PDF-").unwrap();
+        protect(&path).unwrap();
+        remove_item_dir(tmp.path(), "i1");
+        assert!(!item_dir(tmp.path(), "i1").exists());
+    }
 
     fn holder(machine: &str, pid: u32, at: i64) -> Holder {
         Holder { machine: machine.into(), name: format!("PC {machine}"), pid, at }

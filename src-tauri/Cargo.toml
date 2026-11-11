@@ -78,7 +78,7 @@ strip = true
 [dev-dependencies]
 
 [target."cfg(windows)".dependencies]
-windows = { version = "0.62", features = ["Win32_Graphics_Imaging", "Win32_System_Com", "Win32_Foundation", "Win32_Networking_WinHttp", "Data_Pdf", "Storage_Streams"] }
+windows = { version = "0.62", features = ["Win32_Graphics_Imaging", "Win32_System_Com", "Win32_Foundation", "Win32_Networking_WinHttp", "Data_Pdf", "Storage_Streams", "Win32_UI_Shell"] }
 
 # System proxy lookup (PAC) for the updater, see proxy.rs.
 [target."cfg(target_os = \"macos\")".dependencies]

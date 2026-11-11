@@ -652,7 +652,7 @@ const mockLibraries = [
 
 // library.db `settings` (JSON by key) and settings.json's app settings.
 const librarySettings: Record<string, unknown> = {};
-const appSettings = { startup: "last", autoUpdate: true, appearance: "system", sidebarHidden: {} };
+const appSettings = { startup: "last", autoUpdate: true, appearance: "system", sidebarHidden: {}, editFolder: null as string | null };
 
 const webImport = { enabled: false, running: false, port: 41620, error: null, extensionDir: null as string | null };
 const mcp = { enabled: false, running: false, port: 41621, error: null, token: "mock-token" };
@@ -866,6 +866,15 @@ function handle(cmd: string, a: any): unknown {
     case "reveal_item":
     case "open_items":
       return;
+    case "open_items_with":
+      console.info(`[mock] ${cmd}`, a.with);
+      return a.ids.filter((id: string) => items.find((i) => i.id === id)?.kind !== "bookmark").length;
+    case "open_for_edit": {
+      const folder = appSettings.editFolder ?? "/Users/mock/Documents/Stockroom";
+      return { folder, count: a.ids.filter((id: string) => items.find((i) => i.id === id)?.kind !== "bookmark").length };
+    }
+    case "default_edit_folder":
+      return "/Users/mock/Documents/Stockroom";
     case "set_rating":
       items.filter((i) => a.ids.includes(i.id)).forEach((i) => (i.rating = Math.min(5, a.rating)));
       return;

@@ -36,7 +36,7 @@ pub async fn export_items(
                 .map_or("", String::as_str);
             let dir = export_dir(&dest, sub);
             fs::create_dir_all(&dir).map_err(err)?;
-            fs::copy(src, export_target(&dir, &item.name, &item.ext)).map_err(err)?;
+            copy_out(src, &dir, &item.name, &item.ext).map_err(err)?;
         }
         Ok(items.len())
     })
@@ -148,7 +148,7 @@ pub fn write(
             break;
         }
         let dir = f.dir.iter().fold(folder.to_path_buf(), |d, p| d.join(safe_part(p)));
-        let copied = fs::create_dir_all(&dir).and_then(|_| fs::copy(&f.src, export_target(&dir, &f.name, &f.ext)));
+        let copied = fs::create_dir_all(&dir).and_then(|_| copy_out(&f.src, &dir, &f.name, &f.ext));
         match copied {
             Ok(_) => done.copied += 1,
             Err(e) => {
@@ -198,6 +198,17 @@ fn safe_name(name: &str) -> String {
         .collect()
 }
 
+/// Copies a stored file into `dir` as `name` (`export_target`); returns
+/// where it went. The copy is the user's own file: it doesn't keep the
+/// read-only the library puts on files opened in other apps
+/// (docs/OPEN_EXTERNAL.md), which `fs::copy` carries over.
+pub fn copy_out(src: &Path, dir: &Path, name: &str, ext: &str) -> std::io::Result<PathBuf> {
+    let target = export_target(dir, name, ext);
+    fs::copy(src, &target)?;
+    library::unprotect(&target)?;
+    Ok(target)
+}
+
 /// `dest/name.ext`, or `name (2).ext`… when taken. Keeps a renamed item's
 /// display name but makes sure the extension is there.
 fn export_target(dest: &Path, name: &str, ext: &str) -> PathBuf {
@@ -228,6 +239,20 @@ mod tests {
         fs::write(d.join("cat.png"), "x").unwrap();
         fs::write(d.join("cat (2).png"), "x").unwrap();
         assert_eq!(export_target(d, "cat.png", "png"), d.join("cat (3).png"));
+    }
+
+    #[test]
+    fn a_copy_out_is_not_read_only() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = library::store_file(tmp.path(), "i1", "f", b"x").unwrap();
+        // Opened in another app before (open_external.rs).
+        library::protect(&src).unwrap();
+        let out = tmp.path().join("out");
+        fs::create_dir_all(&out).unwrap();
+        let copy = copy_out(&src, &out, "見積書", "pdf").unwrap();
+        assert_eq!(copy, out.join("見積書.pdf"));
+        assert!(!fs::metadata(&copy).unwrap().permissions().readonly());
+        assert!(fs::metadata(&src).unwrap().permissions().readonly());
     }
 
     #[test]

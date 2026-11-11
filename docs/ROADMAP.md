@@ -161,7 +161,7 @@ Eagle（jp.eagle.cool）との比較をもとにした、AI 以外の機能追�
 
 今後の候補：PDF のページ数、PDF の中の文字での検索。
 
-PDF のページを展開して見る機能は Stockroom には入れず、外部アプリに任せる（2026-11-11）。外部アプリへの渡し方は [OPEN_EXTERNAL.md](OPEN_EXTERNAL.md)。
+PDF のページを展開して見る機能は Stockroom には入れず、外部アプリに任せる（2026-11-11）。外部アプリへの渡し方（見るときは読み取り専用、編集するときはコピー）は [OPEN_EXTERNAL.md](OPEN_EXTERNAL.md)。実装済み。
 
 ## フェーズ 9：フォルダの共有（M）
 

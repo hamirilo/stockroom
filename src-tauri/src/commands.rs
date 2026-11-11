@@ -91,6 +91,9 @@ pub struct AppSettings {
     /// (library.db `sidebar` is not "own"). Read and written by the frontend,
     /// which keeps them under "stock" (once one list per mode).
     sidebar_hidden: std::collections::BTreeMap<String, Vec<String>>,
+    /// Where "編集用に書き出して開く" puts its copies; none = 書類/Stockroom
+    /// (open_external.rs, docs/OPEN_EXTERNAL.md).
+    pub(crate) edit_folder: Option<PathBuf>,
 }
 
 impl Default for AppSettings {
@@ -100,6 +103,7 @@ impl Default for AppSettings {
             auto_update: true,
             appearance: Appearance::System,
             sidebar_hidden: Default::default(),
+            edit_folder: None,
         }
     }
 }
@@ -702,15 +706,6 @@ pub async fn set_video_thumb(app: AppHandle, id: String, source: crate::videos::
 #[tauri::command]
 pub fn reset_video_thumb(state: State<AppState>, id: String) -> CmdResult<()> {
     with_lib(&state, |lib| crate::videos::thumb::reset(lib, &id))
-}
-
-/// Opens items in the OS default app.
-#[tauri::command]
-pub fn open_items(state: State<AppState>, ids: Vec<String>) -> CmdResult<()> {
-    for (_, path) in item_paths(&state, &ids)? {
-        tauri_plugin_opener::open_path(path, None::<&str>).map_err(err)?;
-    }
-    Ok(())
 }
 
 #[tauri::command]

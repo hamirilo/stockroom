@@ -55,6 +55,14 @@ export interface AppSettings {
    * `font` entry is ignored (docs/FONT_APP.md).
    */
   sidebarHidden: { stock?: string[] };
+  /** Where "編集用に書き出して開く" puts its copies; null = 書類/Stockroom (docs/OPEN_EXTERNAL.md). */
+  editFolder: string | null;
+}
+
+/** What "編集用に書き出して開く" wrote. */
+export interface EditCopies {
+  folder: string;
+  count: number;
 }
 
 /**
@@ -546,7 +554,17 @@ export const api = {
   setVideoThumb: (id: string, source: VideoThumbSource) => invoke<string>("set_video_thumb", { id, source }),
   /** Back to the frame from the OS. */
   resetVideoThumb: (id: string) => invoke<void>("reset_video_thumb", { id }),
+  /** In the default app, made read-only first (docs/OPEN_EXTERNAL.md). */
   openItems: (ids: string[]) => invoke<void>("open_items", { ids }),
+  /**
+   * In an app the user picks, read-only: `app` on macOS (picked here); on
+   * Windows the system asks for each file. Resolves to how many were opened.
+   */
+  openItemsWith: (ids: string[], app: string | null) => invoke<number>("open_items_with", { ids, with: app }),
+  /** Copies into the edit folder, each opened in its default app. */
+  openForEdit: (ids: string[]) => invoke<EditCopies>("open_for_edit", { ids }),
+  /** The edit folder when none is set: 書類/Stockroom. */
+  defaultEditFolder: () => invoke<string>("default_edit_folder"),
   setRating: (ids: string[], rating: number) => invoke<void>("set_rating", { ids, rating }),
   setFavorite: (ids: string[], on: boolean) => invoke<void>("set_favorite", { ids, on }),
   /** Pinned items come first in every list. */

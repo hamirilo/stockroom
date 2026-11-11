@@ -22,6 +22,7 @@ import {
   Share2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useShallow } from "zustand/react/shallow";
 import { setLinks, transferAllOfKind } from "../lib/actions";
 import { api, formatBytes, KINDS, kindLabel, type ItemKind } from "../lib/api";
@@ -185,12 +186,52 @@ function GeneralPage() {
           ]}
         />
       </Section>
+      <EditFolderSection />
       {NO_UPDATE ? (
         <VersionSection />
       ) : (
         <UpdateSection autoUpdate={app?.autoUpdate} onAutoUpdate={(autoUpdate) => save({ autoUpdate })} />
       )}
     </div>
+  );
+}
+
+/** Where "編集用に書き出して開く" puts its copies (docs/OPEN_EXTERNAL.md). */
+function EditFolderSection() {
+  const app = useStore((s) => s.appSettings);
+  const save = useStore((s) => s.saveAppSettings);
+  const [fallback, setFallback] = useState<string | null>(null);
+  useEffect(() => {
+    api.defaultEditFolder().then(setFallback, () => setFallback(null));
+  }, []);
+  const custom = app?.editFolder ?? null;
+  const folder = custom ?? fallback;
+  const pick = async () => {
+    const dir = await open({ directory: true, title: "書き出し先を選択", defaultPath: folder ?? undefined });
+    if (typeof dir === "string") save({ editFolder: dir });
+  };
+  return (
+    <Section
+      title="外部アプリで編集"
+      sub="「編集用に書き出して開く」は、ここにコピーを書き出してから開きます。ライブラリの中のファイルは変わりません"
+    >
+      <Row
+        label="書き出し先"
+        hint={
+          <span className="block truncate" title={folder ?? undefined}>
+            {folder ?? "—"}
+            {!custom && "（既定）"}
+          </span>
+        }
+      >
+        <RowButton onClick={() => void pick()} disabled={!app}>
+          変更…
+        </RowButton>
+        <RowButton onClick={() => save({ editFolder: null })} disabled={!custom}>
+          既定に戻す
+        </RowButton>
+      </Row>
+    </Section>
   );
 }
 
