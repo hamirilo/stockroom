@@ -416,6 +416,8 @@ const view = (it: MockItem): Item => {
     displayPath: filePath,
     thumbPath,
     ownThumb: !!it.customThumb,
+    // 実機はサムネイル画像から求める。モックのファイルのカードは 384×512。
+    thumbAspect: it.kind === "file" && !it.customThumb ? 384 / 512 : null,
   };
 };
 const inFolder = (i: string, f: string) => itemFolders.has(`${i}|${f}`);

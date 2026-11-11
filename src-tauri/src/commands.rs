@@ -507,6 +507,18 @@ pub struct ItemView {
     display_path: String,
     /// A video's thumbnail is one the user set (docs/VIDEO.md).
     own_thumb: bool,
+    /// サムネイル画像の幅 ÷ 高さ。`width` / `height` を持たない項目（ファイル・ブックマーク・
+    /// テキスト）のセルを、サムネイル自体の比率にするために使う（docs/UI.md）。
+    thumb_aspect: Option<f64>,
+}
+
+/// サムネイルの比率。ヘッダだけ読む。読めなければ None（正方形として扱う）。
+fn thumb_aspect(item: &Item, thumb: &std::path::Path) -> Option<f64> {
+    if item.width > 0 && item.height > 0 {
+        return None;
+    }
+    let (w, h) = image::image_dimensions(thumb).ok()?;
+    (w > 0 && h > 0).then(|| f64::from(w) / f64::from(h))
 }
 
 /// Off the main thread, and the similar view's grouping (slow on a large
@@ -521,6 +533,7 @@ pub async fn query_items(app: AppHandle, query: ItemQuery) -> CmdResult<Vec<Item
             .into_iter()
             .map(|item| ItemView {
                 file_path: crate::library::file_path(&root, &item).display().to_string(),
+                thumb_aspect: thumb_aspect(&item, &crate::library::thumb_path(&root, &item)),
                 thumb_path: crate::library::thumb_path(&root, &item).display().to_string(),
                 display_path: crate::library::display_path(&root, &item).display().to_string(),
                 own_thumb: crate::videos::thumb::is_custom(&item.thumb),
