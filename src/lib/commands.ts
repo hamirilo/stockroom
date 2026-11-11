@@ -46,6 +46,8 @@ import {
   onShelf,
   openLibraryDialog,
   openSelection,
+  openSelectionForEdit,
+  openSelectionWith,
   orient,
   pasteTags,
   selectionOrShown,
@@ -129,6 +131,8 @@ const videoAndImage = (s: S): [Item, Item] | undefined => {
   const img = xs.find((i) => i.kind === "image");
   return v && img ? [v, img] : undefined;
 };
+/** Something selected that has a file of its own to open (not only bookmarks). */
+const hasFile = (s: S) => selItems(s).some((i) => i.kind !== "bookmark");
 const lastFolder = (s: S) => s.folders.find((f) => f.id === s.recentFolders[0]);
 
 /** ⌘+ / ⌘-: the size the slider sets. */
@@ -371,7 +375,16 @@ const ALL_COMMANDS: Command[] = [
       if (i >= 0) s.openViewer(i);
     },
   },
+  // Opening in other apps (docs/OPEN_EXTERNAL.md): to look at, the stored file
+  // read-only; to edit, a copy in the edit folder. Bookmarks have no file to edit.
   { id: "item.open", title: "既定のアプリで開く", enabled: any, run: (s) => void openSelection(sel(s)) },
+  { id: "item.openWith", title: "アプリを選んで開く…", enabled: hasFile, run: (s) => void openSelectionWith(sel(s)) },
+  {
+    id: "item.openForEdit",
+    title: "編集用に書き出して開く",
+    enabled: hasFile,
+    run: (s) => void openSelectionForEdit(sel(s)),
+  },
   {
     id: "item.reveal",
     title: "Finder / エクスプローラで表示",

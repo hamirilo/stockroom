@@ -61,7 +61,7 @@ Stockroom は、集めたもの（画像・ファイル・テキスト・動画�
 | 層 | 場所 | 中身 |
 |---|---|---|
 | 共通基盤（core） | `src/lib/*`, `src/store.ts`, `src/components/*` | ライブラリ・DB・取り込み・フォルダ・タグ・スマートフォルダ・検索・一覧の骨組み（Grid / Sidebar / Toolbar / Inspector / Viewer）・Updater |
-| | `src-tauri/src/{db,import,library,search,webimport,share,loopback,changes,proxy,transfer,export,commands}.rs` | スキーマ・クエリ、取り込み、受付サーバー、フォルダの共有、変更の記録と取り消し、ライブラリ間のコピー・移動、書き出し、共通コマンド |
+| | `src-tauri/src/{db,import,library,search,webimport,share,loopback,changes,proxy,transfer,export,open_external,commands}.rs` | スキーマ・クエリ、取り込み、受付サーバー、フォルダの共有、変更の記録と取り消し、ライブラリ間のコピー・移動、書き出し、外部アプリで開く（`docs/OPEN_EXTERNAL.md`）、共通コマンド |
 | | `src-tauri/src/mcp/` | Claude からの整理（MCP サーバー、`--mcp` の中継）。`docs/MCP.md` |
 | ファイル | `src/features/files/` | ビューア（`FileView.tsx`：PDF は `<iframe>`、ほかはサムネイルと「既定のアプリで開く」） |
 | | `src-tauri/src/files/` | 対応する拡張子、サムネイル（Quick Look／Windows.Data.Pdf（`win_pdf.rs`）／中のプレビュー／種類のカード） |

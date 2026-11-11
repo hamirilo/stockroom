@@ -72,6 +72,7 @@ bun run test           # Rust のユニットテスト + 型チェック
 | [TEXT.md](docs/TEXT.md) | テキスト（Markdown・テキスト・CSV）：見る・編集・新規作成・文字コード |
 | [VIDEO.md](docs/VIDEO.md) | 動画（MP4・MOV・WebM）：取り込み・サムネイル・再生 |
 | [LINKS.md](docs/LINKS.md) | 親子の紐づけ：動画にサムネイル案を付ける、ライブラリごとに有効・無効 |
+| [OPEN_EXTERNAL.md](docs/OPEN_EXTERNAL.md) | 外部アプリで開く：見るときは原本を読み取り専用で、編集するときはコピーを書き出して渡す |
 | [EXPORT.md](docs/EXPORT.md) | ライブラリ全体の書き出し（すべてのファイルをフォルダ構成どおりに） |
 | [BOOKMARKS.md](docs/BOOKMARKS.md) | ブックマーク（URL）：拡張機能から保存・貼り付け・重複の扱い（リンク切れの確認は保留） |
 | [ROADMAP.md](docs/ROADMAP.md) | 今後の予定 |

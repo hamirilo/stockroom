@@ -11,6 +11,7 @@ pub mod library;
 pub mod limits;
 pub mod loopback;
 pub mod mcp;
+pub mod open_external;
 pub mod orient;
 pub mod proxy;
 pub mod search;
@@ -156,7 +157,10 @@ pub fn run() {
             empty_trash,
             reveal_item,
             video_codecs,
-            open_items,
+            open_external::open_items,
+            open_external::open_items_with,
+            open_external::open_for_edit,
+            open_external::default_edit_folder,
             set_rating,
             set_favorite,
             set_pinned,

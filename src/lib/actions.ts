@@ -19,6 +19,7 @@ import { openGuarded } from "./libraryLock";
 import { showHud } from "../components/ActionHud";
 import { warn } from "./log";
 import { notifyIfAway } from "./osNotify";
+import { isMac } from "./shortcuts";
 
 const st = () => useStore.getState();
 
@@ -905,16 +906,25 @@ export function exportSelection(ids: string[]) {
   if (ids.length) exportList({ kind: "ids", ids });
 }
 
+/** Asks before opening many items at once (each one opens its own window). */
+async function confirmOpenMany(count: number, title: string, what: string): Promise<boolean> {
+  if (count <= 10) return true;
+  return ask(`${count} 件を${what}。よろしいですか？`, { title, okLabel: "開く", cancelLabel: "キャンセル" });
+}
+
+/** The selection less bookmarks: they have no file to hand to another app. */
+function withoutBookmarks(ids: string[]): string[] {
+  const kinds = new Map(st().rawItems.map((i) => [i.id, i.kind]));
+  return ids.filter((id) => kinds.get(id) !== "bookmark");
+}
+
+/**
+ * Opens items to look at, in their default app. The stored file goes as is,
+ * read-only so the app can't save over it (docs/OPEN_EXTERNAL.md).
+ */
 export async function openSelection(ids: string[]) {
   if (!ids.length) return;
-  if (ids.length > 10) {
-    const ok = await ask(`${ids.length} 件を既定のアプリで開きます。よろしいですか？`, {
-      title: "既定のアプリで開く",
-      okLabel: "開く",
-      cancelLabel: "キャンセル",
-    });
-    if (!ok) return;
-  }
+  if (!(await confirmOpenMany(ids.length, "既定のアプリで開く", "既定のアプリで開きます"))) return;
   // A bookmark opens its page in the browser; the rest in their default app.
   const pages = new Map(st().items.filter((i) => i.kind === "bookmark" && i.sourceUrl).map((i) => [i.id, i.sourceUrl!]));
   const files = ids.filter((id) => !pages.has(id));
@@ -925,6 +935,49 @@ export async function openSelection(ids: string[]) {
     }
     if (files.length) await api.openItems(files);
   });
+}
+
+/**
+ * Opens items to look at, in an app the user picks (read-only, as above):
+ * on macOS an app from the Applications folder, on Windows the system's
+ * "プログラムから開く" for each file.
+ */
+export async function openSelectionWith(ids: string[]) {
+  const files = withoutBookmarks(ids);
+  if (!files.length) return;
+  if (!(await confirmOpenMany(files.length, "アプリを選んで開く", "選んだアプリで開きます"))) return;
+  let app: string | null = null;
+  if (isMac) {
+    const picked = await open({
+      title: "開くアプリを選択",
+      defaultPath: "/Applications",
+      filters: [{ name: "アプリケーション", extensions: ["app"] }],
+    });
+    if (typeof picked !== "string") return;
+    app = picked;
+  }
+  await st().run(() => api.openItemsWith(files, app));
+}
+
+/**
+ * Opens items to edit: copies written to the edit folder (書類/Stockroom
+ * unless set otherwise) under their names, each opened in its default app.
+ * The copies are the user's; bring an edited one back by dropping it in.
+ */
+export async function openSelectionForEdit(ids: string[]) {
+  const files = withoutBookmarks(ids);
+  if (!files.length) return;
+  if (!(await confirmOpenMany(files.length, "編集用に書き出して開く", "書き出して開きます"))) return;
+  try {
+    const r = await api.openForEdit(files);
+    st().notify({
+      title: `${r.count} 件を書き出して開きました`,
+      detail: r.folder,
+      action: { label: "書き出し先を表示", onClick: () => st().run(() => api.revealPath(r.folder)) },
+    });
+  } catch (e) {
+    st().toast(String(e), true);
+  }
 }
 
 // -------------------------------------------------------- smart folders

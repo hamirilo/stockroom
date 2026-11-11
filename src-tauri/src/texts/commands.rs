@@ -88,6 +88,9 @@ pub async fn save_text(app: AppHandle, id: String, text: String) -> CmdResult<Sa
         if data == old {
             return Ok(saved);
         }
+        // Read-only once opened in another app (docs/OPEN_EXTERNAL.md); Windows
+        // won't rename over it then. The saved file is a new one, writable.
+        let _ = library::unprotect(&path);
         replace_file(&path, &data).map_err(err)?;
         let hash = hex::encode(Sha256::digest(&data));
         // A new name, so the list doesn't show the old one from its cache.
