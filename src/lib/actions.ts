@@ -939,15 +939,15 @@ export async function openSelection(ids: string[]) {
 
 /**
  * Opens items to look at, in an app the user picks (read-only, as above):
- * on macOS an app from the Applications folder, on Windows the system's
- * "プログラムから開く" for each file.
+ * `app` when picked from the list of apps that can open them (macOS, the
+ * item menu's "アプリで開く"); else on macOS an app from the Applications
+ * folder, on Windows the system's "プログラムから開く" for each file.
  */
-export async function openSelectionWith(ids: string[]) {
+export async function openSelectionWith(ids: string[], app: string | null = null) {
   const files = withoutBookmarks(ids);
   if (!files.length) return;
   if (!(await confirmOpenMany(files.length, "アプリを選んで開く", "選んだアプリで開きます"))) return;
-  let app: string | null = null;
-  if (isMac) {
+  if (isMac && !app) {
     const picked = await open({
       title: "開くアプリを選択",
       defaultPath: "/Applications",

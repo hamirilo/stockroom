@@ -75,6 +75,69 @@ pub async fn open_items_with(app: AppHandle, ids: Vec<String>, with: Option<Stri
     .map_err(err)?
 }
 
+/// An app that can open the items, for the list under "アプリで開く".
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppChoice {
+    /// What `open_items_with` takes (`/Applications/Preview.app`).
+    pub path: String,
+    /// As Finder shows it ("プレビュー").
+    pub name: String,
+    /// The default app for all of them.
+    pub default: bool,
+}
+
+/// The apps that can open every one of the items, as Finder's "このアプリケーションで
+/// 開く" lists them: the default app first, the rest by name. Empty where the
+/// OS can't say (Windows, whose own "プログラムから開く" lists them instead).
+#[tauri::command]
+pub async fn apps_for_items(app: AppHandle, ids: Vec<String>) -> CmdResult<Vec<AppChoice>> {
+    let items = item_paths(&app.state::<AppState>(), &ids)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        // The apps go by file type: one file of each extension is enough.
+        let mut seen = std::collections::HashSet::new();
+        let files: Vec<PathBuf> = items
+            .into_iter()
+            .filter(|(it, _)| it.kind != Kind::Bookmark && seen.insert(it.ext.to_lowercase()))
+            .map(|(_, p)| p)
+            .collect();
+        #[cfg(target_os = "macos")]
+        let found: Vec<_> = files.iter().map(|f| mac::apps_for(f)).collect();
+        #[cfg(not(target_os = "macos"))]
+        let found: Vec<(Vec<PathBuf>, Option<PathBuf>)> = files.iter().map(|_| (vec![], None)).collect();
+        Ok(choices(&found, app_name))
+    })
+    .await
+    .map_err(err)?
+}
+
+/// The app's name as Finder shows it.
+fn app_name(path: &Path) -> String {
+    #[cfg(target_os = "macos")]
+    return mac::display_name(path);
+    #[cfg(not(target_os = "macos"))]
+    path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+/// `apps_for_items` from each file type's (apps, default app): the apps all
+/// of them have, the default one only when it is the same for all.
+fn choices(found: &[(Vec<PathBuf>, Option<PathBuf>)], name: impl Fn(&Path) -> String) -> Vec<AppChoice> {
+    let Some(((first, _), rest)) = found.split_first() else { return vec![] };
+    let mut apps: Vec<&PathBuf> = Vec::new();
+    for a in first {
+        if !apps.contains(&a) && rest.iter().all(|(others, _)| others.contains(a)) {
+            apps.push(a);
+        }
+    }
+    let default = found[0].1.as_ref().filter(|d| found.iter().all(|(_, x)| x.as_ref() == Some(*d)));
+    let mut out: Vec<AppChoice> = apps
+        .into_iter()
+        .map(|a| AppChoice { path: a.display().to_string(), name: name(a), default: Some(a) == default })
+        .collect();
+    out.sort_by(|a, b| b.default.cmp(&a.default).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+    out
+}
+
 /// Where copies for editing go: the folder set in 設定 › 一般, else
 /// 書類/Stockroom. Not made here.
 pub fn edit_folder(app: &AppHandle) -> CmdResult<PathBuf> {
@@ -130,6 +193,39 @@ fn write_copies<'a>(dir: &Path, items: impl Iterator<Item = (Kind, &'a str, &'a 
         .collect()
 }
 
+/// Asking macOS which apps open a file (Launch Services, through NSWorkspace).
+#[cfg(target_os = "macos")]
+mod mac {
+    use objc2::runtime::NSObjectProtocol;
+    use objc2::sel;
+    use objc2_app_kit::NSWorkspace;
+    use objc2_foundation::{NSFileManager, NSString, NSURL};
+    use std::path::{Path, PathBuf};
+
+    fn path_of(url: &NSURL) -> Option<PathBuf> {
+        url.path().map(|p| PathBuf::from(p.to_string()))
+    }
+
+    /// The apps that can open `file` (as Finder lists them) and its default app.
+    pub fn apps_for(file: &Path) -> (Vec<PathBuf>, Option<PathBuf>) {
+        let ws = NSWorkspace::sharedWorkspace();
+        let url = NSURL::fileURLWithPath(&NSString::from_str(&file.to_string_lossy()));
+        let default = ws.URLForApplicationToOpenURL(&url).and_then(|u| path_of(&u));
+        // macOS 12 and later; before that, only the default app is known.
+        if !ws.respondsToSelector(sel!(URLsForApplicationsToOpenURL:)) {
+            return (default.iter().cloned().collect(), default);
+        }
+        let apps = ws.URLsForApplicationsToOpenURL(&url).iter().filter_map(|u| path_of(&u)).collect();
+        (apps, default)
+    }
+
+    /// "プレビュー" for `/System/Applications/Preview.app`, in the user's language.
+    pub fn display_name(app: &Path) -> String {
+        let name = NSFileManager::defaultManager().displayNameAtPath(&NSString::from_str(&app.to_string_lossy())).to_string();
+        name.strip_suffix(".app").map(str::to_owned).unwrap_or(name)
+    }
+}
+
 /// The system's "プログラムから開く" on Windows.
 #[cfg(windows)]
 mod win {
@@ -162,6 +258,26 @@ mod win {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apps_that_open_every_type() {
+        let p = |s: &str| PathBuf::from(format!("/Applications/{s}.app"));
+        let name = |a: &Path| a.file_stem().unwrap().to_string_lossy().into_owned();
+        let pdf = (vec![p("Preview"), p("Acrobat"), p("PDF One"), p("Safari")], Some(p("PDF One")));
+        let ai = (vec![p("Acrobat"), p("Illustrator"), p("Preview")], Some(p("Illustrator")));
+        let names = |c: &[AppChoice]| c.iter().map(|a| (a.name.clone(), a.default)).collect::<Vec<_>>();
+
+        // One type: its default first, the rest by name.
+        let one = choices(std::slice::from_ref(&pdf), name);
+        assert_eq!(
+            names(&one),
+            [("PDF One".into(), true), ("Acrobat".into(), false), ("Preview".into(), false), ("Safari".into(), false)]
+        );
+        assert_eq!(one[0].path, "/Applications/PDF One.app");
+        // Two types: only the apps both have; their defaults differ, so none is marked.
+        assert_eq!(names(&choices(&[pdf, ai], name)), [("Acrobat".into(), false), ("Preview".into(), false)]);
+        assert!(choices(&[], name).is_empty());
+    }
 
     #[test]
     fn copies_for_editing_are_writable_and_named_as_the_items() {

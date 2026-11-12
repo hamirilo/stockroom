@@ -83,3 +83,8 @@ windows = { version = "0.62", features = ["Win32_Graphics_Imaging", "Win32_Syste
 # System proxy lookup (PAC) for the updater, see proxy.rs.
 [target."cfg(target_os = \"macos\")".dependencies]
 core-foundation-sys = "0.8"
+# The apps that can open a file, for "アプリで開く" (open_external.rs). The
+# versions Tauri already uses, so they add little to the build.
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSEnumerator", "NSFileManager", "NSString", "NSURL"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace"] }

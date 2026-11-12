@@ -59,6 +59,16 @@ export interface AppSettings {
   editFolder: string | null;
 }
 
+/** An app that can open the items (the list under "アプリで開く", macOS). */
+export interface AppChoice {
+  /** For `openItemsWith` ("/Applications/Preview.app"). */
+  path: string;
+  /** As Finder shows it ("プレビュー"). */
+  name: string;
+  /** The default app for all of them. */
+  default: boolean;
+}
+
 /** What "編集用に書き出して開く" wrote. */
 export interface EditCopies {
   folder: string;
@@ -561,6 +571,11 @@ export const api = {
    * Windows the system asks for each file. Resolves to how many were opened.
    */
   openItemsWith: (ids: string[], app: string | null) => invoke<number>("open_items_with", { ids, with: app }),
+  /**
+   * The apps that can open every one of the items, the default first (as
+   * Finder's "このアプリケーションで開く"). Empty on Windows.
+   */
+  appsForItems: (ids: string[]) => invoke<AppChoice[]>("apps_for_items", { ids }),
   /** Copies into the edit folder, each opened in its default app. */
   openForEdit: (ids: string[]) => invoke<EditCopies>("open_for_edit", { ids }),
   /** The edit folder when none is set: 書類/Stockroom. */

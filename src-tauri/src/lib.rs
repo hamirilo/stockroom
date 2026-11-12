@@ -159,6 +159,7 @@ pub fn run() {
             video_codecs,
             open_external::open_items,
             open_external::open_items_with,
+            open_external::apps_for_items,
             open_external::open_for_edit,
             open_external::default_edit_folder,
             set_rating,

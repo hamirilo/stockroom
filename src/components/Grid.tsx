@@ -14,10 +14,11 @@ import {
   setRating,
   toggleFavorite,
   pickKind,
+  openSelectionWith,
 } from "../lib/actions";
 import { command, isEnabled, runKey } from "../lib/commands";
 import { applicable, commandIcon, commandItem } from "../lib/menuItems";
-import { api, durationLabel, formatBytes, sizeLabel, urlLabel, type Item, type ItemKind } from "../lib/api";
+import { api, durationLabel, formatBytes, sizeLabel, urlLabel, type AppChoice, type Item, type ItemKind } from "../lib/api";
 import { itemsNoun, kindsNoun } from "../lib/kinds";
 import { colorHex } from "../lib/colors";
 import type { Section } from "../lib/grouping";
@@ -487,6 +488,32 @@ function Stars({ n, size = 9 }: { n: number; size?: number }) {
   );
 }
 
+/**
+ * "アプリで開く ▸" on macOS (docs/OPEN_EXTERNAL.md): the apps that can open
+ * all of `ids`, as Finder lists them (the default app, then the rest by
+ * name), and "その他…" to pick any app. `apps` is null while being looked up.
+ */
+function appsMenu(ids: string[], apps: AppChoice[] | null, disabled: boolean): MenuItem {
+  const note = (label: string): MenuItem => ({ label, onClick: () => {}, disabled: true });
+  const pick = (a: AppChoice): MenuItem => ({
+    label: a.default ? `${a.name}（既定）` : a.name,
+    onClick: () => void openSelectionWith(ids, a.path),
+  });
+  const first = apps?.filter((a) => a.default) ?? [];
+  const rest = apps?.filter((a) => !a.default) ?? [];
+  const list: MenuItem[] =
+    apps === null
+      ? [note("アプリを探しています…")]
+      : apps.length === 0
+        ? [note("開けるアプリが見つかりません")]
+        : [...first.map(pick), ...(first.length && rest.length ? [{ separator: true as const }] : []), ...rest.map(pick)];
+  return {
+    label: "アプリで開く",
+    disabled,
+    submenu: [...list, { separator: true }, { label: "その他…", onClick: () => void openSelectionWith(ids) }],
+  };
+}
+
 /** The menu of an item (and the rest of the selection); also the details panel's "…". */
 export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: number }, item: Item, index: number) {
   const s0 = useStore.getState();
@@ -507,11 +534,14 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
   const rotate = applicable(["item.rotateCcw", "item.rotateCw", "item.flipH", "item.flipV"]);
   const turned = isEnabled(command("item.resetOrientation"), s);
   const folder = currentFolderId();
+  // macOS lists the apps that can open them; Windows's own "プログラムから開く" does that.
+  const canOpenWith = isEnabled(command("item.openWith"), s);
+  const openWith = isMac ? appsMenu(ids, null, !canOpenWith) : commandItem("item.openWith");
   useMenu.getState().show(e, [
     ...header,
     commandItem("item.show", { onClick: () => s.openViewer(index) }),
     commandItem("item.open"),
-    commandItem("item.openWith"),
+    openWith,
     commandItem("item.openForEdit"),
     commandItem("item.reveal", { onClick: () => s.run(() => api.revealItem(item.id)) }),
     { separator: true },
@@ -567,6 +597,16 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
     { separator: true },
     commandItem("item.trash", { danger: true }),
   ]);
+  if (isMac && canOpenWith) {
+    // Filled in once the OS answers, if this menu is still the one open.
+    const shown = useMenu.getState().menu;
+    const fill = (apps: AppChoice[]) => {
+      const m = useMenu.getState().menu;
+      if (m && m === shown)
+        useMenu.setState({ menu: { ...m, items: m.items.map((it) => (it === openWith ? appsMenu(ids, apps, false) : it)) } });
+    };
+    api.appsForItems(ids).then(fill, () => fill([]));
+  }
 }
 
 type Rect = { x1: number; y1: number; x2: number; y2: number };
