@@ -873,6 +873,12 @@ function handle(cmd: string, a: any): unknown {
       const folder = appSettings.editFolder ?? "/Users/mock/Documents/Stockroom";
       return { folder, count: a.ids.filter((id: string) => items.find((i) => i.id === id)?.kind !== "bookmark").length };
     }
+    case "apps_for_items":
+      return [
+        { path: "/Applications/PDF One.app", name: "PDF One", default: true },
+        { path: "/Applications/Adobe Acrobat.app", name: "Adobe Acrobat", default: false },
+        { path: "/System/Applications/Preview.app", name: "プレビュー", default: false },
+      ];
     case "default_edit_folder":
       return "/Users/mock/Documents/Stockroom";
     case "set_rating":
