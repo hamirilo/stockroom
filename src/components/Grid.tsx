@@ -1,5 +1,22 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Check, ChevronDown, ChevronRight, Heart, ImagePlus, Layers, Link2, Pin, Star, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Globe,
+  Heart,
+  ImagePlus,
+  Layers,
+  Link2,
+  NotebookText,
+  Pin,
+  Play,
+  Presentation,
+  Sheet,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -18,8 +35,20 @@ import {
 } from "../lib/actions";
 import { command, isEnabled, runKey } from "../lib/commands";
 import { applicable, commandIcon, commandItem } from "../lib/menuItems";
-import { api, durationLabel, formatBytes, sizeLabel, urlLabel, type AppChoice, type Item, type ItemKind } from "../lib/api";
-import { itemsNoun, kindsNoun } from "../lib/kinds";
+import {
+  api,
+  durationLabel,
+  fileTypeLabel,
+  formatBytes,
+  kindLabel,
+  sizeLabel,
+  textTypeLabel,
+  urlLabel,
+  type AppChoice,
+  type Item,
+  type ItemKind,
+} from "../lib/api";
+import { itemsNoun, kindChip, kindsNoun, type ChipTone } from "../lib/kinds";
 import { colorHex } from "../lib/colors";
 import type { Section } from "../lib/grouping";
 import {
@@ -200,9 +229,68 @@ type CellProps = {
   flags: boolean;
 };
 
-/** Favourite heart (also a toggle on hover) and pin mark on a thumbnail. */
+const CHIP_TONE: Record<ChipTone, string> = {
+  pdf: "bg-red-600",
+  doc: "bg-blue-600",
+  sheet: "bg-green-700",
+  slides: "bg-orange-700",
+  text: "bg-slate-600",
+  video: "bg-violet-600",
+  web: "bg-sky-700",
+};
+
+const CHIP_ICON: Record<ChipTone, typeof FileText> = {
+  pdf: FileText,
+  doc: FileText,
+  sheet: Sheet,
+  slides: Presentation,
+  text: NotebookText,
+  video: Play,
+  web: Globe,
+};
+
+/** Below this width the chip is the icon alone, so it leaves room for the pin and the heart. */
+const CHIP_TEXT_MIN = 120;
+
+/**
+ * Marks at the top left of a thumbnail, in this order: what the item is
+ * (docs/KINDS.md「一覧での見分け」), then pinned and on the shelf. The chip
+ * comes first so it stays put whether the other marks are there or not.
+ */
+function TopLeftMarks({ item, width, flags }: { item: Item; width: number; flags: boolean }) {
+  const chip = kindChip(item);
+  const pinned = flags && item.pinnedAt !== null;
+  const tray = flags && item.inTray;
+  if (!chip && !pinned && !tray) return null;
+  const Icon = chip && CHIP_ICON[chip.tone];
+  const typeName = item.kind === "file" ? fileTypeLabel(item.ext) : item.kind === "text" ? textTypeLabel(item.ext) : chip?.label;
+  return (
+    <span className="pointer-events-none absolute top-1.5 left-1.5 flex gap-1">
+      {chip && Icon && (
+        <span
+          title={typeName === kindLabel(item.kind) ? typeName : `${kindLabel(item.kind)}（${typeName}）`}
+          className={`pointer-events-auto flex h-[19px] items-center gap-1 rounded px-1 text-[10px] leading-none font-semibold tracking-wide text-white shadow ${CHIP_TONE[chip.tone]}`}
+        >
+          <Icon size={11} strokeWidth={2.25} fill={chip.tone === "video" ? "currentColor" : "none"} className="shrink-0" />
+          {width >= CHIP_TEXT_MIN && <span>{chip.label}</span>}
+        </span>
+      )}
+      {pinned && (
+        <span title="ピン留め中（一覧の先頭に表示）" className="pointer-events-auto rounded-full bg-accent-fill p-1 text-white shadow">
+          <Pin size={11} fill="currentColor" strokeWidth={2} />
+        </span>
+      )}
+      {tray && (
+        <span title="シェルフにあります（B で外す）" className="pointer-events-auto rounded-full bg-emerald-600 p-1 text-white shadow">
+          <Layers size={11} strokeWidth={2.25} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Favourite heart on a thumbnail (also a toggle on hover). */
 function FlagOverlay({ item }: { item: Item }) {
-  const trayMark = item.inTray;
   return (
     <>
       <button
@@ -218,20 +306,6 @@ function FlagOverlay({ item }: { item: Item }) {
       >
         <Heart size={13} fill={item.favorite ? "currentColor" : "none"} strokeWidth={2} />
       </button>
-      {(item.pinnedAt !== null || trayMark) && (
-        <span className="pointer-events-none absolute top-1.5 left-1.5 flex gap-1">
-          {item.pinnedAt !== null && (
-            <span title="ピン留め中（一覧の先頭に表示）" className="pointer-events-auto rounded-full bg-accent-fill p-1 text-white shadow">
-              <Pin size={11} fill="currentColor" strokeWidth={2} />
-            </span>
-          )}
-          {trayMark && (
-            <span title="シェルフにあります（B で外す）" className="pointer-events-auto rounded-full bg-emerald-600 p-1 text-white shadow">
-              <Layers size={11} strokeWidth={2.25} />
-            </span>
-          )}
-        </span>
-      )}
     </>
   );
 }
@@ -337,6 +411,7 @@ const Cell = memo(function Cell({
         <Thumb item={item} fit={fit} />
         {similar && <SimilarOverlay item={item} mark={similar} />}
         {flags && <FlagOverlay item={item} />}
+        {!similar && <TopLeftMarks item={item} width={width} flags={flags} />}
         <LinkMark item={item} />
         {item.kind === "video" && item.durationMs != null && (
           <span className="pointer-events-none absolute right-1.5 bottom-1.5 rounded bg-black/65 px-1.5 py-px text-[10px] text-white tabular-nums">
