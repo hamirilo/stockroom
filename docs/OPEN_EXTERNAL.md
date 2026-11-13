@@ -67,6 +67,7 @@
 - **コピーに属性が移る**：Rust の `fs::copy` は権限・属性も写すので、写した先で外す。書き出し・ライブラリ全体の書き出し（`export::copy_out`）、編集用の書き出し（同じ関数）、別のライブラリへのコピー（`transfer.rs` の `copy_dir`）
 - 開けるアプリの一覧（macOS）：`open_external.rs` の `apps_for_items`。Launch Services に `NSWorkspace` の `URLsForApplicationsToOpenURL`（macOS 12 以降。それより前は既定のアプリだけ）と
   `URLForApplicationToOpenURL` で聞き、名前は `NSFileManager` の `displayNameAtPath`（「プレビュー」のように利用者の言語で）。拡張子ごとに 1 つのファイルで聞く。
+  同じアプリが 2 か所にあると両方が返るので、Finder と同じくバンドル ID ごとに 1 つにまとめる（既定のアプリ、なければ `URLForApplicationWithBundleIdentifier` が返すもの、なければ先に返ったもの。`one_per_app`）。
   右クリックのメニューは「アプリを探しています…」で先に出し、答えが来たら入れ替える（`Grid.tsx` の `appsMenu`）
 - アプリを選ぶ画面：macOS は「このアプリで開く」の選択画面を出す公開の API が無いので、アプリケーションのフォルダを開いたファイル選択（`.app`）で選ばせ、`open -a` で渡す。
   Windows は `SHOpenWithDialog`（「常にこのアプリを使う」は出さない。既定のアプリを変えない）。ファイルごとに出し、キャンセルしたら残りは開かない
