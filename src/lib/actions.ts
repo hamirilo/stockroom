@@ -14,6 +14,8 @@ import {
   useStore,
   type ListSource,
   type ToastAction,
+  type ToastOptions,
+  type UndoEntry,
 } from "../store";
 import { openGuarded } from "./libraryLock";
 import { showHud } from "../components/ActionHud";
@@ -29,6 +31,39 @@ const st = () => useStore.getState();
  */
 function hiddenViewAction(entry: string, label: string, view: View): ToastAction | undefined {
   return isHidden(st(), entry) ? { label, onClick: () => st().setView(view) } : undefined;
+}
+
+// ------------------------------------------------------------ taking back (⌘Z)
+
+/**
+ * Records an operation that can be taken back with ⌘Z (docs/NOTIFICATIONS.md).
+ * `toast`, when given, tells of it; without a button of its own it gets
+ * 元に戻す, which takes it back just as ⌘Z does (once, whichever comes first).
+ */
+export function undoable(label: string, undo: () => Promise<unknown> | unknown, toast?: ToastOptions): UndoEntry {
+  const entry: UndoEntry = { label, undo: () => st().run(async () => void (await undo())) };
+  if (toast) {
+    const action = toast.action ?? { label: "元に戻す", onClick: () => void takeBack(entry, false) };
+    entry.toast = st().notify({ ...toast, action });
+    entry.button = !toast.action;
+  }
+  st().pushUndo(entry);
+  return entry;
+}
+
+/** Takes `entry` back once, and closes its toast. `hud`: say so (⌘Z; the toast's button is its own sign). */
+async function takeBack(entry: UndoEntry, hud: boolean) {
+  if (entry.done) return;
+  entry.done = true;
+  st().dropUndo(entry);
+  if (entry.toast !== undefined) st().dismissToast(entry.toast);
+  if ((await entry.undo()) && hud) showHud({ kind: "undo", label: entry.label }, []);
+}
+
+/** ⌘Z outside text fields: takes back the last operation, if any. */
+export function undoLast() {
+  const entry = st().undoStack.at(-1);
+  if (entry) void takeBack(entry, true);
 }
 
 export async function createLibraryDialog() {
@@ -251,14 +286,14 @@ export async function deleteSelection(ids: string[]) {
       ? children.map((i) => ({ id: i.id, parentId: i.parentId, folderId: i.folderId, adopted: i.adopted }))
       : [];
     if (!(await st().run(() => api.trashItems(ids)))) return;
-    st().toast(`${ids.length + linked} 件${linked ? `（紐づけた ${linked} 件を含む）` : ""}をゴミ箱へ移動しました`, false, {
-      label: "元に戻す",
-      onClick: () =>
-        st().run(async () => {
-          await api.restoreItems(ids);
-          if (freed.length) await api.restoreLinks(freed);
-        }),
-    });
+    undoable(
+      "ゴミ箱へ移動",
+      async () => {
+        await api.restoreItems(ids);
+        if (freed.length) await api.restoreLinks(freed);
+      },
+      { title: `${ids.length + linked} 件${linked ? `（紐づけた ${linked} 件を含む）` : ""}をゴミ箱へ移動しました` },
+    );
   }
   selectSuccessor(before, ids);
 }
@@ -347,15 +382,11 @@ export async function confirmDuplicates() {
       effects.some((e) => e.rating != null) ? "評価" : "",
       effects.some((e) => e.folderId) ? "フォルダ" : "",
     ].filter(Boolean);
-    st().toast(
-      `${plan.length} グループの重複 ${removed.length} 枚をゴミ箱へ移動しました` +
+    undoable("重複の整理", () => undoDuplicates(removed, effects), {
+      title:
+        `${plan.length} グループの重複 ${removed.length} 枚をゴミ箱へ移動しました` +
         (carried.length ? `（${carried.join("・")}を残す1枚へ引き継ぎ）` : ""),
-      false,
-      {
-        label: "元に戻す",
-        onClick: () => st().run(() => undoDuplicates(removed, effects)),
-      },
-    );
+    });
   } catch (e) {
     st().toast(String(e), true);
   }
@@ -386,9 +417,8 @@ export async function dismissDuplicates(ids: string[]) {
     await api.dismissDuplicates(ids);
     const gone = new Set(ids);
     useStore.setState({ keepPick: new Set([...st().keepPick].filter((x) => !gone.has(x))) });
-    st().toast(`${ids.length} 枚のグループを重複ではないとしました`, false, {
-      label: "元に戻す",
-      onClick: () => st().run(() => api.undismissDuplicates(ids)),
+    undoable("重複ではないとする", () => api.undismissDuplicates(ids), {
+      title: `${ids.length} 枚のグループを重複ではないとしました`,
     });
   } catch (e) {
     st().toast(String(e), true);
@@ -465,9 +495,9 @@ export async function moveToFolder(ids: string[], folderId: string) {
 
 // ------------------------------------------------------------ links (docs/LINKS.md)
 
-/** What the toast's undo does: puts the children back as they stood. */
-function undoLinks(placements: LinkPlacement[]) {
-  return { label: "元に戻す", onClick: () => st().run(() => api.restoreLinks(placements)) };
+/** A change of links that ⌘Z and the toast take back: the children go back as they stood. */
+function undoLinks(label: string, placements: LinkPlacement[], title: string) {
+  undoable(label, () => api.restoreLinks(placements), { title });
 }
 
 /** Makes `ids` children of `parentId`; they move to the parent's folder. */
@@ -482,7 +512,7 @@ export async function linkItems(parentId: string, ids: string[]) {
   }
   const parent = st().rawItems.find((i) => i.id === parentId);
   if (!st().openParents.has(parentId)) st().toggleParent(parentId);
-  st().toast(`${moved.length} 件を「${parent?.name ?? "親"}」に紐づけました`, false, undoLinks(moved));
+  undoLinks("紐づけ", moved, `${moved.length} 件を「${parent?.name ?? "親"}」に紐づけました`);
 }
 
 /**
@@ -496,7 +526,7 @@ export async function makeParent(id: string) {
   if (!(await st().run(async () => void (was = await api.makeParent(id))))) return;
   if (!was.length) return;
   if (!st().openParents.has(id)) st().toggleParent(id);
-  st().toast(`「${item.name}」を親にしました（${was.length - 1} 件が子になりました）`, false, undoLinks(was));
+  undoLinks("親にする", was, `「${item.name}」を親にしました（${was.length - 1} 件が子になりました）`);
 }
 
 /** Picks the selected child as the adopted one of its parent's children, or takes the pick back (docs/LINKS.md). */
@@ -522,7 +552,7 @@ export async function unlinkItems(ids: string[]) {
   if (!ids.length) return;
   let was: LinkPlacement[] = [];
   if (!(await st().run(async () => void (was = await api.unlinkItems(ids))))) return;
-  st().toast(`${was.length} 件の紐づけを外しました`, false, undoLinks(was));
+  undoLinks("紐づけを外す", was, `${was.length} 件の紐づけを外しました`);
 }
 
 /**
@@ -668,6 +698,8 @@ const openShelfAction = (): ToastAction | undefined =>
  */
 export async function addToTray(ids: string[], { show = false } = {}) {
   if (!ids.length) return;
+  const there = new Set(st().shelf.map((i) => i.id));
+  const fresh = [...new Set(ids.filter((id) => !there.has(id)))];
   let added = 0;
   const ok = await st().run(async () => {
     added = await api.addToTray(ids);
@@ -675,11 +707,20 @@ export async function addToTray(ids: string[], { show = false } = {}) {
   if (!ok) return;
   if (added && show) st().setPanelTab("shelf");
   st().flashTarget("tray");
+  if (!added) {
+    st().toast("すでにシェルフにあります");
+    return;
+  }
   // The shelf in view shows it (the new chips, the count, the flash), so no
   // toast then; out of view, only the tab's count would change (docs/NOTIFICATIONS.md).
-  if (!added) st().toast("すでにシェルフにあります");
-  else if (!shelfShown(st())) st().toast(`${added} 件をシェルフに追加しました`, false, openShelfAction());
+  const toast = shelfShown(st())
+    ? undefined
+    : { title: `${added} 件をシェルフに追加しました`, action: openShelfAction() };
+  shelfAdded = { ids: fresh, entry: undoable("シェルフに追加", () => api.removeFromTray(fresh), toast) };
 }
+
+/** The last adding to the shelf: taking those off again closes its toast. */
+let shelfAdded: { ids: string[]; entry: UndoEntry } | null = null;
 
 /** B: puts items on the shelf, or takes them off when all are already there. */
 export async function toggleTray(ids: string[]) {
@@ -692,10 +733,18 @@ export async function toggleTray(ids: string[]) {
 export async function removeFromShelf(ids: string[]) {
   if (!ids.length) return;
   if (!(await st().run(() => api.removeFromTray(ids)))) return;
-  st().toast(`${ids.length} 件をシェルフから外しました`, false, {
-    label: "元に戻す",
-    onClick: () => st().run(() => api.addToTray(ids)),
-  });
+  // No toast: on the shelf (or compared from it) the chip goes away in sight;
+  // elsewhere (B, the details panel's button) the HUD says so. ⌘Z puts them back.
+  undoable("シェルフから外す", () => api.addToTray(ids));
+  const s = st();
+  if (!shelfShown(s) && !s.comparing) showHud({ kind: "shelfOff" }, ids);
+  // Put on and taken off again: the toast of the putting on says nothing now.
+  if (shelfAdded) {
+    const off = new Set(ids);
+    const { entry } = shelfAdded;
+    if (shelfAdded.ids.every((id) => off.has(id)) && entry.toast !== undefined) s.dismissToast(entry.toast);
+    shelfAdded = null;
+  }
 }
 
 /** Moves shelf items `ids` in front of `before` (null = to the end). */
@@ -708,10 +757,7 @@ export async function clearTray() {
   const ids = st().shelf.map((i) => i.id);
   if (!ids.length) return;
   if (!(await st().run(() => api.removeFromTray(ids)))) return;
-  st().toast(`シェルフを空にしました（${ids.length} 件）`, false, {
-    label: "元に戻す",
-    onClick: () => st().run(() => api.addToTray(ids)),
-  });
+  undoable("シェルフを空にする", () => api.addToTray(ids), { title: `シェルフを空にしました（${ids.length} 件）` });
 }
 
 /** Items of the kinds shown in `view`, in the list's sort (the tray: its own order). */
@@ -1131,11 +1177,9 @@ export async function setVideoThumb(id: string, source: VideoThumbSource) {
   const item = st().rawItems.find((i) => i.id === id);
   if (!(await st().run(() => api.setVideoThumb(id, source)))) return;
   // Back to the frame is the undo when that is what it had; a picture set before isn't kept.
-  st().toast(
-    `「${item?.name ?? "動画"}」のサムネイルを変えました`,
-    false,
-    item && !item.ownThumb ? { label: "元に戻す", onClick: () => resetVideoThumb(id) } : undefined,
-  );
+  const title = `「${item?.name ?? "動画"}」のサムネイルを変えました`;
+  if (item && !item.ownThumb) undoable("サムネイルの変更", () => api.resetVideoThumb(id), { title });
+  else st().toast(title);
 }
 
 /** Picks an image file and makes it the video's thumbnail. */

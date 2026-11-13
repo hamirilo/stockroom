@@ -62,12 +62,14 @@ import {
   transferList,
   trayList,
   pickKind,
+  undoLast,
 } from "./actions";
 import { api, kindLabel, type Item, type ItemKind } from "./api";
 import { checkForUpdate, openReleaseNotes } from "./update";
 import { COMPARE_ZOOM, currentFolderId, listKinds, shelfShown, shownKinds, useStore, zoomLook } from "../store";
 import { ALL_KINDS, kindsNoun, rangeKinds } from "./kinds";
 import { useShortcutHelp } from "../components/ShortcutHelp";
+import { isMac } from "./shortcuts";
 import { createText } from "../features/texts/actions";
 
 type S = ReturnType<typeof useStore.getState>;
@@ -309,6 +311,20 @@ const ALL_COMMANDS: Command[] = [
     keys: ["Mod+Shift+F"],
     // The filter row is always there: the key takes the focus to its first condition.
     run: () => document.querySelector<HTMLElement>("[data-filter-row] button:not(:disabled)")?.focus(),
+  },
+  {
+    id: "edit.undo",
+    title: "取り消す",
+    label: (s) => {
+      const last = s.undoStack.at(-1);
+      return last ? `取り消す：${last.label}` : "取り消す";
+    },
+    icon: Undo2,
+    keys: ["Mod+Z"],
+    // On macOS the menu bar's item takes ⌘Z in text fields too (it stands in
+    // for the system's Undo), so it is never greyed out there.
+    enabled: (s) => isMac || s.undoStack.length > 0,
+    run: () => (typing() ? void document.execCommand("undo") : undoLast()),
   },
   {
     id: "edit.selectAll",

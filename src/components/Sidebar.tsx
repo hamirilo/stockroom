@@ -40,6 +40,7 @@ import {
   sheetList,
   transferList,
   trayList,
+  undoable,
 } from "../lib/actions";
 import { api, kindLabel, type Folder, type ItemKind, type KindCounts, type View } from "../lib/api";
 import { inScope, rangeKinds } from "../lib/kinds";
@@ -93,10 +94,9 @@ function hideItem(id: string): MenuItem {
       const scope = sidebarScope(s);
       const before = sidebarHidden(s, scope);
       s.setSidebarHidden([...before, id], scope);
-      s.notify({
+      undoable("サイドバーから隠す", () => useStore.getState().setSidebarHidden(before, scope), {
         title: `「${sidebarEntryLabel(id)}」をサイドバーから隠しました`,
         detail: scope === "app" ? "すべてのライブラリ（アプリ全体の設定）" : "このライブラリだけ",
-        action: { label: "元に戻す", onClick: () => useStore.getState().setSidebarHidden(before, scope) },
       });
     },
   };

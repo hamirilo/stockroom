@@ -1,11 +1,12 @@
-import { FlipHorizontal2, FlipVertical2, Heart, HeartOff, Pin, PinOff, Star, Undo2 } from "lucide-react";
+import { FlipHorizontal2, FlipVertical2, Heart, HeartOff, PackageMinus, Pin, PinOff, Star, Undo2 } from "lucide-react";
 import { RotateLeft, RotateRight } from "../lib/icons";
 import { create } from "zustand";
 import type { OrientOp } from "../lib/api";
 
 /**
  * What an operation just did, for the ones that give no other sign: rating
- * with a number key, F / P, rotating. The thumbnail may not show the change
+ * with a number key, F / P, rotating, taking off the shelf out of its sight,
+ * ⌘Z. The thumbnail may not show the change
  * (ratings are hidden by default) or may be off screen, so a short note
  * appears at the bottom centre and the changed thumbnails flash once.
  * Operations done on the control itself (the heart, the stars) skip it.
@@ -13,7 +14,10 @@ import type { OrientOp } from "../lib/api";
 export type HudContent =
   | { kind: "rating"; rating: number }
   | { kind: "favorite" | "pin"; on: boolean }
-  | { kind: "orient"; op: OrientOp };
+  | { kind: "orient"; op: OrientOp }
+  | { kind: "shelfOff" }
+  /** ⌘Z took back `label` (docs/NOTIFICATIONS.md). */
+  | { kind: "undo"; label: string };
 
 type HudState = {
   /** `n` restarts the animation when the same thing is done again. */
@@ -92,6 +96,21 @@ function Body({ hud }: { hud: HudContent }) {
         <>
           <PinOff size={16} className="text-white/60" />
           ピン留めを外しました
+        </>
+      );
+    case "shelfOff":
+      return (
+        <>
+          <PackageMinus size={16} className="text-white/60" />
+          シェルフから外しました
+        </>
+      );
+    case "undo":
+      return (
+        <>
+          <Undo2 size={16} className="text-accent" />
+          取り消しました
+          <span className="text-white/60">{hud.label}</span>
         </>
       );
     case "orient": {
