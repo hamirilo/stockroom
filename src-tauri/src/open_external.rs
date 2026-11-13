@@ -138,6 +138,26 @@ fn choices(found: &[(Vec<PathBuf>, Option<PathBuf>)], name: impl Fn(&Path) -> St
     out
 }
 
+/// The same app installed in two places (one bundle ID) once, as Finder
+/// lists it. Apps as (path, bundle ID); the copy with the highest `rank`
+/// stays, the first one on a tie. Without an ID, every copy stays.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn one_per_app(apps: Vec<(PathBuf, Option<String>)>, rank: impl Fn(&Path, &str) -> u8) -> Vec<PathBuf> {
+    let mut out: Vec<(PathBuf, Option<String>)> = Vec::new();
+    for (path, id) in apps {
+        let same = id.as_deref().and_then(|id| out.iter().position(|(_, o)| o.as_deref() == Some(id)));
+        match (same, id.as_deref()) {
+            (Some(i), Some(id)) => {
+                if rank(&path, id) > rank(&out[i].0, id) {
+                    out[i].0 = path;
+                }
+            }
+            _ => out.push((path, id)),
+        }
+    }
+    out.into_iter().map(|(p, _)| p).collect()
+}
+
 /// Where copies for editing go: the folder set in 設定 › 一般, else
 /// 書類/Stockroom. Not made here.
 pub fn edit_folder(app: &AppHandle) -> CmdResult<PathBuf> {
@@ -199,7 +219,7 @@ mod mac {
     use objc2::runtime::NSObjectProtocol;
     use objc2::sel;
     use objc2_app_kit::NSWorkspace;
-    use objc2_foundation::{NSFileManager, NSString, NSURL};
+    use objc2_foundation::{NSBundle, NSFileManager, NSString, NSURL};
     use std::path::{Path, PathBuf};
 
     fn path_of(url: &NSURL) -> Option<PathBuf> {
@@ -215,8 +235,25 @@ mod mac {
         if !ws.respondsToSelector(sel!(URLsForApplicationsToOpenURL:)) {
             return (default.iter().cloned().collect(), default);
         }
-        let apps = ws.URLsForApplicationsToOpenURL(&url).iter().filter_map(|u| path_of(&u)).collect();
-        (apps, default)
+        let apps = ws
+            .URLsForApplicationsToOpenURL(&url)
+            .iter()
+            .filter_map(|u| {
+                let id = NSBundle::bundleWithURL(&u).and_then(|b| b.bundleIdentifier()).map(|s| s.to_string());
+                Some((path_of(&u)?, id))
+            })
+            .collect();
+        // Copies of one app: the default one, else the one macOS opens for its ID.
+        let rank = |app: &Path, id: &str| {
+            if default.as_deref() == Some(app) {
+                2
+            } else if ws.URLForApplicationWithBundleIdentifier(&NSString::from_str(id)).and_then(|u| path_of(&u)).as_deref() == Some(app) {
+                1
+            } else {
+                0
+            }
+        };
+        (super::one_per_app(apps, rank), default)
     }
 
     /// "プレビュー" for `/System/Applications/Preview.app`, in the user's language.
@@ -277,6 +314,27 @@ mod tests {
         // Two types: only the apps both have; their defaults differ, so none is marked.
         assert_eq!(names(&choices(&[pdf, ai], name)), [("Acrobat".into(), false), ("Preview".into(), false)]);
         assert!(choices(&[], name).is_empty());
+    }
+
+    #[test]
+    fn one_app_in_two_places_is_listed_once() {
+        let p = |s: &str| PathBuf::from(s);
+        let id = |s: &str| Some(s.to_string());
+        let apps = vec![
+            (p("/Applications/Brave Browser.app"), id("com.brave.Browser")),
+            (p("/Applications/Preview.app"), id("com.apple.Preview")),
+            (p("/Users/a/Applications/Brave Browser.app"), id("com.brave.Browser")),
+            (p("/Volumes/x/Old.app"), None),
+            (p("/Volumes/y/Old.app"), None),
+        ];
+        // The copy ranked higher stays, in the first one's place.
+        let home = |a: &Path, _: &str| u8::from(a.starts_with("/Users"));
+        assert_eq!(
+            one_per_app(apps.clone(), home),
+            [p("/Users/a/Applications/Brave Browser.app"), p("/Applications/Preview.app"), p("/Volumes/x/Old.app"), p("/Volumes/y/Old.app")]
+        );
+        // A tie: the first one.
+        assert_eq!(one_per_app(apps, |_, _| 0)[0], p("/Applications/Brave Browser.app"));
     }
 
     #[test]
