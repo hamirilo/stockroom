@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   ListFilter,
   NotebookText,
+  PanelLeftClose,
   Video,
   Folder as FolderIcon,
   FolderPlus,
@@ -16,9 +17,12 @@ import {
   Images,
   Inbox,
   Keyboard,
+  Monitor,
+  Moon,
   MoreHorizontal,
   Pin,
   Share2,
+  Sun,
   Tag as TagIcon,
   Tags,
   Trash2,
@@ -45,6 +49,7 @@ import {
 import { api, kindLabel, type Folder, type ItemKind, type KindCounts, type View } from "../lib/api";
 import { inScope, rangeKinds } from "../lib/kinds";
 import { isMac } from "../lib/shortcuts";
+import { APPEARANCES, parseAppearance } from "../lib/appearance";
 import {
   activeConditions,
   isHidden,
@@ -609,6 +614,52 @@ function useInScope(): (total: number, byKind: KindCounts) => number {
  * images"). One line, a menu: nothing picked is every kind (no 「すべて」 here,
  * that word is the place's). Click picks one, ⌘-click adds or takes off one.
  */
+/**
+ * 外観（システム／ライト／ダーク）。アプリ全体の設定なので、ショートカット一覧・ライブラリと並べて
+ * サイドバーの下端に置く（docs/UI.md「色」）。3 つ並べて、いまどれかを見せる。
+ */
+function AppearanceRow() {
+  const current = parseAppearance(useStore((s) => s.appSettings?.appearance));
+  const icon = { system: <Monitor size={13} />, light: <Sun size={13} />, dark: <Moon size={13} /> };
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-t border-line px-4 py-1.5 text-xs text-dim">
+      外観
+      <div role="group" aria-label="外観" className="ml-auto flex h-6 items-stretch rounded-md track">
+        {APPEARANCES.map((a) => {
+          const on = a.key === current;
+          return (
+            <button
+              key={a.key}
+              aria-pressed={on}
+              title={`${a.label}（⌘/Ctrl+Shift+D で次へ）`}
+              aria-label={a.label}
+              onClick={() => useStore.getState().saveAppSettings({ appearance: a.key })}
+              className={`flex w-7 items-center justify-center rounded ${on ? "thumb" : "text-fg/85 hover:bg-hover hover:text-fg"}`}
+            >
+              {icon[a.key]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** サイドバーを隠すボタン。開くボタンはツールバーの左端（閉じているときだけ出る）。 */
+function SidebarHide({ className }: { className: string }) {
+  const toggle = useStore((s) => s.toggleSidebar);
+  return (
+    <button
+      title="サイドバーを隠す（Tab / ⌘⌥1）"
+      aria-label="サイドバーを隠す"
+      onClick={toggle}
+      className={`${className} h-7 w-7 shrink-0 items-center justify-center rounded-md text-dim hover:bg-ink/5 hover:text-fg`}
+    >
+      <PanelLeftClose size={16} />
+    </button>
+  );
+}
+
 function KindRange() {
   const kinds = useStore(useShallow(rangeKinds));
   const picked = useStore(useShallow((s) => s.filter.kinds));
@@ -842,12 +893,24 @@ export function Sidebar() {
 
   return (
     <aside className="vibrant flex shrink-0 flex-col border-r border-line bg-panel" style={{ width: sidebarWidth }}>
-      {/* macOS: the window buttons' row, which also moves the window. */}
-      <div {...dragRegion()} className="shrink-0" style={{ height: "var(--titlebar)" }} />
+      {/* macOS: the window buttons' row, which also moves the window. サイドバーを隠すボタンはこの帯の右端。 */}
+      <div
+        {...dragRegion()}
+        className="flex shrink-0 items-center justify-end px-2"
+        style={{ height: "var(--titlebar)" }}
+      >
+        <SidebarHide className="sidebar-hide-top" />
+      </div>
       {/* What to show is switched often, the library seldom: the kinds on
           top, the library at the bottom. */}
       <div className="h-2 shrink-0" />
-      <KindRange />
+      {/* 帯が無いとき（Windows・全画面）は、隠すボタンを種類の行の右に置く。 */}
+      <div className="flex shrink-0 items-start">
+        <div className="min-w-0 flex-1">
+          <KindRange />
+        </div>
+        <SidebarHide className="sidebar-hide-row mr-2 mb-2" />
+      </div>
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {shown(looks).map(row)}
         {shown(marks).length > 0 && <div className="h-2" />}
@@ -857,6 +920,7 @@ export function Sidebar() {
         <SmartFolderList />
         <TagList />
       </nav>
+      <AppearanceRow />
       <button
         onClick={() => useShortcutHelp.getState().setOpen(true)}
         className="flex shrink-0 items-center gap-2 border-t border-line px-4 py-2 text-xs text-dim hover:bg-ink/5 hover:text-fg"

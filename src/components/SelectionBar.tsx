@@ -1,29 +1,63 @@
-import { Download, FolderInput, MoreHorizontal, Trash2, X } from "lucide-react";
+import { Download, FolderInput, MoreHorizontal, RotateCcw, Tag, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { RotateLeft, RotateRight } from "../lib/icons";
 import { deleteSelection, exportSelection, orient } from "../lib/actions";
+import { api } from "../lib/api";
 import { appliesTo, command, isEnabled } from "../lib/commands";
 import { comboText } from "../lib/shortcuts";
 import { useStore } from "../store";
 import { showItemMenu } from "./Grid";
+import { TagInput } from "./Inspector";
 
 /**
- * Operations on a selection of two or more, a bar floating at the bottom of the list (docs/MENUS.md §7).
- * Left to right: what is selected, the everyday operations (favorite, tray, rotate,
- * move, export), "…" for the full right-click menu, and — apart behind a divider, in
- * red with its name — the trash, so it isn't hit by mistake while reaching for the rest.
+ * まとめて行う操作のバー。一覧の下に浮かぶ（docs/MENUS.md §7）。
+ * 詳細パネル（情報タブ）には操作を置かず、選んだものに「何かをする」のはここに集める。
+ *
+ * - 2 件以上を選んでいるときに出す。ゴミ箱の中だけは 1 件でも出し、中身を［復元］［完全に削除］にする
+ * - 面は「有効」の色（tonal）。ダークは青みの面、ライトは淡い青
+ * - 左から：件数、印（お気に入り・ピン留め）とシェルフ、回転、移動・書き出し・「その他」（右クリックと同じ）、
+ *   区切りの右にゴミ箱。ゴミ箱は赤い文字と名前付きで離し、押し間違えないようにする
+ * - 名前はバーの幅で段階的に外す（印 → 移動など → ゴミ箱）。ボタンの並びと場所は変えない
  */
 export function SelectionBar() {
   const count = useStore((s) => s.selected.size);
-  const total = useStore((s) => s.rawItems.length);
   const isTrash = useStore((s) => s.view.kind === "trash");
   const state = useStore();
-  // One item is just "what I'm looking at" — its operations are in the details panel and
-  // the right-click menu. The bar is for acting on several at once.
-  if (count < 2 || isTrash) return null;
+  if (count < (isTrash ? 1 : 2)) return null;
   const ids = [...state.selected];
+
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4 @container">
+      <div
+        role="toolbar"
+        aria-label="選択したものの操作"
+        className="pointer-events-auto flex max-w-full animate-fade-in items-center gap-0.5 rounded-[14px] border border-tonal-edge/50 bg-tonal px-2 py-1.5 text-[13px] text-on-tonal shadow-xl shadow-black/40"
+      >
+        <span className="flex shrink-0 items-center gap-2 pr-1.5 pl-2.5 text-sm font-bold tabular-nums">
+          {count} 件を選択中
+          <button
+            title="選択を解除（Esc）"
+            aria-label="選択を解除（Esc）"
+            onClick={() => state.setSelection([])}
+            className="flex h-6 w-6 items-center justify-center rounded-full bg-ink/10 hover:bg-ink/20"
+          >
+            <X size={13} />
+          </button>
+        </span>
+        <Sep />
+        {isTrash ? <TrashActions ids={ids} /> : <Actions ids={ids} />}
+      </div>
+    </div>
+  );
+}
+
+/** ふだんの一覧。 */
+function Actions({ ids }: { ids: string[] }) {
+  const state = useStore();
   const rotatable = appliesTo(command("item.rotateCw"), state);
 
-  const cmd = (id: string) => {
+  // 印とシェルフ。名前は固定（押すたびに変わる言い方はツールチップへ）で、隣を押し出さない。
+  const flag = (id: string) => {
     const c = command(id);
     const Icon = c.icon;
     const key = c.keys?.[0];
@@ -35,6 +69,8 @@ export function SelectionBar() {
         onClick={() => c.run(useStore.getState())}
         disabled={!isEnabled(c, state)}
         active={on}
+        label={c.title}
+        hide="flag"
       >
         {Icon && <Icon size={15} fill={on && id !== "item.tray" ? "currentColor" : "none"} />}
       </Btn>
@@ -48,70 +84,123 @@ export function SelectionBar() {
   };
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4">
-      <div className="pointer-events-auto flex max-w-full animate-fade-in items-center gap-0.5 rounded-xl border border-line bg-raised px-2 py-1.5 text-[13px] shadow-xl shadow-black/40">
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent/20 py-0.5 pr-0.5 pl-2.5 text-xs text-accent tabular-nums">
-          {count} 件を選択中
-          <span className="text-accent/60">/ {total}</span>
-          <button
-            title="選択を解除（Esc）"
-            onClick={() => state.setSelection([])}
-            className="rounded-full p-0.5 hover:bg-accent/25"
-          >
-            <X size={12} />
-          </button>
-        </span>
-        <Sep />
-        {cmd("item.favorite")}
-        {cmd("item.tray")}
-        {rotatable && (
-          <>
-            <Btn title={`左に回転（${comboText("Mod+Shift+L")}）`} onClick={() => orient(ids, "rotateCcw")}>
-              <RotateLeft size={15} />
-            </Btn>
-            <Btn title={`右に回転（${comboText("Mod+Shift+R")}）`} onClick={() => orient(ids, "rotateCw")}>
-              <RotateRight size={15} />
-            </Btn>
-          </>
-        )}
-        <Sep />
-        <Btn
-          title={`フォルダへ移動…（${comboText("Mod+Shift+J")}）`}
-          onClick={() => state.setPicker("move")}
-          label="移動"
+    <>
+      {flag("item.favorite")}
+      {flag("item.pin")}
+      {flag("item.tray")}
+      {rotatable && (
+        <>
+          <Sep />
+          <Btn title={`左に回転（${comboText("Mod+Shift+L")}）`} onClick={() => orient(ids, "rotateCcw")}>
+            <RotateLeft size={15} />
+          </Btn>
+          <Btn title={`右に回転（${comboText("Mod+Shift+R")}）`} onClick={() => orient(ids, "rotateCw")}>
+            <RotateRight size={15} />
+          </Btn>
+        </>
+      )}
+      <Sep />
+      <Btn
+        title={`フォルダへ移動…（${comboText("Mod+Shift+J")}）`}
+        onClick={() => state.setPicker("move")}
+        label="移動…"
+        hide="op"
+      >
+        <FolderInput size={15} />
+      </Btn>
+      <TagButton ids={ids} />
+      <Btn title={`書き出し…（${comboText("Mod+E")}）`} onClick={() => exportSelection(ids)} label="書き出し…" hide="op">
+        <Download size={15} />
+      </Btn>
+      <Btn title="そのほかの操作（右クリックと同じ）" onClick={more} label="その他" hide="op">
+        <MoreHorizontal size={15} />
+      </Btn>
+      <DangerSep />
+      <Btn
+        title={`ゴミ箱へ移動（${comboText("Mod+Backspace")}）`}
+        onClick={() => deleteSelection(ids)}
+        label="ゴミ箱へ"
+        hide="last"
+        danger
+      >
+        <Trash2 size={15} />
+      </Btn>
+    </>
+  );
+}
+
+/**
+ * 「タグ…」：選んだものにまとめてタグを付ける（docs/SHELF.md。シェルフを一覧に広げて選び、ここで付ける）。
+ * バーの上に入力欄を出す。Enter で付けて、続けて入力できる。Esc か外のクリックで閉じる。
+ */
+function TagButton({ ids }: { ids: string[] }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    window.addEventListener("pointerdown", away);
+    return () => window.removeEventListener("pointerdown", away);
+  }, [open]);
+  return (
+    <div ref={box} className="relative flex">
+      <Btn title="タグを付ける" onClick={() => setOpen((o) => !o)} active={open} label="タグ…" hide="op">
+        <Tag size={15} />
+      </Btn>
+      {open && (
+        <div
+          data-modal
+          className="absolute bottom-full left-1/2 mb-3 w-64 -translate-x-1/2 rounded-lg border border-line bg-raised p-2 text-fg shadow-xl"
         >
-          <FolderInput size={15} />
-        </Btn>
-        <Btn
-          title={`書き出し…（${comboText("Mod+E")}）`}
-          onClick={() => exportSelection(ids)}
-          label="書き出し"
-        >
-          <Download size={15} />
-        </Btn>
-        <Btn title="そのほかの操作（右クリックと同じ）" onClick={more}>
-          <MoreHorizontal size={15} />
-        </Btn>
-        <div className="mx-2 h-5 w-px shrink-0 bg-danger/40" />
-        <Btn
-          title={`ゴミ箱へ移動（${comboText("Mod+Backspace")}）`}
-          onClick={() => deleteSelection(ids)}
-          label="ゴミ箱へ"
-          danger
-        >
-          <Trash2 size={15} />
-        </Btn>
-      </div>
+          <div className="mb-1.5 px-0.5 text-[11px] text-dim">{ids.length} 件にタグを付ける</div>
+          <TagInput
+            up
+            autoFocus
+            exclude={new Set()}
+            onDone={() => setOpen(false)}
+            onAdd={(names) => {
+              const s = useStore.getState();
+              s.rememberTags(names);
+              s.run(() => api.addTags(ids, names));
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-const Sep = () => <div className="mx-1.5 h-5 w-px shrink-0 bg-line" />;
+/** ゴミ箱の中：復元と完全に削除（詳細パネルから移した）。 */
+function TrashActions({ ids }: { ids: string[] }) {
+  const run = useStore((s) => s.run);
+  return (
+    <>
+      <Btn title="元の場所に戻す" onClick={() => run(() => api.restoreItems(ids))} label="復元">
+        <RotateCcw size={15} />
+      </Btn>
+      <DangerSep />
+      <Btn title="完全に削除（元に戻せません）" onClick={() => deleteSelection(ids)} label="完全に削除" danger>
+        <Trash2 size={15} />
+      </Btn>
+    </>
+  );
+}
+
+const Sep = () => <div className="mx-1.5 h-5 w-px shrink-0 bg-on-tonal/25" />;
+const DangerSep = () => <div className="mx-2 h-5 w-px shrink-0 bg-danger/50" />;
+
+/** 名前を外す幅（バーの外側のコンテナの内側の幅。全部の名前を出すとバーは約 810px）。よく使う操作ほど後に外す。 */
+const HIDE = {
+  flag: "@max-[56rem]:hidden",
+  op: "@max-[40rem]:hidden",
+  last: "@max-[30rem]:hidden",
+} as const;
 
 function Btn({
   title,
   onClick,
   label,
+  hide,
   active,
   danger,
   disabled,
@@ -120,6 +209,7 @@ function Btn({
   title: string;
   onClick: (e: React.MouseEvent) => void;
   label?: string;
+  hide?: keyof typeof HIDE;
   active?: boolean;
   danger?: boolean;
   disabled?: boolean;
@@ -129,14 +219,19 @@ function Btn({
     <button
       title={title}
       aria-label={title}
+      aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 whitespace-nowrap disabled:off ${
-        danger ? "text-danger enabled:hover:bg-danger/15" : active ? "text-accent enabled:hover:bg-ink/10" : "text-fg/80 enabled:hover:bg-ink/10"
+      className={`flex h-[34px] shrink-0 items-center gap-1.5 rounded-md px-1.5 whitespace-nowrap disabled:off ${
+        danger
+          ? "bg-danger/12 text-danger enabled:hover:bg-danger/20"
+          : active
+            ? "bg-ink/10 font-semibold enabled:hover:bg-ink/15"
+            : "enabled:hover:bg-ink/12"
       }`}
     >
       {children}
-      {label && <span className="@max-lg:hidden max-sm:hidden">{label}</span>}
+      {label && <span className={hide ? HIDE[hide] : undefined}>{label}</span>}
     </button>
   );
 }

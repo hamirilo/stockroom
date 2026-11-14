@@ -67,6 +67,7 @@ import { comboText, isMac } from "../lib/shortcuts";
 import { ChangePulse } from "./ActionHud";
 import { useMenu, type MenuItem } from "./ContextMenu";
 import { startPointerDrag } from "./DragLayer";
+import { GROUPS } from "./ViewMenu";
 
 /** Extra rows rendered above / below the viewport. */
 const OVERSCAN = 600;
@@ -717,6 +718,9 @@ export function Grid() {
   );
   const dropTarget = useStore((s) => (s.drag?.kind === "items" ? s.dropTarget : null));
   const scrollRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  // 区切りの一覧（目次）を開いた場所。null は左上（⌘⌥J で開いたとき）。
+  const [tocAt, setTocAt] = useState<{ x: number; y: number } | null>(null);
   const [width, setWidth] = useState(0);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
   const [marquee, setMarquee] = useState<Rect | null>(null);
@@ -922,9 +926,41 @@ export function Grid() {
     if (h) scrollRef.current?.scrollTo({ top: Math.max(0, h.y - PAD) });
     useStore.getState().setTocOpen(false);
   };
+  // 区切りの見出しを一覧の上端に貼り付ける（docs/GROUP_TOC.md）。いまの区切りの見出しが上へ
+  // 隠れたら上端に出し、次の見出しが近づいたら押し出す。グループ分けしていなければ何も出ない。
+  const headers = placement.headers;
+  const curHeader = headers[current];
+  const nextHeader = headers[current + 1];
+  const pinnedTop =
+    curHeader && curHeader.y - viewport.top < 0
+      ? Math.min(0, nextHeader ? nextHeader.y - viewport.top - (HEADER - 8) : 0)
+      : null;
+  const tocOpen = useStore((s) => s.tocOpen);
+  // 閉じたら開いた場所を忘れる（次に ⌘⌥J で開くときは左上）。グループ分けをやめたら閉じる。
+  useEffect(() => {
+    if (!tocOpen) setTocAt(null);
+  }, [tocOpen]);
+  useEffect(() => {
+    if (!sections.length && useStore.getState().tocOpen) useStore.getState().setTocOpen(false);
+  }, [sections.length]);
+  const openToc = (r?: DOMRect) => {
+    const box = wrapRef.current?.getBoundingClientRect();
+    setTocAt(r && box ? { x: r.left - box.left, y: r.bottom - box.top + 4 } : null);
+    useStore.getState().setTocOpen(true);
+  };
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      {items.length > 0 && <SectionBar items={items} sections={sections} current={current} onJump={jump} />}
+    <div ref={wrapRef} className="relative flex min-h-0 flex-1 flex-col">
+      {pinnedTop !== null && sections[current] && (
+        <div
+          className="absolute left-0 z-10 border-b border-line bg-bg/90 shadow-md shadow-black/15 backdrop-blur"
+          style={{ top: pinnedTop, width }}
+        >
+          <SectionHeader items={items} section={sections[current]} pinned onToc={openToc} />
+        </div>
+      )}
+      {sections.length > 0 && (
+        <TocMenu items={items} sections={sections} current={current} at={tocAt} onJump={jump} />
+      )}
     <div
       ref={scrollRef}
       className="@container relative min-h-0 flex-1 overflow-y-auto"
@@ -951,7 +987,7 @@ export function Grid() {
               {viewKind === "similar" ? (
                 <GroupHeader items={items} section={sections[n]} keepPick={keepPick} />
               ) : (
-                <SectionHeader items={items} section={sections[n]} />
+                <SectionHeader items={items} section={sections[n]} onToc={openToc} />
               )}
             </div>
           ))}
@@ -1002,131 +1038,120 @@ export function Grid() {
 }
 
 /**
- * Above the list, outside its scrolling: the section being read, and the
- * table of contents to jump to any other. One row whether or not the list is
- * in sections, so nothing below moves (docs/UI.md, docs/GROUP_TOC.md).
+ * 区切りの一覧。見出しの名前（「2025年4月 ▾」）を押すと開き、選ぶとその区切りの先頭へ移る
+ * （docs/GROUP_TOC.md）。⌘⌥J（`view.toc`）でも開く。外のクリック・Esc で閉じる。
  */
-function SectionBar({
+function TocMenu({
   items,
   sections,
   current,
+  at,
   onJump,
 }: {
   items: Item[];
   sections: Section[];
   current: number;
+  at: { x: number; y: number } | null;
   onJump: (n: number) => void;
 }) {
   const open = useStore((s) => s.tocOpen);
   const setOpen = useStore((s) => s.setTocOpen);
-  const grouped = sections.length > 0;
-  const unit = (list: Item[]) =>
-    list.every((i) => i.kind === "image") ? "枚" : "件";
-  const count = (s: Section) =>
-    `${s.end - s.start} ${unit(items.slice(s.start, s.end))}`;
-  const here = grouped
-    ? sections[Math.min(current, sections.length - 1)]
-    : null;
+  const groupBy = useStore((s) => s.groupBy);
+  const isSimilar = useStore((s) => s.view.kind === "similar");
   const menu = useRef<HTMLDivElement>(null);
 
-  // Closes on a click elsewhere or Esc; the list keeps its keys meanwhile.
   useEffect(() => {
     if (!open) return;
     const close = (e: Event) => {
-      if (
-        e instanceof KeyboardEvent
-          ? e.key === "Escape"
-          : !menu.current?.contains(e.target as Node)
-      )
-        setOpen(false);
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !menu.current?.contains(e.target as Node)) setOpen(false);
     };
-    window.addEventListener("pointerdown", close);
-    window.addEventListener("keydown", close);
+    // 開いたクリックそのもので閉じないよう、次の操作から受ける。
+    const t = setTimeout(() => {
+      window.addEventListener("pointerdown", close);
+      window.addEventListener("keydown", close);
+    });
     return () => {
+      clearTimeout(t);
       window.removeEventListener("pointerdown", close);
       window.removeEventListener("keydown", close);
     };
   }, [open, setOpen]);
-  // The sections went away (grouping switched off): nothing to show open.
-  useEffect(() => {
-    if (!grouped && open) setOpen(false);
-  }, [grouped, open, setOpen]);
 
+  if (!open) return null;
+  const label = isSimilar ? "グループ" : (GROUPS.find((g) => g.key === groupBy)?.label ?? "グループ");
   return (
     <div
       ref={menu}
-      className="relative z-10 flex h-8 shrink-0 items-center gap-2 border-b border-line px-4 text-xs"
+      data-modal
+      role="menu"
+      className="absolute z-30 max-h-80 w-60 overflow-y-auto rounded-lg border border-line bg-raised p-1 text-xs shadow-xl"
+      style={{ left: at?.x ?? PAD, top: at?.y ?? 36 }}
     >
-      <span className="truncate font-semibold">{here?.title ?? "すべて"}</span>
-      <span className="shrink-0 tabular-nums text-dim">
-        {here ? count(here) : `${items.length} ${unit(items)}`}
-      </span>
-      <button
-        disabled={!grouped}
-        title={
-          grouped ? "グループの目次（⌘⌥J）" : "グループ分けを選ぶと使えます"
-        }
-        onClick={() => setOpen(!open)}
-        className="ml-auto flex min-w-20 items-center justify-center gap-1 rounded-md px-2 py-0.5 ghost disabled:off"
-      >
-        目次 <ChevronDown size={12} />
-      </button>
-      {open && (
-        <div
-          data-modal
-          className="absolute right-4 top-8 max-h-80 w-60 overflow-y-auto rounded-lg border border-line bg-panel p-1 shadow-xl"
-        >
-          {sections.map((s, n) => {
-            const hex = colorHex(s.color);
-            return (
-              <button
-                key={`${s.start}:${n}`}
-                onClick={() => onJump(n)}
-                className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-ink/10 ${n === current ? "bg-ink/10 font-semibold" : ""}`}
-              >
-                {hex && (
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ background: hex }}
-                  />
-                )}
-                {s.rating ? (
-                  <Stars n={s.rating} size={12} />
-                ) : (
-                  <span className="truncate">{s.title}</span>
-                )}
-                <span className="ml-auto shrink-0 tabular-nums text-dim">
-                  {count(s)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <div className="px-2 pt-1 pb-1.5 text-[11px] text-dim">{label}へ移動</div>
+      {sections.map((s, n) => {
+        const hex = colorHex(s.color);
+        return (
+          <button
+            key={`${s.start}:${n}`}
+            role="menuitem"
+            onClick={() => onJump(n)}
+            className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-ink/10 ${n === current ? "bg-ink/10 font-semibold" : ""}`}
+          >
+            {hex && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: hex }} />}
+            {s.rating ? <Stars n={s.rating} size={12} /> : <span className="truncate">{s.title}</span>}
+            <span className="ml-auto shrink-0 text-dim tabular-nums">{countOf(items, s)}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-/** Band above a rating / tag / folder section; clicking it selects the section. */
-function SectionHeader({ items, section }: { items: Item[]; section: Section }) {
+/** 区切りの件数。単位はいつも「件」（ツールバーの件数とそろえる）。 */
+const countOf = (items: Item[], s: Section) => new Set(items.slice(s.start, s.end).map((i) => i.id)).size;
+
+/**
+ * 評価・タグ・フォルダ・年月の区切りの見出し。帯を押すとその区切りをすべて選び、名前（▾ 付き）を
+ * 押すと区切りの一覧を開く。`pinned`：一覧の上端に貼り付いている見出し（Grid が重ねて出す）。
+ */
+function SectionHeader({
+  items,
+  section,
+  pinned,
+  onToc,
+}: {
+  items: Item[];
+  section: Section;
+  pinned?: boolean;
+  onToc: (r: DOMRect) => void;
+}) {
   const { start, end, title, color, rating } = section;
   const hex = colorHex(color);
   return (
     <div
-      className={`flex cursor-default items-center gap-2 text-xs ${start > 0 ? "border-t border-line" : ""}`}
-      style={{ height: HEADER - 8, marginLeft: PAD, marginRight: PAD, marginBottom: 8 }}
+      className={`flex cursor-default items-center gap-2 text-xs ${start > 0 && !pinned ? "border-t border-line" : ""}`}
+      style={{ height: HEADER - 8, marginLeft: PAD, marginRight: PAD, marginBottom: pinned ? 0 : 8 }}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={() => useStore.getState().setSelection(items.slice(start, end).map((i) => i.id))}
       title="クリックでこの区切りをすべて選択"
     >
-      {rating !== undefined && rating > 0 ? <Stars n={rating} size={12} /> : null}
-      {hex && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: hex }} />}
-      <span className={`truncate font-semibold ${rating === 0 ? "text-dim" : ""}`}>
-        {rating !== undefined && rating > 0 ? "" : title}
-      </span>
-      <span className="shrink-0 text-dim tabular-nums">
-        {end - start} {items.slice(start, end).every((i) => i.kind === "image") ? "枚" : "件"}
-      </span>
+      <button
+        title="ほかのグループへ移動（⌘⌥J）"
+        aria-haspopup="menu"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToc(e.currentTarget.getBoundingClientRect());
+        }}
+        className="-ml-1.5 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-ink/10"
+      >
+        {rating !== undefined && rating > 0 ? <Stars n={rating} size={12} /> : null}
+        {hex && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: hex }} />}
+        {!(rating !== undefined && rating > 0) && (
+          <span className={`truncate font-semibold ${rating === 0 ? "text-dim" : ""}`}>{title}</span>
+        )}
+        <ChevronDown size={12} className="shrink-0 text-dim" />
+      </button>
+      <span className="shrink-0 text-dim tabular-nums">{countOf(items, section)} 件</span>
     </div>
   );
 }
@@ -1181,6 +1206,12 @@ function Empty({
   const noun = kindsNoun(kinds);
   const only = kinds.length === 1 ? kinds[0] : null;
   if (kind === "trash") return <p className="mt-24 text-center text-dim">ゴミ箱は空です</p>;
+  if (kind === "tray")
+    return (
+      <p className="mt-24 text-center text-dim">
+        シェルフは空です。ほかの場所で選んで B キーを押すと、ここに集まります
+      </p>
+    );
   if (kind === "similar")
     return (
       <p className="mt-24 text-center text-dim">

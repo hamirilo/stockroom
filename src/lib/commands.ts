@@ -227,7 +227,7 @@ const ALL_COMMANDS: Command[] = [
   // --------------------------------------------------------------- view
   {
     id: "view.appearance",
-    // Quick switch (the toolbar button too): システム → ライト → ダーク → システム.
+    // 次へ切り替える：システム → ライト → ダーク → システム（サイドバーの下端の行では直接選ぶ）。
     title: "外観を切り替え",
     label: (s) => `外観を${appearanceLabel(nextAppearance(parseAppearance(s.appSettings?.appearance)))}にする`,
     keys: ["Mod+Shift+D"],
@@ -267,7 +267,7 @@ const ALL_COMMANDS: Command[] = [
   },
   {
     id: "view.toc",
-    title: "グループの目次",
+    title: "ほかのグループへ移動",
     keys: ["Mod+Alt+J"],
     // Only where the list is in sections (docs/UI.md: greyed out, not removed).
     enabled: (s) => s.sections.length > 0,

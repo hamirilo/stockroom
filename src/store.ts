@@ -273,8 +273,20 @@ interface State {
   shelf: Item[];
   /** What the details panel on the right shows: the selection's information or the shelf; changed only by the user. */
   panelTab: PanelTab;
-  /** The comparison of the shelf's images is shown in place of the list. */
+  /**
+   * 広げたシェルフ（`view` が `tray`）を比較の見せ方で出している（docs/SHELF.md「広げる」）。
+   * 一覧の見せ方のときは false。シェルフを広げていないときはいつも false。
+   */
   comparing: boolean;
+  /** シェルフを広げる前にいた場所。「戻す」でここへ戻る（広げていないときは null）。 */
+  shelfReturn: View | null;
+  /** シェルフの見せ方：タイル（画像だけを正方形で）かリスト（docs/SHELF.md）。 */
+  shelfView: "tile" | "list";
+  /** シェルフの置き方：情報とタブで切り替えるか、情報の下に並べるか。 */
+  shelfLayout: "tab" | "split";
+  /** 情報の下に並べるとき、シェルフの高さ（px）と、見出しだけに畳んでいるか。 */
+  shelfHeight: number;
+  shelfFolded: boolean;
   /** Comparison: the zoom (1 = whole) and the point at the frames' centre (0-1), shared by all images. */
   compareLook: CompareLook;
   /** Bands of `items`: similar-view groups, or the `groupBy` sections. */
@@ -346,6 +358,14 @@ interface State {
    */
   togglePanelTab: (tab: PanelTab) => void;
   setComparing: (on: boolean) => void;
+  /** シェルフを一覧の場所に広げる（docs/SHELF.md）。`look`：一覧か比較か。 */
+  openShelf: (look: "list" | "compare") => void;
+  /** 広げたシェルフを閉じて、広げる前の場所へ戻る。 */
+  closeShelf: () => void;
+  setShelfView: (v: "tile" | "list") => void;
+  setShelfLayout: (v: "tab" | "split") => void;
+  setShelfHeight: (px: number) => void;
+  setShelfFolded: (folded: boolean) => void;
   setCompareLook: (look: CompareLook | ((l: CompareLook) => CompareLook)) => void;
   toggleSidebar: () => void;
   setTocOpen: (open: boolean) => void;
@@ -450,7 +470,11 @@ const clampWidth = (panel: keyof typeof PANEL_WIDTH, px: number) =>
 export type PanelTab = "info" | "shelf";
 
 /** The shelf is in view: the details panel is open on it. */
-export const shelfShown = (s: { inspectorOpen: boolean; panelTab: PanelTab }) => s.inspectorOpen && s.panelTab === "shelf";
+export const shelfShown = (
+  s: Pick<State, "inspectorOpen" | "panelTab" | "view" | "shelfLayout" | "shelfFolded">,
+) =>
+  s.view.kind === "tray" ||
+  (s.inspectorOpen && (s.shelfLayout === "split" ? !s.shelfFolded : s.panelTab === "shelf"));
 
 /**
  * The filter row is on screen: opened by the user, or a smart folder is open
@@ -576,7 +600,8 @@ function arrange(s: {
   folders: Folder[];
 }): { items: Item[]; sections: Section[] } {
   if (s.view.kind === "similar") return { items: s.rawItems, sections: similarSections(s.rawItems) };
-  return groupItems(s.rawItems, s.groupBy, s.tags, s.folders, linksFold(s));
+  // 広げたシェルフはシェルフの順のまま並べる（グループ分けしない）。
+  return groupItems(s.rawItems, s.view.kind === "tray" ? "none" : s.groupBy, s.tags, s.folders, linksFold(s));
 }
 
 /** Children go under their parents in the lists, links on (not the trash or the shelf). */
@@ -662,8 +687,9 @@ export function listQuery(s: QueryState, without?: ConditionKey): ItemQuery {
     // The kinds in use, narrowed by the kind filter.
     filter: { ...st.filter, kinds: queryKinds(st) },
     similarLevel: st.similarLevel,
-    sort: st.sort,
-    desc: st.desc,
+    // 広げたシェルフはシェルフの順（docs/SHELF.md）。
+    sort: st.view.kind === "tray" ? "manual" : st.sort,
+    desc: st.view.kind === "tray" ? false : st.desc,
   };
 }
 
@@ -838,6 +864,11 @@ export const useStore = create<State>((set, get) => ({
   shelf: [],
   panelTab: load("panelTab") === "shelf" ? "shelf" : "info",
   comparing: false,
+  shelfReturn: null,
+  shelfView: load("shelfView") === "list" ? "list" : "tile",
+  shelfLayout: load("shelfLayout") === "split" ? "split" : "tab",
+  shelfHeight: loadNumber("shelfHeight", 320),
+  shelfFolded: load("shelfFolded") === "1",
   compareLook: WHOLE_LOOK,
   sections: [],
   folders: [],
@@ -1009,6 +1040,7 @@ export const useStore = create<State>((set, get) => ({
       view,
       // Going somewhere in the sidebar leaves the comparison for the list.
       comparing: false,
+      ...(view.kind === "tray" ? {} : { shelfReturn: null }),
       selected: new Set(),
       anchor: null,
       focus: null,
@@ -1065,16 +1097,53 @@ export const useStore = create<State>((set, get) => ({
     persist("filterRowOpen", String(filterRowOpen));
   },
   setPanelTab: (panelTab) => {
+    // 情報の下に並べているときは、シェルフを出す＝畳んでいたら開く（タブは無い）。
+    if (get().shelfLayout === "split" && panelTab === "shelf") get().setShelfFolded(false);
     set({ panelTab, inspectorOpen: true });
     persist("panelTab", panelTab);
     persist("inspectorOpen", "true");
   },
   togglePanelTab: (tab) => {
     const s = get();
-    if (s.inspectorOpen && s.panelTab === tab) s.toggleInspector();
+    if (s.shelfLayout === "split" && tab === "shelf") {
+      if (s.inspectorOpen && !s.shelfFolded) s.setShelfFolded(true);
+      else s.setPanelTab("shelf");
+    } else if (s.inspectorOpen && s.panelTab === tab) s.toggleInspector();
     else s.setPanelTab(tab);
   },
-  setComparing: (comparing) => set({ comparing, compareLook: WHOLE_LOOK }),
+  setComparing: (comparing) => {
+    // 比較は広げたシェルフの見せ方。広げていなければ広げてから（docs/SHELF.md）。
+    if (comparing && get().view.kind !== "tray") return get().openShelf("compare");
+    set({ comparing, compareLook: WHOLE_LOOK });
+  },
+  openShelf: (look) => {
+    const s = get();
+    const back = s.view.kind === "tray" ? s.shelfReturn : s.view;
+    if (s.view.kind !== "tray") s.setView({ kind: "tray" });
+    set({ shelfReturn: back, comparing: look === "compare", compareLook: WHOLE_LOOK });
+  },
+  setShelfView: (shelfView) => {
+    set({ shelfView });
+    persist("shelfView", shelfView);
+  },
+  setShelfLayout: (shelfLayout) => {
+    set({ shelfLayout, inspectorOpen: true, ...(shelfLayout === "split" ? { shelfFolded: false } : { panelTab: "shelf" as PanelTab }) });
+    persist("shelfLayout", shelfLayout);
+    persist("shelfFolded", "0");
+  },
+  setShelfHeight: (px) => {
+    const shelfHeight = Math.round(Math.max(120, Math.min(900, px)));
+    set({ shelfHeight });
+    persist("shelfHeight", String(shelfHeight));
+  },
+  setShelfFolded: (shelfFolded) => {
+    set({ shelfFolded });
+    persist("shelfFolded", shelfFolded ? "1" : "0");
+  },
+  closeShelf: () => {
+    const back = get().shelfReturn;
+    get().setView(back && back.kind !== "tray" ? back : { kind: "all" });
+  },
   setCompareLook: (look) => set({ compareLook: typeof look === "function" ? look(get().compareLook) : look }),
   toggleSidebar: () => {
     const sidebarOpen = !get().sidebarOpen;
