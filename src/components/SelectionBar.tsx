@@ -1,4 +1,5 @@
-import { Download, FolderInput, MoreHorizontal, RotateCcw, Trash2, X } from "lucide-react";
+import { Download, FolderInput, MoreHorizontal, RotateCcw, Tag, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { RotateLeft, RotateRight } from "../lib/icons";
 import { deleteSelection, exportSelection, orient } from "../lib/actions";
 import { api } from "../lib/api";
@@ -6,6 +7,7 @@ import { appliesTo, command, isEnabled } from "../lib/commands";
 import { comboText } from "../lib/shortcuts";
 import { useStore } from "../store";
 import { showItemMenu } from "./Grid";
+import { TagInput } from "./Inspector";
 
 /**
  * まとめて行う操作のバー。一覧の下に浮かぶ（docs/MENUS.md §7）。
@@ -106,6 +108,7 @@ function Actions({ ids }: { ids: string[] }) {
       >
         <FolderInput size={15} />
       </Btn>
+      <TagButton ids={ids} />
       <Btn title={`書き出し…（${comboText("Mod+E")}）`} onClick={() => exportSelection(ids)} label="書き出し…" hide="op">
         <Download size={15} />
       </Btn>
@@ -123,6 +126,47 @@ function Actions({ ids }: { ids: string[] }) {
         <Trash2 size={15} />
       </Btn>
     </>
+  );
+}
+
+/**
+ * 「タグ…」：選んだものにまとめてタグを付ける（docs/SHELF.md。シェルフを一覧に広げて選び、ここで付ける）。
+ * バーの上に入力欄を出す。Enter で付けて、続けて入力できる。Esc か外のクリックで閉じる。
+ */
+function TagButton({ ids }: { ids: string[] }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    window.addEventListener("pointerdown", away);
+    return () => window.removeEventListener("pointerdown", away);
+  }, [open]);
+  return (
+    <div ref={box} className="relative flex">
+      <Btn title="タグを付ける" onClick={() => setOpen((o) => !o)} active={open} label="タグ…" hide="op">
+        <Tag size={15} />
+      </Btn>
+      {open && (
+        <div
+          data-modal
+          className="absolute bottom-full left-1/2 mb-3 w-64 -translate-x-1/2 rounded-lg border border-line bg-raised p-2 text-fg shadow-xl"
+        >
+          <div className="mb-1.5 px-0.5 text-[11px] text-dim">{ids.length} 件にタグを付ける</div>
+          <TagInput
+            up
+            autoFocus
+            exclude={new Set()}
+            onDone={() => setOpen(false)}
+            onAdd={(names) => {
+              const s = useStore.getState();
+              s.rememberTags(names);
+              s.run(() => api.addTags(ids, names));
+            }}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -147,7 +191,7 @@ const DangerSep = () => <div className="mx-2 h-5 w-px shrink-0 bg-danger/50" />;
 
 /** 名前を外す幅（バーの外側のコンテナの内側の幅。全部の名前を出すとバーは約 810px）。よく使う操作ほど後に外す。 */
 const HIDE = {
-  flag: "@max-[52rem]:hidden",
+  flag: "@max-[56rem]:hidden",
   op: "@max-[40rem]:hidden",
   last: "@max-[30rem]:hidden",
 } as const;

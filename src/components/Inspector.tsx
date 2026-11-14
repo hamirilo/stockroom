@@ -51,7 +51,23 @@ function folderPath(folders: Folder[], id: string): string {
   return parts.join(" / ");
 }
 
-function TagInput({ onAdd, exclude }: { onAdd: (names: string[]) => void; exclude: Set<number> }) {
+/**
+ * タグを足す入力欄（候補つき）。詳細パネルと、選択バーの「タグ…」で使う。
+ * `up`：候補を上に出す（画面の下にあるとき）。`onDone`：何も開いていないときの Esc で呼ぶ。
+ */
+export function TagInput({
+  onAdd,
+  exclude,
+  up,
+  autoFocus,
+  onDone,
+}: {
+  onAdd: (names: string[]) => void;
+  exclude: Set<number>;
+  up?: boolean;
+  autoFocus?: boolean;
+  onDone?: () => void;
+}) {
   const tags = useStore((s) => s.tags);
   const recentTags = useStore((s) => s.recentTags);
   const [text, setText] = useState("");
@@ -112,17 +128,22 @@ function TagInput({ onAdd, exclude }: { onAdd: (names: string[]) => void; exclud
           } else if (e.key === "Escape") {
             if (open && suggestions.length) {
               setOpen(false);
+            } else if (onDone) {
+              onDone();
             } else {
               setText("");
               e.currentTarget.blur();
             }
           }
         }}
+        autoFocus={autoFocus}
         placeholder="タグを追加（Enter）"
         className="h-8 w-full rounded-md border border-edge bg-bg px-2 outline-none focus:border-accent"
       />
       {open && suggestions.length > 0 && (
-        <div className="absolute z-10 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-line bg-raised p-1 shadow-xl">
+        <div
+          className={`absolute z-10 max-h-72 w-full overflow-y-auto rounded-lg border border-line bg-raised p-1 shadow-xl ${up ? "bottom-full mb-1" : "mt-1"}`}
+        >
           {suggestions.map((t, i) => (
             <div key={t.id}>
               {!q && (i === 0 || i === recentCount) && (

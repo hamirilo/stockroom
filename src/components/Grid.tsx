@@ -1206,6 +1206,12 @@ function Empty({
   const noun = kindsNoun(kinds);
   const only = kinds.length === 1 ? kinds[0] : null;
   if (kind === "trash") return <p className="mt-24 text-center text-dim">ゴミ箱は空です</p>;
+  if (kind === "tray")
+    return (
+      <p className="mt-24 text-center text-dim">
+        シェルフは空です。ほかの場所で選んで B キーを押すと、ここに集まります
+      </p>
+    );
   if (kind === "similar")
     return (
       <p className="mt-24 text-center text-dim">

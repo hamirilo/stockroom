@@ -1,9 +1,12 @@
 import {
+  ArrowLeft,
   ChevronDown,
   CopyCheck,
   FolderSearch,
+  Layers,
   ListFilter,
   Minus,
+  MoreHorizontal,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
@@ -17,14 +20,20 @@ import { useEffect, useMemo, useState } from "react";
 import { dragRegion } from "../lib/titleBar";
 import {
   clearDismissedDuplicates,
+  clearTray,
   emptyTrash,
+  exportTray,
   keepPlan,
   reviewDuplicates,
+  sheetFromTray,
   similarGroups,
+  transferList,
 } from "../lib/actions";
 import { type Folder, type SimilarLevel, type SmartFolder, type Tag, type View } from "../lib/api";
 import { colorHex } from "../lib/colors";
 import { command } from "../lib/commands";
+import { comboText } from "../lib/shortcuts";
+import { useMenu } from "./ContextMenu";
 import { activeConditions, filterRowShown, placeTotal, useStore } from "../store";
 import { composing } from "../lib/ime";
 import { FilterRow } from "./FilterRow";
@@ -122,6 +131,7 @@ export function Toolbar() {
           )}
           <h1 className="flex min-w-0 items-baseline gap-2 text-base font-semibold">
             {smart && <FolderSearch size={15} className="shrink-0 self-center text-accent" />}
+            {view.kind === "tray" && <Layers size={15} className="shrink-0 self-center text-emerald-600 dark:text-emerald-400" />}
             {view.kind === "tag" && (
               <TagIcon
                 size={15}
@@ -229,6 +239,8 @@ function ViewControls() {
       </button>
     );
 
+  if (view.kind === "tray") return <ShelfViewControls />;
+
   if (!isSimilar) return null;
   return (
     <>
@@ -259,6 +271,74 @@ function ViewControls() {
         className={`${viewAction} ghost disabled:off`}
       >
         <CopyCheck size={14} /> <span className="@max-5xl:hidden">まとめて整理…</span>
+      </button>
+    </>
+  );
+}
+
+/**
+ * 広げたシェルフの操作（docs/SHELF.md「広げているあいだ」）：［一覧｜比較］の見せ方、「…」（まとめて出力・
+ * 書き出し・別のライブラリへ・すべて選択・空にする）、戻す。ツールバーが狭くても収まるよう 3 つだけ出す。
+ * 並びは見せ方を切り替えても変えない（比較のときの「すべて選択」は無効表示）。
+ */
+function ShelfViewControls() {
+  const comparing = useStore((s) => s.comparing);
+  const setComparing = useStore((s) => s.setComparing);
+  const closeShelf = useStore((s) => s.closeShelf);
+  const empty = useStore((s) => s.shelf.length === 0);
+  const comparable = useStore((s) => s.shelf.some((i) => i.kind === "image"));
+  const look = [
+    { on: !comparing, label: "一覧", title: "ふだんのサムネイルで並べる。選んで選択バーで手を入れる", pick: () => setComparing(false), disabled: false },
+    {
+      on: comparing,
+      label: "比較",
+      title: comparable ? "画像を大きく並べ、拡大・移動を一緒に動かして見比べる" : "シェルフに画像がありません（比べられるのは画像です）",
+      pick: () => setComparing(true),
+      disabled: !comparable,
+    },
+  ];
+  return (
+    <>
+      <div role="group" aria-label="広げたシェルフの見せ方" className="flex h-7 shrink-0 items-stretch rounded-md track">
+        {look.map((l) => (
+          <button
+            key={l.label}
+            aria-pressed={l.on}
+            title={l.title}
+            disabled={l.disabled}
+            onClick={l.pick}
+            className={`flex items-center rounded px-2.5 whitespace-nowrap disabled:off ${l.on ? "thumb font-medium" : "text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"}`}
+          >
+            {l.label}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          useMenu.getState().show({ clientX: r.left, clientY: r.bottom + 4 }, [
+            { label: "まとめて出力…", disabled: empty, onClick: sheetFromTray },
+            { label: "書き出し…", disabled: empty, onClick: exportTray },
+            { label: "別のライブラリへ…", disabled: empty, onClick: () => transferList({ kind: "tray" }) },
+            { separator: true },
+            {
+              label: "すべて選択",
+              hint: comboText("Mod+A"),
+              disabled: comparing || empty,
+              onClick: () => command("edit.selectAll").run(useStore.getState()),
+            },
+            { separator: true },
+            { label: "シェルフを空にする", disabled: empty, onClick: clearTray },
+          ]);
+        }}
+        title="まとめて出力・書き出し・すべて選択など"
+        aria-label="広げたシェルフのそのほかの操作"
+        className={`${viewAction} ghost`}
+      >
+        <MoreHorizontal size={15} />
+      </button>
+      <button onClick={closeShelf} title="戻す（広げる前の場所へ戻る）" aria-label="戻す" className={`${viewAction} ghost`}>
+        <ArrowLeft size={14} /> <span className="@max-5xl:hidden">戻す</span>
       </button>
     </>
   );

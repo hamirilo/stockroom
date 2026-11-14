@@ -18,13 +18,15 @@ static CANCEL: AtomicBool = AtomicBool::new(false);
 
 /// Copies the original files into `dest`, never overwriting existing files.
 /// Off the main thread (gigabytes may be copied), holding the library only
-/// to look the items up.
+/// to look the items up. `prefixes[i]`：`ids[i]` のファイル名の先頭に付ける文字
+/// （シェルフの順の連番「001_」など。docs/SHELF.md）。
 #[tauri::command]
 pub async fn export_items(
     app: AppHandle,
     ids: Vec<String>,
     dest: PathBuf,
     subdirs: Option<Vec<String>>,
+    prefixes: Option<Vec<String>>,
 ) -> CmdResult<usize> {
     tauri::async_runtime::spawn_blocking(move || {
         let items = item_paths(&app.state::<AppState>(), &ids)?;
@@ -36,7 +38,11 @@ pub async fn export_items(
                 .map_or("", String::as_str);
             let dir = export_dir(&dest, sub);
             fs::create_dir_all(&dir).map_err(err)?;
-            copy_out(src, &dir, &item.name, &item.ext).map_err(err)?;
+            let prefix = prefixes
+                .as_ref()
+                .and_then(|p| p.get(ids.iter().position(|x| *x == item.id)?))
+                .map_or("", String::as_str);
+            copy_out(src, &dir, &prefixed(prefix, &item.name), &item.ext).map_err(err)?;
         }
         Ok(items.len())
     })
@@ -209,6 +215,11 @@ pub fn copy_out(src: &Path, dir: &Path, name: &str, ext: &str) -> std::io::Resul
     Ok(target)
 }
 
+/// 書き出すときの名前：`prefix` を名前の先頭に付ける（拡張子の扱いは `export_target`）。
+fn prefixed(prefix: &str, name: &str) -> String {
+    format!("{prefix}{name}")
+}
+
 /// `dest/name.ext`, or `name (2).ext`… when taken. Keeps a renamed item's
 /// display name but makes sure the extension is there.
 fn export_target(dest: &Path, name: &str, ext: &str) -> PathBuf {
@@ -239,6 +250,15 @@ mod tests {
         fs::write(d.join("cat.png"), "x").unwrap();
         fs::write(d.join("cat (2).png"), "x").unwrap();
         assert_eq!(export_target(d, "cat.png", "png"), d.join("cat (3).png"));
+    }
+
+    #[test]
+    fn numbered_export_names() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = tmp.path();
+        assert_eq!(export_target(d, &prefixed("001_", "cat.PNG"), "png"), d.join("001_cat.png"));
+        assert_eq!(export_target(d, &prefixed("012_", "renamed"), "jpg"), d.join("012_renamed.jpg"));
+        assert_eq!(export_target(d, &prefixed("", "cat.png"), "png"), d.join("cat.png"));
     }
 
     #[test]

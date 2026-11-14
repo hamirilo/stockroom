@@ -15,6 +15,21 @@ import { composing } from "../lib/ime";
 import { useStore, type ListSource } from "../store";
 
 const LAST_DEST = "exportDest";
+const NUMBERED = "exportNumbered";
+
+/** シェルフの順の番号：「001_」から。件数が 1000 件を超えるときは桁を増やす。 */
+export function numberPrefixes(n: number): string[] {
+  const width = Math.max(3, String(n).length);
+  return Array.from({ length: n }, (_, i) => `${String(i + 1).padStart(width, "0")}_`);
+}
+
+function rememberNumbered(on: boolean) {
+  try {
+    localStorage.setItem(NUMBERED, on ? "1" : "0");
+  } catch {
+    /* not essential */
+  }
+}
 
 function load(key: string): string | null {
   try {
@@ -83,6 +98,9 @@ function Dialog({ source, title }: { source: ListSource; title: string }) {
   const hasSubfolders = isFolder && folders.some((f) => f.parentId === (source as { id: string }).id);
   const [subfolders, setSubfolders] = useState(true);
   const [structure, setStructure] = useState(true);
+  // シェルフからは、シェルフの順に番号を付けられる（docs/SHELF.md「書き出しの連番」）。
+  const fromShelf = source.kind === "tray";
+  const [numbered, setNumbered] = useState(() => load(NUMBERED) !== "0");
   const [items, setItems] = useState<Item[] | null>(null);
   const [dest, setDest] = useState<string | null>(() => load(LAST_DEST));
   const [busy, setBusy] = useState(false);
@@ -113,10 +131,12 @@ function Dialog({ source, title }: { source: ListSource; title: string }) {
     setBusy(true);
     const since = Date.now();
     try {
+      if (fromShelf) rememberNumbered(numbered);
       const n = await api.exportItems(
         items.map((i) => i.id),
         dest,
         dirs ?? undefined,
+        fromShelf && numbered ? numberPrefixes(items.length) : undefined,
       );
       close();
       useStore.getState().notify({
@@ -175,6 +195,15 @@ function Dialog({ source, title }: { source: ListSource; title: string }) {
           )}
         </div>
       )}
+      {fromShelf &&
+        check(
+          numbered,
+          setNumbered,
+          "シェルフの順に番号を付ける",
+          items?.length
+            ? `「${numberPrefixes(items.length)[0]}${items[0].name}」のように、名前の先頭に番号を付けます。ライブラリの中の名前は変わりません`
+            : "名前の先頭に番号を付けます。ライブラリの中の名前は変わりません",
+        )}
       <DestField dest={dest} setDest={setDest} note="同じ名前のファイルがあるときは「名前 (2)」のように番号を付けます" />
     </Frame>
   );

@@ -68,6 +68,7 @@ bun run test           # Rust のユニットテスト + 型チェック
 | [KINDS.md](docs/KINDS.md) | 種類で絞る：サイドバーの範囲（場所と組み合わせて使う） |
 | [FONT_APP.md](docs/FONT_APP.md) | フォントを別のアプリ（Typecase）にした経緯と、残したデータの扱い |
 | [GROUP_TOC.md](docs/GROUP_TOC.md) | グループ分けの目次（いま見ている区切りの表示と、区切りへのジャンプ） |
+| [SHELF.md](docs/SHELF.md) | シェルフの定義（集めたものを順番どおりに使う）と、選択バーとの分け方 |
 | [COMPARE.md](docs/COMPARE.md) | 画像の比較（シェルフの画像を並べ、一緒に拡大して見比べる） |
 | [TEXT.md](docs/TEXT.md) | テキスト（Markdown・テキスト・CSV）：見る・編集・新規作成・文字コード |
 | [VIDEO.md](docs/VIDEO.md) | 動画（MP4・MOV・WebM）：取り込み・サムネイル・再生 |

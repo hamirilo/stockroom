@@ -3,7 +3,7 @@
 // or moving one moves them all, at the same place of each image, so the same
 // part can be looked at in each. docs/COMPARE.md.
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ArrowLeft, Heart, Minus, Plus, X } from "lucide-react";
+import { Heart, Minus, Plus, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { removeFromShelf, setRating } from "../lib/actions";
 import { api, formatBytes, orientTransform, sizeLabel, type Item } from "../lib/api";
@@ -130,16 +130,8 @@ export function ImageCompare() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-2 text-xs">
-        <button
-          onClick={() => setComparing(false)}
-          title="一覧へ戻る（Esc）"
-          className="-ml-1 flex h-7 items-center gap-1.5 rounded-md px-2 hover:bg-ink/5"
-        >
-          <ArrowLeft size={14} /> 一覧へ戻る
-        </button>
-        <span className="text-[13px] font-semibold">
-          比較 <span className="font-normal text-dim tabular-nums">{shown.length} 件</span>
-        </span>
+        {/* 広げたシェルフの見せ方の 1 つ（docs/SHELF.md）。［一覧｜比較］と「戻す」はツールバーにある。Esc で一覧の見せ方へ。 */}
+        <span className="shrink-0 text-dim tabular-nums">{shown.length} 件を比較</span>
         <span className="min-w-0 flex-1 truncate text-dim">{note}</span>
         <div className="flex shrink-0 items-center gap-1.5">
           <span className="text-dim">背景</span>

@@ -586,9 +586,12 @@ export const api = {
   setPinned: (ids: string[], on: boolean) => invoke<void>("set_pinned", { ids, on }),
   orientItems: (ids: string[], op: OrientOp) => invoke<number>("orient_items", { ids, op }),
   copyItems: (ids: string[]) => invoke<number>("copy_items", { ids }),
-  /** `subdirs[i]`: folder under `dest` for `ids[i]` ("旅行/2025", "" = `dest` itself). */
-  exportItems: (ids: string[], dest: string, subdirs?: string[]) =>
-    invoke<number>("export_items", { ids, dest, subdirs: subdirs ?? null }),
+  /**
+   * `subdirs[i]`: folder under `dest` for `ids[i]` ("旅行/2025", "" = `dest` itself).
+   * `prefixes[i]`: `ids[i]` のファイル名の先頭に付ける文字（シェルフの順の連番「001_」。docs/SHELF.md）。
+   */
+  exportItems: (ids: string[], dest: string, subdirs?: string[], prefixes?: string[]) =>
+    invoke<number>("export_items", { ids, dest, subdirs: subdirs ?? null, prefixes: prefixes ?? null }),
   /**
    * Every item not in the trash into a new "<library name>" folder in `dest`,
    * in "<folders>/…" (unfiled items at its top). Reports "export-progress".
