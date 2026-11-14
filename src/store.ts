@@ -201,6 +201,11 @@ interface State {
   openParents: ReadonlySet<string>;
   inspectorOpen: boolean;
   sidebarOpen: boolean;
+  /**
+   * The filter row under the toolbar is open: the user's choice, kept
+   * (docs/NAVIGATION.md「ツールバー」). A smart folder shows it anyway (`filterRowShown`).
+   */
+  filterRowOpen: boolean;
   /** The list's table of contents (the sections to jump to) is open. Not kept: it closes on its own. */
   tocOpen: boolean;
   /** Widths of the sidebar and the details panel (px), dragged at their edge. */
@@ -333,6 +338,7 @@ interface State {
   /** Opens every parent's children in the list, or closes them all. */
   setAllParents: (open: boolean) => void;
   toggleInspector: () => void;
+  toggleFilterRow: () => void;
   setPanelTab: (tab: PanelTab) => void;
   /**
    * ⌘I / ⌘⌥3: shows `tab` in the details panel (opening it, or switching from
@@ -445,6 +451,13 @@ export type PanelTab = "info" | "shelf";
 
 /** The shelf is in view: the details panel is open on it. */
 export const shelfShown = (s: { inspectorOpen: boolean; panelTab: PanelTab }) => s.inspectorOpen && s.panelTab === "shelf";
+
+/**
+ * The filter row is on screen: opened by the user, or a smart folder is open
+ * (its conditions are shown there; leaving it brings back the user's choice).
+ */
+export const filterRowShown = (s: Pick<State, "filterRowOpen" | "view" | "editingSmart">) =>
+  s.filterRowOpen || s.view.kind === "smart" || s.editingSmart !== null;
 
 const loadJson = (key: string): object => {
   try {
@@ -787,6 +800,7 @@ export const useStore = create<State>((set, get) => ({
   thumbSize: loadNumber("thumbSize", 180),
   inspectorOpen: load("inspectorOpen") !== "false",
   sidebarOpen: load("sidebarOpen") !== "false",
+  filterRowOpen: load("filterRowOpen") === "true",
   tocOpen: false,
   sidebarWidth: clampWidth("sidebar", loadNumber("sidebarWidth", PANEL_WIDTH.sidebar.initial)),
   inspectorWidth: clampWidth("inspector", loadNumber("inspectorWidth", PANEL_WIDTH.inspector.initial)),
@@ -1044,6 +1058,11 @@ export const useStore = create<State>((set, get) => ({
     const inspectorOpen = !get().inspectorOpen;
     set({ inspectorOpen });
     persist("inspectorOpen", String(inspectorOpen));
+  },
+  toggleFilterRow: () => {
+    const filterRowOpen = !get().filterRowOpen;
+    set({ filterRowOpen });
+    persist("filterRowOpen", String(filterRowOpen));
   },
   setPanelTab: (panelTab) => {
     set({ panelTab, inspectorOpen: true });

@@ -1,11 +1,12 @@
-// The filter row (docs/NAVIGATION.md): every condition narrowing the open
-// place, always on screen as one row of round buttons. A button opens a menu
+// The filter row (docs/NAVIGATION.md「絞り込みの行」): every condition narrowing
+// the open place, as one row of round buttons under the toolbar, there while
+// the user has it open (the toolbar's 絞り込み) or a smart folder is open. A button opens a menu
 // of its values with counts (with the other conditions on); one in use is
 // filled, shows its value and has × in place of ▾. Within a condition the
 // values picked are "any of"; the conditions are "all of".
 // An open smart folder shows its own conditions here (locked: "条件を編集"
 // loads them into the row to change them).
-import { Check, ChevronDown, Ellipsis, FolderSearch, ListFilter, Search, X } from "lucide-react";
+import { Check, ChevronDown, Ellipsis, FolderSearch, Search, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { cancelSmartEdit, createSmartFolder, saveEditedSmartFolder } from "../lib/actions";
@@ -252,7 +253,7 @@ const condOf = (r: Rule): Cond => ({ tagFilter: r.tagIds, tagMatchAll: r.tagMatc
  * at a time rather than growing; the conditions scroll sideways and keep the
  * first one in the same place whatever the view (docs/UI.md).
  */
-export function FilterRow({ viewControls, display }: { viewControls?: React.ReactNode; display?: React.ReactNode }) {
+export function FilterRow() {
   const smart = useStore((s) => (s.view.kind === "smart" ? s.smartFolders.find((f) => f.id === (s.view as { id: string }).id) : undefined));
   const editing = useStore((s) => s.editingSmart);
   const own = useStore(
@@ -266,19 +267,9 @@ export function FilterRow({ viewControls, display }: { viewControls?: React.Reac
   const common = { cond, locked, onLocked: edit };
 
   return (
-    // Sunk one step from the rest of the toolbar (docs/UI.md「色」): this band is
-    // where the list is narrowed and where its look is set. One line down to
-    // @xl; below that the display controls take a line of their own, which is
-    // where the title and the search box already stack.
-    <div
-      data-filter-row
-      className="-mx-4 flex min-h-10 flex-nowrap items-center gap-x-3 gap-y-1.5 bg-band px-4 py-1.5 text-xs @max-xl:flex-wrap"
-    >
-      <span className="flex shrink-0 items-center gap-1.5 text-dim @max-7xl:hidden">
-        <ListFilter size={13} /> 絞り込み
-      </span>
-      {/* Keeps room for a couple of conditions whatever else is on the band,
-          so they never collapse to nothing (docs/UI.md). */}
+    // Sunk one step from the rest of the toolbar (docs/UI.md「色」). One line:
+    // the conditions scroll sideways, the actions stay at the right end.
+    <div data-filter-row className="-mx-4 flex min-h-10 flex-nowrap items-center gap-x-3 bg-band px-4 py-1.5 text-xs">
       <div className="flex min-w-[8rem] flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {locked && smart.rule.search.trim() && (
         <Pill label="検索" value={smart.rule.search.trim()} locked onLocked={edit} onClear={() => {}}>
@@ -294,10 +285,7 @@ export function FilterRow({ viewControls, display }: { viewControls?: React.Reac
       <LinksCondition {...common} />
       <KindCondition {...common} />
       </div>
-      {/* This view's own controls, right of the conditions so that nothing
-          further right moves when the view changes (docs/UI.md). */}
-      {viewControls}
-      {/* The band's own actions, always there (greyed out with nothing to do). */}
+      {/* The row's own actions, always there (greyed out with nothing to do). */}
       <div className="flex shrink-0 items-center gap-1.5">
         {locked ? (
           <button
@@ -326,10 +314,6 @@ export function FilterRow({ viewControls, display }: { viewControls?: React.Reac
           <ConditionActions />
         )}
       </div>
-      {/* How the list looks, at the right end of the band. */}
-      {display && (
-        <div className="flex shrink-0 items-center gap-2 @max-xl:w-full @max-xl:justify-end">{display}</div>
-      )}
     </div>
   );
 }

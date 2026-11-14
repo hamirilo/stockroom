@@ -22,8 +22,7 @@ import { OFF_COMMANDS } from "./limits";
 import { warn } from "./log";
 import { comboText, isMac } from "./shortcuts";
 import { rangeKinds } from "./kinds";
-import { GROUPS, LAYOUTS } from "../components/ViewMenu";
-import { SORTS } from "../components/Toolbar";
+import { GROUPS, LAYOUTS, SORTS } from "../components/ViewMenu";
 import { listWithin, usedKinds, useStore } from "../store";
 
 type S = ReturnType<typeof useStore.getState>;
@@ -321,6 +320,7 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
         { checked: (x) => x.desc, enabled: (x) => x.sort !== "manual" },
       ),
     ]),
+    cmd("view.filterRow"),
     cmd("view.toc"),
     cmd("view.subfolders"),
     // Greyed out with links off.
