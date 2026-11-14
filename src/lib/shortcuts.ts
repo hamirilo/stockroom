@@ -50,7 +50,7 @@ export function shortcutSections(): ShortcutSection[] {
         },
         cmd("view.inspector", { label: "情報を表示（表示中なら詳細パネルを閉じる）" }),
         cmd("view.shelf", { label: "シェルフを表示（表示中なら詳細パネルを閉じる）" }),
-        cmd("view.toc", { label: "グループの目次を開く" }),
+        cmd("view.toc", { label: "ほかのグループへ移動" }),
         cmd("edit.search"),
         cmd("edit.filter", { label: "絞り込みの行へ" }),
         cmd("go.folder", { label: "フォルダを開く（名前で探す）" }),

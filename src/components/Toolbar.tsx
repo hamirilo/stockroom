@@ -4,15 +4,11 @@ import {
   FolderSearch,
   ListFilter,
   Minus,
-  Monitor,
-  Moon,
-  PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Plus,
   Search,
-  Sun,
   Tag as TagIcon,
   Trash2,
   X,
@@ -29,7 +25,6 @@ import {
 import { type Folder, type SimilarLevel, type SmartFolder, type Tag, type View } from "../lib/api";
 import { colorHex } from "../lib/colors";
 import { command } from "../lib/commands";
-import { appearanceLabel, nextAppearance, parseAppearance } from "../lib/appearance";
 import { activeConditions, filterRowShown, placeTotal, useStore } from "../store";
 import { composing } from "../lib/ime";
 import { FilterRow } from "./FilterRow";
@@ -77,8 +72,6 @@ export function Toolbar() {
   const tags = useStore((s) => s.tags);
   // Number of images (with tag grouping an image can be listed more than once).
   const count = useStore((s) => s.rawItems.length);
-  const selectedCount = useStore((s) => s.selected.size);
-  const setSelection = useStore((s) => s.setSelection);
   const view = useStore((s) => s.view);
   const folders = useStore((s) => s.folders);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
@@ -116,15 +109,17 @@ export function Toolbar() {
         {/* Sized to its content; short of room this view's controls give way
             first, then the title (never the count). */}
         <div className="flex min-w-0 items-center gap-2">
-          <button
-            title={`サイドバーを${sidebarOpen ? "隠す" : "表示"}（Tab / ⌘⌥1）`}
-            onClick={toggleSidebar}
-            className={`-ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-ink/5 ${
-              sidebarOpen ? "text-dim" : "text-accent"
-            }`}
-          >
-            {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-          </button>
+          {/* 隠すボタンはサイドバーの上端にある（Sidebar.tsx）。閉じているあいだだけ、開くボタンをここに出す。 */}
+          {!sidebarOpen && (
+            <button
+              title="サイドバーを表示（Tab / ⌘⌥1）"
+              aria-label="サイドバーを表示"
+              onClick={toggleSidebar}
+              className="-ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-accent hover:bg-ink/5"
+            >
+              <PanelLeftOpen size={16} />
+            </button>
+          )}
           <h1 className="flex min-w-0 items-baseline gap-2 text-base font-semibold">
             {smart && <FolderSearch size={15} className="shrink-0 self-center text-accent" />}
             {view.kind === "tag" && (
@@ -137,26 +132,13 @@ export function Toolbar() {
             <span className="min-w-0 max-w-[16rem] truncate">
               {editingSmart ? `「${editingSmart.name}」の条件` : viewTitle(view, folders, smartFolders, tags)}
             </span>
-            {selectedCount > 0 ? (
-              <span className="flex shrink-0 items-center gap-1 self-center rounded-full bg-accent/20 py-0.5 pr-0.5 pl-2.5 text-xs font-normal text-accent tabular-nums">
-                {selectedCount} 件を選択中
-                <span className="text-accent/60">/ {count}</span>
-                <button
-                  title="選択を解除（Esc）"
-                  onClick={() => setSelection([])}
-                  className="rounded-full p-0.5 hover:bg-accent/25"
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            ) : (
-              <span
-                className={`shrink-0 text-xs font-normal tabular-nums ${total !== null ? "text-accent" : "text-dim"}`}
-                title={total !== null ? `絞り込み中（条件 ${conditions} 個）` : undefined}
-              >
-                {total !== null ? `${count} / ${total} 件` : `${count} 件`}
-              </span>
-            )}
+            {/* 選んでいる件数は選択バーに出す（docs/MENUS.md §7）。ここはいつも一覧の件数。 */}
+            <span
+              className={`shrink-0 text-xs font-normal tabular-nums ${total !== null ? "text-accent" : "text-dim"}`}
+              title={total !== null ? `絞り込み中（条件 ${conditions} 個）` : undefined}
+            >
+              {total !== null ? `${count} / ${total} 件` : `${count} 件`}
+            </span>
           </h1>
           {/* This view's own controls, right of the title: what is right of
               them stays put when the view changes (docs/UI.md). */}
@@ -164,7 +146,6 @@ export function Toolbar() {
             <ViewControls />
           </div>
           <div className="flex-1" />
-          <ThemeToggle className="hidden @max-xl:flex" />
           <InspectorToggle className="hidden @max-xl:flex" />
         </div>
         {/* Never squeezed (they would run into the title): the title gives way instead. */}
@@ -172,7 +153,6 @@ export function Toolbar() {
           <ThumbSize />
           <FilterToggle />
           <ViewPopover />
-          <ThemeToggle className="flex @max-xl:hidden" />
           <label
             title={SEARCH_HELP}
             className="flex h-8 min-w-40 shrink basis-60 @max-[50rem]:min-w-32 items-center gap-2 rounded-md border border-transparent bg-ink/7 px-2 focus-within:border-accent @max-[50rem]:basis-40 @max-xl:min-w-0 @max-xl:flex-1"
@@ -348,22 +328,6 @@ function FilterToggle() {
       <span className="@max-[50rem]:hidden">絞り込み</span>
       {n > 0 && <span className="font-medium tabular-nums">{n}</span>}
       <ChevronDown size={13} className={`transition-transform ${shown ? "rotate-180" : ""} ${n ? "" : "text-dim"}`} />
-    </button>
-  );
-}
-
-/** Appearance in one click (docs/UI.md「色」): システム → ライト → ダーク. The icon is the current choice. */
-function ThemeToggle({ className }: { className: string }) {
-  const current = parseAppearance(useStore((s) => s.appSettings?.appearance));
-  const next = nextAppearance(current);
-  return (
-    <button
-      title={`外観：${appearanceLabel(current)}（クリックで「${appearanceLabel(next)}」。⌘/Ctrl+Shift+D）`}
-      aria-label={`外観を${appearanceLabel(next)}にする`}
-      onClick={() => command("view.appearance").run(useStore.getState())}
-      className={`h-8 w-8 shrink-0 items-center justify-center rounded-md ghost ${className}`}
-    >
-      {current === "system" ? <Monitor size={15} /> : current === "light" ? <Sun size={15} /> : <Moon size={15} />}
     </button>
   );
 }

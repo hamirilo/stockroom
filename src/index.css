@@ -370,6 +370,19 @@ body,
   --titlebar: 0px;
   --traffic-lights: 0px;
 }
+/* サイドバーを隠すボタン（Sidebar.tsx）：信号機の帯があればその右端、無ければ種類の行の右。 */
+.sidebar-hide-top {
+  display: none;
+}
+.sidebar-hide-row {
+  display: flex;
+}
+:root[data-titlebar="overlay"]:not([data-fullscreen]) .sidebar-hide-top {
+  display: flex;
+}
+:root[data-titlebar="overlay"]:not([data-fullscreen]) .sidebar-hide-row {
+  display: none;
+}
 :root[data-titlebar="overlay"]:not([data-fullscreen]) {
   --titlebar: 40px;
   --traffic-lights: 84px;
