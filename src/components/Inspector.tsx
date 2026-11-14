@@ -2,12 +2,13 @@ import { colorHex } from "../lib/colors";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
-  ChevronDown,
-  ChevronRight,
   Folder as FolderIcon,
   Heart,
   Layers,
+  Link as LinkIcon,
   Pin,
+  Plus,
+  Tag as TagIcon,
   X,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -24,6 +25,7 @@ import {
   bitRateLabel,
   durationLabel,
   frameRateLabel,
+  kindLabel,
   sizeLabel,
   urlLabel,
   type Folder,
@@ -35,6 +37,8 @@ import {
 import { VideoThumbField } from "../features/videos/VideoThumbField";
 import { useStore } from "../store";
 import { composing } from "../lib/ime";
+import { useMenu, type MenuItem } from "./ContextMenu";
+import { showItemMenu } from "./Grid";
 import { LinksField } from "./LinksField";
 import { RatingStars } from "./RatingStars";
 
@@ -174,77 +178,79 @@ function VideoCodecRows({ item }: { item: Item }) {
   );
 }
 
-const SECTION_KEY = "inspector.section.";
-
 /**
- * A collapsible group (整理, 紐づけ, メモ, ファイル情報). Only the user opens or
- * closes it (docs/UI.md); the choice is remembered. Closed, the right side of
- * the heading says what is inside.
+ * 小さな見出し（タグ・フォルダ・メモ・紐づけ・ファイル情報）。折りたたまず、いつも中身を出す
+ * （docs/UI.md「詳細パネル（情報タブ）の並び」）。
  */
-function Section({
-  id,
-  title,
-  summary,
-  defaultOpen = false,
-  children,
-}: {
-  id: string;
-  title: string;
-  summary?: React.ReactNode;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(() => {
-    try {
-      const v = localStorage.getItem(SECTION_KEY + id);
-      return v === null ? defaultOpen : v === "1";
-    } catch {
-      return defaultOpen;
-    }
-  });
-  const toggle = () => {
-    const next = !open;
-    setOpen(next);
-    try {
-      localStorage.setItem(SECTION_KEY + id, next ? "1" : "0");
-    } catch {
-      /* best effort */
-    }
-  };
+function Heading({ icon, title, count }: { icon?: React.ReactNode; title: string; count?: number }) {
   return (
-    <div className="border-t border-line last:border-b">
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-1.5 rounded px-1 py-2.5 text-left text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-accent"
-      >
-        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        {title}
-        {!open && summary && <span className="ml-auto min-w-0 truncate pl-3 font-normal text-dim">{summary}</span>}
-      </button>
-      {open && <div className="pr-1 pb-3 pl-[22px]">{children}</div>}
+    <div className="mt-5 mb-1.5 flex items-center gap-1.5 px-1 text-[11px] font-semibold tracking-wide text-dim">
+      {icon}
+      {title}
+      {count !== undefined && <span className="font-normal tabular-nums">{count}</span>}
     </div>
   );
 }
 
+/**
+ * タグ・フォルダのチップ。複数選択で一部にだけ付いているもの（`count < total`）は破線にして
+ * 「3/5」と＋（残りにも付ける）を出す。右クリックでそのチップの操作。
+ */
 function Chip({
   children,
-  onRemove,
   color,
+  count,
+  total,
+  onRemove,
+  onFill,
+  onMenu,
+  square,
 }: {
   children: React.ReactNode;
-  onRemove: () => void;
   color?: string | null;
+  count: number;
+  total: number;
+  onRemove: () => void;
+  onFill: () => void;
+  onMenu: (e: React.MouseEvent) => void;
+  /** フォルダ（角を小さく）。 */
+  square?: boolean;
 }) {
   const hex = colorHex(color);
+  const part = count < total;
   return (
-    <span className="flex max-w-full items-center gap-1 rounded-full bg-raised py-0.5 pr-1 pl-2.5 text-xs">
+    <span
+      onContextMenu={onMenu}
+      className={`flex max-w-full items-center gap-1 py-0.5 pr-1 pl-2.5 text-xs ${square ? "rounded-md" : "rounded-full"} ${
+        part ? "shadow-[inset_0_0_0_1px_var(--color-edge)]" : "bg-raised"
+      }`}
+    >
       {hex && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: hex }} />}
       <span className="truncate">{children}</span>
-      <button onClick={onRemove} className="rounded-full p-0.5 text-dim hover:bg-ink/10 hover:text-fg">
-        <X size={12} />
-      </button>
+      {part ? (
+        <>
+          <span className="text-[11px] text-dim tabular-nums">
+            {count}/{total}
+          </span>
+          <button
+            title={`残りの ${total - count} 件にも付ける`}
+            aria-label={`残りの ${total - count} 件にも付ける`}
+            onClick={onFill}
+            className="rounded-full p-0.5 text-accent hover:bg-ink/10"
+          >
+            <Plus size={12} />
+          </button>
+        </>
+      ) : (
+        <button
+          title="外す"
+          aria-label="外す"
+          onClick={onRemove}
+          className="rounded-full p-0.5 text-dim hover:bg-ink/10 hover:text-fg"
+        >
+          <X size={12} />
+        </button>
+      )}
     </span>
   );
 }
@@ -455,8 +461,6 @@ export function Inspector() {
   const ids = useMemo(() => [...selected], [selected]);
   const single = ids.length === 1 ? items.find((i) => i.id === ids[0]) : undefined;
   const renameSeq = useStore((s) => s.renameItemSeq);
-  const linksOn = useStore((s) => s.librarySettings.links);
-  const rawItems = useStore((s) => s.rawItems);
   // Common rating of the selection, or null when mixed.
   const rating = useMemo(() => {
     const rs = new Set(items.filter((i) => selected.has(i.id)).map((i) => i.rating));
@@ -492,18 +496,8 @@ export function Inspector() {
   }
 
   const n = ids.length;
-  const countSuffix = (c: number) => (n > 1 && c < n ? ` (${c}/${n})` : "");
-
-  // What each closed section says on its heading.
-  const childCount = single ? rawItems.filter((i) => i.parentId === single.id).length : 0;
-  const linksSummary = !linksOn ? "無効" : single?.parentId ? "親あり" : childCount ? `子 ${childCount} 件` : "なし";
-  const organizeSummary = `${info.tags.length ? `タグ ${info.tags.length}` : "タグなし"} · ${
-    info.folders.length === 0
-      ? "未分類"
-      : info.folders.length === 1
-        ? folderPath(folders, info.folders[0].id)
-        : `${info.folders.length} フォルダ`
-  }`;
+  const st = useStore.getState;
+  const picked = items.filter((i) => selected.has(i.id));
   const facts = single
     ? [
         sizeLabel(single),
@@ -511,12 +505,64 @@ export function Inspector() {
         single.kind === "video" && single.durationMs != null && durationLabel(single.durationMs),
       ].filter(Boolean)
     : [];
+  // 複数選択の要点：種類ごとの件数と合計の容量、追加日の幅。
+  const byKind = [...new Set(picked.map((i) => i.kind))].map((k) => `${kindLabel(k)} ${picked.filter((i) => i.kind === k).length}`);
+  const totalSize = formatBytes(picked.reduce((sum, i) => sum + i.size, 0));
+  const dates = picked.map((i) => i.importedAt);
+  const day = (t: number) => new Date(t).toLocaleDateString("ja-JP");
+  const dateRange = dates.length
+    ? day(Math.min(...dates)) === day(Math.max(...dates))
+      ? day(Math.min(...dates))
+      : `${day(Math.min(...dates))} 〜 ${day(Math.max(...dates))}`
+    : "";
+
+  const tagMenu = (e: React.MouseEvent, t: Tag) =>
+    useMenu.getState().show(e, [
+      { header: n > 1 ? `「${t.name}」 ${t.count} / ${n} 件` : `タグ「${t.name}」` },
+      { label: "このタグを開く", onClick: () => st().setView({ kind: "tag", id: t.id }) },
+      ...(t.count < n
+        ? [{ label: `残りの ${n - t.count} 件にも付ける`, onClick: () => run(() => api.addTags(ids, [t.name])) }]
+        : []),
+      { separator: true },
+      {
+        label: n > 1 ? `${t.count} 件から外す` : "このタグを外す",
+        danger: true,
+        onClick: () => run(() => api.removeTag(ids, t.id)),
+      },
+    ] satisfies MenuItem[]);
+  const folderMenu = (e: React.MouseEvent, f: { id: string; count: number }) => {
+    const inside = picked.filter((i) => i.folderId === f.id).map((i) => i.id);
+    useMenu.getState().show(e, [
+      { header: n > 1 ? `${folderPath(folders, f.id)}　${f.count} / ${n} 件` : folderPath(folders, f.id) },
+      { label: "フォルダを開く", onClick: () => st().setView({ kind: "folder", id: f.id }) },
+      ...(f.count < n
+        ? [
+            { label: `入っている ${f.count} 件だけを選ぶ`, onClick: () => st().setSelection(inside) },
+            { label: `残りの ${n - f.count} 件も入れる`, onClick: () => run(() => api.moveToFolder(ids, f.id)) },
+          ]
+        : []),
+      { separator: true },
+      {
+        label: n > 1 ? `${f.count} 件をこのフォルダから外す` : "このフォルダから外す",
+        danger: true,
+        onClick: () => run(() => api.removeFromFolder(ids, f.id)),
+      },
+    ] satisfies MenuItem[]);
+  };
+  // プレビューの右クリックは一覧と同じメニュー。
+  const previewMenu = (e: React.MouseEvent) => {
+    const index = items.findIndex((i) => i.id === ids[0]);
+    if (index >= 0) showItemMenu(e, items[index], index);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
       {single ? (
         <>
-          <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-raised">
+          <div
+            className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-raised"
+            onContextMenu={previewMenu}
+          >
             <img
               src={convertFileSrc(single.thumbPath)}
               className="max-h-full max-w-full object-contain"
@@ -550,13 +596,36 @@ export function Inspector() {
           )}
         </>
       ) : (
-        <div className="rounded-lg bg-raised p-4 text-center">
-          <div className="text-2xl font-semibold tabular-nums">{n}</div>
-          <div className="text-dim">件を選択中</div>
-        </div>
+        <>
+          {/* 1 件のときと同じ正方形にして、下の評価と印の行の位置をそろえる。 */}
+          <div
+            className="relative grid aspect-square grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-lg bg-raised"
+            onContextMenu={previewMenu}
+          >
+            {picked.slice(0, 4).map((i) => (
+              <img
+                key={i.id}
+                src={convertFileSrc(i.thumbPath)}
+                className="h-full w-full object-cover"
+                draggable={false}
+                alt=""
+              />
+            ))}
+            {n > 4 && (
+              <span className="absolute right-1.5 bottom-1.5 rounded-full bg-black/60 px-2 text-[11px] font-bold text-white tabular-nums">
+                +{n - 4}
+              </span>
+            )}
+          </div>
+          <div className="mt-3 px-1 py-0.5 text-sm font-semibold tabular-nums">{n} 件を選択中</div>
+          {/* 1 行に収める（評価と印の行を 1 件のときと同じ高さに置くため）。全文はツールチップ。 */}
+          <div className="truncate px-1 text-xs text-dim tabular-nums" title={[...byKind, `計 ${totalSize}`].join(" · ")}>
+            {[...byKind, `計 ${totalSize}`].join(" · ")}
+          </div>
+        </>
       )}
 
-      {/* Rating and the flags are one row, icons only (the tooltip says which). */}
+      {/* 評価と印は 1 行、アイコンだけ（名前はツールチップ）。 */}
       {!isTrash && (
         <div className="mt-3 flex items-center justify-between gap-2 px-1">
           <RatingStars value={rating} onChange={(n) => setRating(ids, n, { quiet: true })} />
@@ -564,55 +633,55 @@ export function Inspector() {
         </div>
       )}
 
-      <div className="mt-3">
-        <Section id="organize" title="整理" summary={organizeSummary} defaultOpen>
-          <div className="mb-2 flex flex-wrap gap-1.5 empty:hidden">
-            {info.tags.map((t) => (
-              <Chip key={t.id} color={t.color} onRemove={() => run(() => api.removeTag(ids, t.id))}>
-                {t.name}
-                {countSuffix(t.count)}
-              </Chip>
-            ))}
-          </div>
-          <TagInput
-            exclude={tagIds}
-            onAdd={(names) => {
-              useStore.getState().rememberTags(names);
-              run(() => api.addTags(ids, names));
-            }}
-          />
-          <div className="mt-3 flex flex-col gap-1.5">
-            {info.folders.length === 0 && <span className="text-dim">未分類</span>}
-            {info.folders.map((f) => (
-              <Chip
-                key={f.id}
-                color={folders.find((x) => x.id === f.id)?.color}
-                onRemove={() => run(() => api.removeFromFolder(ids, f.id))}
-              >
-                <FolderIcon size={12} className="mr-1 inline text-dim" />
-                {folderPath(folders, f.id)}
-                {countSuffix(f.count)}
-              </Chip>
-            ))}
-          </div>
-        </Section>
+      <Heading icon={<TagIcon size={12} />} title="タグ" count={info.tags.length} />
+      <div className="px-1">
+        <div className="mb-2 flex flex-wrap gap-1.5 empty:hidden">
+          {info.tags.map((t) => (
+            <Chip
+              key={t.id}
+              color={t.color}
+              count={t.count}
+              total={n}
+              onRemove={() => run(() => api.removeTag(ids, t.id))}
+              onFill={() => run(() => api.addTags(ids, [t.name]))}
+              onMenu={(e) => tagMenu(e, t)}
+            >
+              {t.name}
+            </Chip>
+          ))}
+        </div>
+        <TagInput
+          exclude={tagIds}
+          onAdd={(names) => {
+            useStore.getState().rememberTags(names);
+            run(() => api.addTags(ids, names));
+          }}
+        />
+      </div>
 
-        {/* Not in the trash. */}
-        {!isTrash && (
-          <Section id="links" title="紐づけ" summary={linksSummary}>
-            <LinksField ids={ids} single={single} />
-          </Section>
-        )}
+      <Heading icon={<FolderIcon size={12} />} title="フォルダ" count={info.folders.length} />
+      <div className="flex flex-col items-start gap-1.5 px-1">
+        {info.folders.length === 0 && <span className="text-xs text-dim">未分類</span>}
+        {info.folders.map((f) => (
+          <Chip
+            key={f.id}
+            square
+            color={folders.find((x) => x.id === f.id)?.color}
+            count={f.count}
+            total={n}
+            onRemove={() => run(() => api.removeFromFolder(ids, f.id))}
+            onFill={() => run(() => api.moveToFolder(ids, f.id))}
+            onMenu={(e) => folderMenu(e, f)}
+          >
+            {folderPath(folders, f.id)}
+          </Chip>
+        ))}
+      </div>
 
-        {/* One video, not in the trash: its own thumbnail (docs/VIDEO.md). */}
-        {!isTrash && single?.kind === "video" && (
-          <Section id="thumb" title="サムネイル" summary={single.ownThumb ? "設定した画像" : "動画のコマ"}>
-            <VideoThumbField item={single} />
-          </Section>
-        )}
-
-        {single && (
-          <Section id="note" title="メモ" summary={single.note.trim() ? single.note.trim().split("\n")[0] : "なし"}>
+      {single && (
+        <>
+          <Heading title="メモ" />
+          <div className="px-1">
             <SavedText
               key={single.id + ":note"}
               multiline
@@ -621,39 +690,65 @@ export function Inspector() {
               onSave={(v) => run(() => api.setNote(single.id, v))}
               className="w-full resize-y rounded-md border border-edge bg-bg p-2 outline-none focus:border-accent"
             />
-          </Section>
-        )}
+          </div>
+        </>
+      )}
 
-        {single && (
-          <Section
-            id="file"
-            title="ファイル情報"
-            summary={new Date(single.importedAt).toLocaleDateString("ja-JP")}
-          >
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-              <dt className="text-dim">{single.kind === "image" || single.kind === "video" ? "サイズ" : "種類"}</dt>
-              <dd className="tabular-nums">{sizeLabel(single)}</dd>
-              {single.kind !== "bookmark" && (
-                <>
-                  <dt className="text-dim">形式</dt>
-                  <dd>
-                    {single.ext.toUpperCase()} · {formatBytes(single.size)}
-                  </dd>
-                </>
-              )}
-              {single.kind === "video" && single.durationMs != null && (
-                <>
-                  <dt className="text-dim">再生時間</dt>
-                  <dd className="tabular-nums">{durationLabel(single.durationMs)}</dd>
-                </>
-              )}
-              {single.kind === "video" && <VideoCodecRows item={single} />}
-              <dt className="text-dim">追加日</dt>
-              <dd>{new Date(single.importedAt).toLocaleString("ja-JP")}</dd>
-            </dl>
-          </Section>
+      {/* ゴミ箱の中では出さない。 */}
+      {!isTrash && (
+        <>
+          <Heading icon={<LinkIcon size={12} />} title="紐づけ" />
+          <div className="px-1">
+            <LinksField ids={ids} single={single} />
+          </div>
+        </>
+      )}
+
+      {/* 動画 1 件、ゴミ箱の外：動画のサムネイル（docs/VIDEO.md）。 */}
+      {!isTrash && single?.kind === "video" && (
+        <>
+          <Heading title="サムネイル" />
+          <div className="px-1">
+            <VideoThumbField item={single} />
+          </div>
+        </>
+      )}
+
+      <Heading title="ファイル情報" />
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-1 text-xs">
+        {single ? (
+          <>
+            <dt className="text-dim">{single.kind === "image" || single.kind === "video" ? "サイズ" : "種類"}</dt>
+            <dd className="tabular-nums">{sizeLabel(single)}</dd>
+            {single.kind !== "bookmark" && (
+              <>
+                <dt className="text-dim">形式</dt>
+                <dd>
+                  {single.ext.toUpperCase()} · {formatBytes(single.size)}
+                </dd>
+              </>
+            )}
+            {single.kind === "video" && single.durationMs != null && (
+              <>
+                <dt className="text-dim">再生時間</dt>
+                <dd className="tabular-nums">{durationLabel(single.durationMs)}</dd>
+              </>
+            )}
+            {single.kind === "video" && <VideoCodecRows item={single} />}
+            <dt className="text-dim">追加日</dt>
+            <dd>{new Date(single.importedAt).toLocaleString("ja-JP")}</dd>
+          </>
+        ) : (
+          <>
+            <dt className="text-dim">種類</dt>
+            <dd>{byKind.join(" · ")}</dd>
+            <dt className="text-dim">合計</dt>
+            <dd className="tabular-nums">{totalSize}</dd>
+            <dt className="text-dim">追加日</dt>
+            <dd className="tabular-nums">{dateRange}</dd>
+          </>
         )}
-      </div>
+      </dl>
     </div>
   );
 }
