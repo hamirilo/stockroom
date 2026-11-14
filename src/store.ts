@@ -59,6 +59,26 @@ export interface ToastAction {
   onClick: () => void;
 }
 
+/**
+ * An operation ⌘Z can take back (docs/NOTIFICATIONS.md). Its toast's 元に戻す,
+ * when it has one, does the same once.
+ */
+export interface UndoEntry {
+  /** What was done, for the menu and the HUD ("シェルフから外す"). */
+  label: string;
+  /** Takes it back; resolves to whether that worked. */
+  undo: () => Promise<boolean>;
+  /** The toast that tells of it, closed when it is taken back. */
+  toast?: number;
+  /** The toast's button is its 元に戻す (not another one, like シェルフを表示). */
+  button?: boolean;
+  /** Taken back already (from ⌘Z or the toast). */
+  done?: boolean;
+}
+
+/** How many operations ⌘Z can go back through. */
+const UNDO_DEPTH = 20;
+
 /** A duplicate tidy-up awaiting confirmation; `effects` fills in once previewed. */
 export interface DuplicateReview {
   groups: { keep: Item; remove: Item[] }[];
@@ -181,6 +201,11 @@ interface State {
   openParents: ReadonlySet<string>;
   inspectorOpen: boolean;
   sidebarOpen: boolean;
+  /**
+   * The filter row under the toolbar is open: the user's choice, kept
+   * (docs/NAVIGATION.md「ツールバー」). A smart folder shows it anyway (`filterRowShown`).
+   */
+  filterRowOpen: boolean;
   /** The list's table of contents (the sections to jump to) is open. Not kept: it closes on its own. */
   tocOpen: boolean;
   /** Widths of the sidebar and the details panel (px), dragged at their edge. */
@@ -282,6 +307,8 @@ interface State {
   /** Hashing older images before the similar view can be shown. */
   analyzing: boolean;
   toasts: Toast[];
+  /** What ⌘Z takes back, oldest first. Only in memory, for the open library. */
+  undoStack: UndoEntry[];
 
   setLibrary: (lib: LibraryInfo | null) => Promise<void>;
   /** Narrows the list to these kinds (none = every kind the library is used for). */
@@ -311,6 +338,7 @@ interface State {
   /** Opens every parent's children in the list, or closes them all. */
   setAllParents: (open: boolean) => void;
   toggleInspector: () => void;
+  toggleFilterRow: () => void;
   setPanelTab: (tab: PanelTab) => void;
   /**
    * ⌘I / ⌘⌥3: shows `tab` in the details panel (opening it, or switching from
@@ -377,6 +405,9 @@ interface State {
   /** A toast with a title, detail line and kind (results worth noticing). Returns its id. */
   notify: (t: ToastOptions) => number;
   dismissToast: (id: number) => void;
+  pushUndo: (e: UndoEntry) => void;
+  /** Takes `e` off what ⌘Z goes through. */
+  dropUndo: (e: UndoEntry) => void;
   /**
    * Runs a mutation, reports errors, then refreshes. Resolves to whether it
    * worked: a result message must not follow the error toast.
@@ -420,6 +451,13 @@ export type PanelTab = "info" | "shelf";
 
 /** The shelf is in view: the details panel is open on it. */
 export const shelfShown = (s: { inspectorOpen: boolean; panelTab: PanelTab }) => s.inspectorOpen && s.panelTab === "shelf";
+
+/**
+ * The filter row is on screen: opened by the user, or a smart folder is open
+ * (its conditions are shown there; leaving it brings back the user's choice).
+ */
+export const filterRowShown = (s: Pick<State, "filterRowOpen" | "view" | "editingSmart">) =>
+  s.filterRowOpen || s.view.kind === "smart" || s.editingSmart !== null;
 
 const loadJson = (key: string): object => {
   try {
@@ -501,8 +539,8 @@ let refreshSeq = 0;
  */
 export function toastDuration(kind: ToastKind, text: string, action: boolean): number {
   if (kind === "error") return 0;
-  const read = 4000 + 80 * text.length;
-  return Math.round(Math.min(12_000, Math.max(action ? 8000 : 5000, read)));
+  const read = 2000 + 60 * text.length;
+  return Math.round(Math.min(action ? 8000 : 6000, Math.max(action ? 5000 : 3000, read)));
 }
 
 let toastSeq = 0;
@@ -762,6 +800,7 @@ export const useStore = create<State>((set, get) => ({
   thumbSize: loadNumber("thumbSize", 180),
   inspectorOpen: load("inspectorOpen") !== "false",
   sidebarOpen: load("sidebarOpen") !== "false",
+  filterRowOpen: load("filterRowOpen") === "true",
   tocOpen: false,
   sidebarWidth: clampWidth("sidebar", loadNumber("sidebarWidth", PANEL_WIDTH.sidebar.initial)),
   inspectorWidth: clampWidth("inspector", loadNumber("inspectorWidth", PANEL_WIDTH.inspector.initial)),
@@ -831,6 +870,7 @@ export const useStore = create<State>((set, get) => ({
   updating: null,
   analyzing: false,
   toasts: [],
+  undoStack: [],
 
   setLibrary: async (library) => {
     const seq = ++librarySeq;
@@ -864,6 +904,8 @@ export const useStore = create<State>((set, get) => ({
       anchor: null,
       focus: null,
       viewer: null,
+      // What was done in the other library can't be taken back here.
+      undoStack: [],
     });
     if (library) {
       get().refresh();
@@ -1016,6 +1058,11 @@ export const useStore = create<State>((set, get) => ({
     const inspectorOpen = !get().inspectorOpen;
     set({ inspectorOpen });
     persist("inspectorOpen", String(inspectorOpen));
+  },
+  toggleFilterRow: () => {
+    const filterRowOpen = !get().filterRowOpen;
+    set({ filterRowOpen });
+    persist("filterRowOpen", String(filterRowOpen));
   },
   setPanelTab: (panelTab) => {
     set({ panelTab, inspectorOpen: true });
@@ -1328,6 +1375,8 @@ export const useStore = create<State>((set, get) => ({
     set({ toasts: get().toasts.map((t) => (t.id === id ? { ...t, leaving: true } : t)) });
     setTimeout(() => set({ toasts: get().toasts.filter((t) => t.id !== id) }), 200);
   },
+  pushUndo: (e) => set({ undoStack: [...get().undoStack, e].slice(-UNDO_DEPTH) }),
+  dropUndo: (e) => set({ undoStack: get().undoStack.filter((x) => x !== e) }),
   run: async (fn) => {
     let ok = true;
     try {

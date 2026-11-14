@@ -1,5 +1,6 @@
 import { CheckCircle2, Download, Info, Loader2, X, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { comboText } from "../lib/shortcuts";
 import { useStore, type Toast, type ToastKind } from "../store";
 
 const mb = (bytes: number) => (bytes / 1_000_000).toFixed(1);
@@ -30,6 +31,11 @@ const card = "pointer-events-auto overflow-hidden rounded-xl border bg-raised sh
 
 function ToastCard({ t, paused }: { t: Toast; paused: boolean }) {
   const dismiss = useStore((s) => s.dismissToast);
+  // ⌘Z takes back the last operation: its toast's button says the key too.
+  const lastUndo = useStore((s) => {
+    const last = s.undoStack.at(-1);
+    return !!last?.button && last.toast === t.id;
+  });
   const { icon: Icon, color } = KIND[t.kind];
   return (
     <div
@@ -61,6 +67,7 @@ function ToastCard({ t, paused }: { t: Toast; paused: boolean }) {
               className="mt-2 rounded-md bg-accent-fill px-3 py-1 text-xs font-medium text-white hover:brightness-110"
             >
               {t.action.label}
+              {lastUndo && <span className="ml-1.5 opacity-70">{comboText("Mod+Z")}</span>}
             </button>
           )}
         </div>

@@ -1,22 +1,22 @@
-// Toolbar controls for how the list looks, each on its own: the layout
-// (one click), grouping into sections (one click), and what to show per thumbnail.
+// How the list looks: one popover on the toolbar ("表示") with the layout,
+// the order, the grouping, the links and what each thumbnail shows. Only the
+// thumbnail size stays out on the toolbar (docs/NAVIGATION.md「ツールバー」).
 import {
-  Check,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
   ChevronDown,
   Columns3,
-  Group,
   LayoutGrid,
   LayoutList,
   Rows3,
-  SlidersHorizontal,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { command } from "../lib/commands";
 import type { GroupBy } from "../lib/grouping";
-import type { ItemKind } from "../lib/api";
+import type { ItemKind, SortKey } from "../lib/api";
+import { PIXEL_KINDS } from "../lib/kinds";
 import { listKinds, useStore, type Layout, type ShowInfo } from "../store";
-import { Slider } from "./Slider";
 
 /** Every grouping, in the order offered. */
 export const GROUPS: { key: GroupBy; label: string; hint: string }[] = [
@@ -35,12 +35,15 @@ export const LAYOUTS: { key: Layout; label: string; icon: React.ReactNode; hint:
   { key: "list", label: "リスト", icon: <LayoutList size={15} />, hint: "1 行ずつ詳しく表示" },
 ];
 
-/**
- * Layouts always on the toolbar; the others are in the display menu. The
- * images' own come first when the list can hold images.
- */
-const PRIMARY: Layout[] = ["grid", "list"];
-const PRIMARY_IMAGES: Layout[] = ["justified", "waterfall"];
+/** Sort keys; `only`: offered when the list holds those kinds alone (images and videos have a pixel size). */
+export const SORTS: { key: SortKey; label: string; only?: ItemKind[] }[] = [
+  { key: "importedAt", label: "追加日" },
+  { key: "name", label: "名前" },
+  { key: "size", label: "ファイルサイズ" },
+  { key: "dimensions", label: "サイズ（px）", only: PIXEL_KINDS },
+  { key: "rating", label: "評価" },
+  { key: "manual", label: "手動（ドラッグで並べ替え）" },
+];
 
 /** What a thumbnail can show; `only`: when the list can hold one of those kinds. */
 const INFO: { key: keyof ShowInfo; label: string; only?: ItemKind[] }[] = [
@@ -101,112 +104,106 @@ export function Dropdown({
   );
 }
 
-const heading = "px-2 pt-1 pb-1 text-[11px] font-semibold text-dim";
+const heading = "px-2 pt-1.5 pb-1 text-[11px] font-semibold text-dim";
+const rule = "mx-1.5 my-1.5 border-t border-line";
 
-/**
- * The everyday layouts side by side, one click to switch. The others sit in
- * the display menu, and show up here only while one of them is in use.
- */
-export function LayoutSwitch() {
-  const layout = useStore((s) => s.layout);
-  const setLayout = useStore((s) => s.setLayout);
-  const images = useStore((s) => listKinds(s).includes("image"));
-  const primary = images ? PRIMARY_IMAGES : PRIMARY;
-  // In that order, then one from the menu while in use.
-  const shown = [
-    ...primary.map((k) => LAYOUTS.find((l) => l.key === k)!),
-    ...LAYOUTS.filter((l) => l.key === layout && !primary.includes(l.key)),
-  ];
+/** A row of the popover: its name on the left, the control on the right. */
+function Row({ label, title, children }: { label: string; title?: string; children: React.ReactNode }) {
   return (
-    <div className="flex h-7 shrink-0 items-stretch rounded-md track @max-5xl:hidden">
-      {shown.map((l) => (
-        <button
-          key={l.key}
-          title={`${l.label}：${l.hint}`}
-          aria-label={l.label}
-          aria-pressed={layout === l.key}
-          onClick={() => setLayout(l.key)}
-          className={`flex w-7 items-center justify-center rounded ${
-            layout === l.key ? "thumb" : "text-fg/85 hover:bg-hover hover:text-fg"
-          }`}
-        >
-          {l.icon}
-        </button>
-      ))}
+    <div className="flex items-center gap-3 px-2 py-1.5" title={title}>
+      <span className="w-16 shrink-0 text-dim">{label}</span>
+      <div className="flex min-w-0 flex-1 justify-end">{children}</div>
     </div>
   );
 }
 
-/**
- * Splitting the list into sections: every choice side by side,
- * one click each, so nothing on the row moves when it changes (docs/UI.md).
- * When the toolbar is narrow the same choices fold into a menu in its place.
- */
-export function GroupMenu() {
-  const groupBy = useStore((s) => s.groupBy);
-  const setGroupBy = useStore((s) => s.setGroupBy);
-  const isSimilar = useStore((s) => s.view.kind === "similar");
-  const current = GROUPS.find((g) => g.key === groupBy) ?? GROUPS[0];
+/** Choices side by side, one picked (macOS segmented control). */
+function Segment<K extends string>({
+  label,
+  items,
+  value,
+  disabled,
+  onPick,
+}: {
+  label: string;
+  items: { key: K; label: React.ReactNode; title: string }[];
+  value: K | null;
+  disabled?: boolean;
+  onPick: (k: K) => void;
+}) {
   return (
-    <div className="flex h-7 shrink-0 items-center gap-1.5">
-      <span className={`@max-2xl:hidden ${isSimilar ? "text-off" : "text-dim"}`}>グループ</span>
-      {/* Narrow: a native select over a label, like the sort order next to it. */}
-      <label
-        title={isSimilar ? "グループ分け（重複の候補では使えません）" : `グループ分け：${current.hint}`}
-        className={`relative hidden h-full items-center gap-1.5 rounded-md pr-2 pl-2.5 whitespace-nowrap @max-2xl:flex ${
-          isSimilar ? "off" : "ghost focus-within:border-accent"
-        }`}
-      >
-        <span className="text-dim @max-md:hidden">グループ</span>
-        <Group size={14} className="hidden text-dim @max-md:block" />
-        {isSimilar ? "なし" : current.label}
-        <ChevronDown size={14} className="text-dim" />
+    <div role="group" aria-label={label} className="flex h-7 w-full items-stretch rounded-md track">
+      {items.map((i) => {
+        const on = value === i.key && !disabled;
+        return (
+          <button
+            key={i.key}
+            disabled={disabled}
+            aria-pressed={on}
+            title={i.title}
+            onClick={() => onPick(i.key)}
+            className={`flex flex-1 items-center justify-center gap-1 rounded px-1.5 whitespace-nowrap disabled:off ${
+              on ? "thumb font-medium" : "text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
+            }`}
+          >
+            {i.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The order and its direction. */
+function SortControl() {
+  const sort = useStore((s) => s.sort);
+  const desc = useStore((s) => s.desc);
+  const setSort = useStore((s) => s.setSort);
+  const canManual = useStore((s) => s.view.kind === "folder");
+  const kinds = useStore(useShallow(listKinds));
+  const sorts = SORTS.filter((s) => !s.only || (kinds.length > 0 && kinds.every((k) => s.only!.includes(k))));
+  const manual = sort === "manual";
+  const label = manual ? "手動" : (SORTS.find((s) => s.key === sort)?.label ?? "");
+  return (
+    <div className="flex h-7 w-full items-stretch gap-1">
+      {/* A native select over a label, so the arrow matches the rest. */}
+      <label className="relative flex min-w-0 flex-1 items-center gap-1.5 rounded-md border border-edge pr-1.5 pl-2.5 whitespace-nowrap focus-within:border-accent">
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <ChevronDown size={14} className="shrink-0 text-dim" />
         <select
-          aria-label="グループ分け"
-          value={groupBy}
-          disabled={isSimilar}
-          onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+          aria-label="並び順"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortKey, desc)}
           className="absolute inset-0 cursor-default opacity-0"
         >
-          {GROUPS.map((g) => (
-            <option key={g.key} value={g.key}>
-              {g.label}
+          {sorts.map((s) => (
+            <option key={s.key} value={s.key} disabled={s.key === "manual" && !canManual}>
+              {s.key === "manual" && !canManual ? "手動（フォルダのみ）" : s.label}
             </option>
           ))}
         </select>
       </label>
-      <div role="group" aria-label="グループ分け" className="flex h-full items-stretch rounded-md track @max-2xl:hidden">
-        {GROUPS.map((g) => {
-          const on = groupBy === g.key && !isSimilar;
-          return (
-            <button
-              key={g.key}
-              disabled={isSimilar}
-              aria-pressed={on}
-              title={isSimilar ? "グループ分け（重複の候補では使えません）" : `${g.label}：${g.hint}`}
-              onClick={() => setGroupBy(g.key)}
-              className={`rounded px-2 whitespace-nowrap disabled:off ${
-                on ? "thumb font-medium" : "text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
-              }`}
-            >
-              {g.label}
-            </button>
-          );
-        })}
-      </div>
+      <button
+        title={manual ? "手動の並びは昇順のみ" : desc ? "降順（クリックで昇順）" : "昇順（クリックで降順）"}
+        aria-label={desc ? "降順" : "昇順"}
+        disabled={manual}
+        onClick={() => setSort(sort, !desc)}
+        className="flex w-8 shrink-0 items-center justify-center rounded-md border border-edge enabled:hover:bg-hover disabled:off"
+      >
+        {desc ? <ArrowDownWideNarrow size={15} /> : <ArrowUpNarrowWide size={15} />}
+      </button>
     </div>
   );
 }
 
 /**
  * Opens every linked parent's children under it, or closes them all (docs/LINKS.md).
- * Always offered; disabled when nothing is linked, so it doesn't move. `none` also tells the display menu to grey its own copy out.
+ * `none`: nothing in the list is linked.
  */
 function useParents() {
-  const links = useStore((s) => s.librarySettings.links);
   const parents = useStore(useShallow((s) => s.items.filter((i) => i.childIds).map((i) => i.id)));
   const openParents = useStore((s) => s.openParents);
-  const none = !links || parents.length === 0;
+  const none = parents.length === 0;
   return {
     none,
     allOpen: !none && parents.every((id) => openParents.has(id)),
@@ -214,109 +211,86 @@ function useParents() {
   };
 }
 
-const PARENTS_TIP = "紐づけた項目をすべて開く／閉じる";
-const parentsTitle = (none: boolean) => (none ? `${PARENTS_TIP}（この一覧に紐づけた項目はありません）` : PARENTS_TIP);
-
 /**
- * Two states side by side, like グループ, so the state reads without a pressed
- * face. Folded into the display menu when the band gets short (docs/UI.md).
+ * "表示": how the list looks, in one popover (docs/NAVIGATION.md「表示のポップオーバー」).
+ * It stays open while things are picked, so several can be changed in a row;
+ * a click elsewhere or Esc closes it. The rows are always the same (what
+ * can't be used is greyed out), except 紐づけ, there only for a library that
+ * uses links.
  */
-export function ParentsToggle() {
-  const { none, allOpen, set } = useParents();
-  const seg = (open: boolean) =>
-    `flex h-6 items-center rounded px-2 whitespace-nowrap disabled:off ${
-      !none && allOpen === open ? "bg-tonal text-on-tonal" : "text-dim enabled:hover:bg-hover"
-    }`;
-  return (
-    <div className="flex shrink-0 items-center gap-1.5 @max-5xl:hidden" title={parentsTitle(none)}>
-      <span className="text-dim @max-7xl:hidden">紐づけ</span>
-      <div className="flex gap-0.5 rounded-md bg-ink/5 p-0.5">
-        <button disabled={none} aria-pressed={!none && !allOpen} className={seg(false)} onClick={() => allOpen && set(false)}>
-          閉じる
-        </button>
-        <button disabled={none} aria-pressed={allOpen} className={seg(true)} onClick={() => !allOpen && set(true)}>
-          開く
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** Thumbnail size and the information shown under each thumbnail. */
-export function DisplayMenu() {
+export function ViewPopover() {
+  const layout = useStore((s) => s.layout);
+  const setLayout = useStore((s) => s.setLayout);
+  const groupBy = useStore((s) => s.groupBy);
+  const setGroupBy = useStore((s) => s.setGroupBy);
+  const isSimilar = useStore((s) => s.view.kind === "similar");
+  const links = useStore((s) => s.librarySettings.links);
   const showInfo = useStore((s) => s.showInfo);
   const setShowInfo = useStore((s) => s.setShowInfo);
-  const thumbSize = useStore((s) => s.thumbSize);
-  const setThumbSize = useStore((s) => s.setThumbSize);
-  const layout = useStore((s) => s.layout);
   const kinds = useStore(useShallow(listKinds));
-  const setLayout = useStore((s) => s.setLayout);
   const parents = useParents();
+  const current = LAYOUTS.find((l) => l.key === layout) ?? LAYOUTS[0];
   return (
-    <Dropdown title="表示（レイアウト・サムネイルの大きさ・表示する情報）" width="w-64" button={<SlidersHorizontal size={15} />}>
-      <div className={heading}>レイアウト</div>
-      {LAYOUTS.map((l) => (
-        <button
-          key={l.key}
-          data-close
-          onClick={() => setLayout(l.key)}
-          className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-ink/8 ${
-            layout === l.key ? "text-fg" : "text-dim"
-          }`}
-        >
-          <span className={`shrink-0 ${layout === l.key ? "text-accent" : ""}`}>{l.icon}</span>
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span>{l.label}</span>
-            <span className="text-[11px] text-dim">{l.hint}</span>
-          </span>
-          {layout === l.key && <Check size={13} className="shrink-0 text-accent" />}
-        </button>
-      ))}
-      <div className="mx-1.5 my-1 border-t border-line" />
-      <div className={heading}>サムネイルの大きさ</div>
-      <label className="flex items-center gap-2 px-2 py-1.5" title="⌘+ / ⌘-">
-        <Slider
-          min={80}
-          max={360}
-          step={10}
-          value={thumbSize}
-          disabled={layout === "list"}
-          onChange={(e) => setThumbSize(Number(e.target.value))}
-          className="min-w-0 flex-1 disabled:off"
+    <Dropdown
+      title={`表示：${current.label}（レイアウト・並び順・グループ・表示する情報）`}
+      width="w-80"
+      button={
+        <>
+          {current.icon}
+          <span className="@max-[50rem]:hidden">表示</span>
+          <ChevronDown size={13} className="text-dim" />
+        </>
+      }
+    >
+      <Row label="レイアウト">
+        <Segment
+          label="レイアウト"
+          value={layout}
+          onPick={setLayout}
+          items={LAYOUTS.map((l) => ({ key: l.key, label: l.icon, title: `${l.label}：${l.hint}` }))}
         />
-        <span className="w-10 text-right text-dim tabular-nums">{thumbSize}</span>
-      </label>
-      <div className="mx-1.5 my-1 border-t border-line" />
-      <div className={heading}>紐づけ</div>
-      <div className="flex items-center gap-2 px-2 py-1.5" title={parentsTitle(parents.none)}>
-        {[
-          { open: false, label: "すべて閉じる" },
-          { open: true, label: "すべて開く" },
-        ].map((b) => (
-          <button
-            key={b.label}
-            data-close
-            disabled={parents.none || parents.allOpen === b.open}
-            onClick={() => parents.set(b.open)}
-            className="h-6 flex-1 rounded border border-edge whitespace-nowrap disabled:off"
-          >
-            {b.label}
-          </button>
+      </Row>
+      <Row label="並び順">
+        <SortControl />
+      </Row>
+      <Row label="グループ" title={isSimilar ? "重複の候補では使えません" : undefined}>
+        <Segment
+          label="グループ分け"
+          value={groupBy}
+          disabled={isSimilar}
+          onPick={setGroupBy}
+          items={GROUPS.map((g) => ({ key: g.key, label: g.label, title: `${g.label}：${g.hint}` }))}
+        />
+      </Row>
+      {links && (
+        <Row label="紐づけ" title={parents.none ? "この一覧に紐づけた項目はありません" : "紐づけた項目をすべて開く／閉じる"}>
+          <Segment
+            label="紐づけ"
+            value={parents.none ? null : parents.allOpen ? "open" : "closed"}
+            disabled={parents.none}
+            onPick={(k) => parents.set(k === "open")}
+            items={[
+              { key: "closed", label: "すべて閉じる", title: "紐づけた項目をすべて閉じる" },
+              { key: "open", label: "すべて開く", title: "紐づけた項目をすべて開く" },
+            ]}
+          />
+        </Row>
+      )}
+      <div className={rule} />
+      <div className={heading}>サムネイルの下に表示</div>
+      <div className="grid grid-cols-2 px-1 pb-1">
+        {INFO.filter((i) => !i.only || i.only.some((k) => kinds.includes(k))).map((i) => (
+          <label key={i.key} className="flex cursor-default items-center gap-2 rounded px-1 py-1.5 hover:bg-ink/8">
+            <input
+              type="checkbox"
+              checked={showInfo[i.key]}
+              onChange={(e) => setShowInfo({ [i.key]: e.target.checked })}
+              className="accent-accent"
+            />
+            {i.label}
+          </label>
         ))}
       </div>
-      <div className="mx-1.5 my-1 border-t border-line" />
-      <div className={heading}>サムネイルの下に表示</div>
-      {INFO.filter((i) => !i.only || i.only.some((k) => kinds.includes(k))).map((i) => (
-        <label key={i.key} className="flex cursor-default items-center gap-2 rounded px-2 py-1.5 hover:bg-ink/8">
-          <input
-            type="checkbox"
-            checked={showInfo[i.key]}
-            onChange={(e) => setShowInfo({ [i.key]: e.target.checked })}
-            className="accent-accent"
-          />
-          {i.label}
-        </label>
-      ))}
     </Dropdown>
   );
 }

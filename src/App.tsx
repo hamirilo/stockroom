@@ -27,7 +27,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { ExportDialog } from "./components/ExportDialog";
 import { ShareDialog } from "./components/ShareDialog";
 import { Welcome } from "./components/Welcome";
-import { importClipboardFiles, importPaths, undoChanges } from "./lib/actions";
+import { importClipboardFiles, importPaths, undoChanges, undoable } from "./lib/actions";
 import { api, type Change, type ImportSummary } from "./lib/api";
 import { dragRegion } from "./lib/titleBar";
 import { loadAppVersion, scheduleUpdateCheck } from "./lib/update";
@@ -118,11 +118,10 @@ export default function App() {
         // The library the changes were made in (change ids are per library).
         const root = s.library?.root;
         s.refresh();
-        s.notify({
+        undoable("Claude の変更", () => undoChanges(ids, root), {
           title: changes.length > 1 ? `Claude が ${changes.length} 件の変更をしました` : `Claude：${changes[0].summary}`,
           detail: changes.length > 1 ? changes.map((c) => c.summary).join(" / ") : undefined,
           kind: "info",
-          action: { label: "元に戻す", onClick: () => undoChanges(ids, root) },
         });
         changes = [];
       }, 1500);
