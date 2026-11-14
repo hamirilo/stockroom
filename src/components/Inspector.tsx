@@ -8,12 +8,10 @@ import {
   Heart,
   Layers,
   Pin,
-  Plus,
   X,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  deleteSelection,
   setRating,
   toggleFavorite,
   togglePinned,
@@ -146,8 +144,6 @@ function TagInput({ onAdd, exclude }: { onAdd: (names: string[]) => void; exclud
     </div>
   );
 }
-
-const btn = "h-8 rounded-md border border-frame hover:bg-hover active:bg-press";
 
 /** A video's codecs, frame rate and bit rate, read from the file when the panel shows it. */
 function VideoCodecRows({ item }: { item: Item }) {
@@ -384,8 +380,22 @@ export function FlagButton({
   );
 }
 
-/** Favourite, pin and tray buttons for `ids` (state read from the loaded items). */
-export function FlagButtons({ ids, items, compact }: { ids: string[]; items: Item[]; compact?: boolean }) {
+/**
+ * Favourite, pin and tray buttons for `ids` (state read from the loaded items).
+ * `shelf={false}`：シェルフを出さない。詳細パネル（情報タブ）はシェルフを「操作」として扱い、
+ * 選択バー・右クリック・B キー・ドラッグに任せる（docs/MENUS.md §7）。
+ */
+export function FlagButtons({
+  ids,
+  items,
+  compact,
+  shelf: withShelf = true,
+}: {
+  ids: string[];
+  items: Item[];
+  compact?: boolean;
+  shelf?: boolean;
+}) {
   const sel = items.filter((i) => ids.includes(i.id));
   const state = (flag: (i: Item) => boolean): boolean | null => {
     const n = sel.filter(flag).length;
@@ -427,7 +437,7 @@ export function FlagButtons({ ids, items, compact }: { ids: string[]; items: Ite
           onClick={() => togglePinned(ids, { quiet: true })}
         />
       </div>
-      {compact ? shelf : <div className="flex">{shelf}</div>}
+      {withShelf && (compact ? shelf : <div className="flex">{shelf}</div>)}
     </div>
   );
 }
@@ -441,7 +451,6 @@ export function Inspector() {
   const isTrash = useStore((s) => s.view.kind === "trash");
   const noun = useStore(listNoun);
   const [info, setInfo] = useState<SelectionInfo>({ tags: [], folders: [] });
-  const [adding, setAdding] = useState(false);
 
   const ids = useMemo(() => [...selected], [selected]);
   const single = ids.length === 1 ? items.find((i) => i.id === ids[0]) : undefined;
@@ -467,7 +476,6 @@ export function Inspector() {
 
   useEffect(() => {
     let live = true;
-    setAdding(false);
     if (!ids.length) return setInfo({ tags: [], folders: [] });
     api.selectionInfo(ids).then((i) => live && setInfo(i));
     return () => {
@@ -485,7 +493,6 @@ export function Inspector() {
 
   const n = ids.length;
   const countSuffix = (c: number) => (n > 1 && c < n ? ` (${c}/${n})` : "");
-  const unusedFolders = folders.filter((f) => !info.folders.some((x) => x.id === f.id && x.count === n));
 
   // What each closed section says on its heading.
   const childCount = single ? rawItems.filter((i) => i.parentId === single.id).length : 0;
@@ -553,7 +560,7 @@ export function Inspector() {
       {!isTrash && (
         <div className="mt-3 flex items-center justify-between gap-2 px-1">
           <RatingStars value={rating} onChange={(n) => setRating(ids, n, { quiet: true })} />
-          <FlagButtons ids={ids} items={items} compact />
+          <FlagButtons ids={ids} items={items} compact shelf={false} />
         </div>
       )}
 
@@ -588,34 +595,6 @@ export function Inspector() {
               </Chip>
             ))}
           </div>
-          {adding ? (
-            <select
-              autoFocus
-              defaultValue=""
-              onBlur={() => setAdding(false)}
-              onChange={(e) => {
-                setAdding(false);
-                if (e.target.value) run(() => api.moveToFolder(ids, e.target.value));
-              }}
-              className="mt-2 h-8 w-full rounded-md border border-edge bg-bg px-2 outline-none"
-            >
-              <option value="">移動先のフォルダを選択…</option>
-              {unusedFolders.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {folderPath(folders, f.id)}
-                </option>
-              ))}
-            </select>
-          ) : (
-            folders.length > 0 && (
-              <button
-                onClick={() => setAdding(true)}
-                className="mt-2 flex items-center gap-1 text-xs text-dim hover:text-fg"
-              >
-                <Plus size={13} /> フォルダへ移動
-              </button>
-            )
-          )}
         </Section>
 
         {/* Not in the trash. */}
@@ -675,21 +654,6 @@ export function Inspector() {
           </Section>
         )}
       </div>
-
-      {/* Elsewhere these are in the row on top and its "…" menu. */}
-      {isTrash && (
-        <div className="mt-auto flex flex-col gap-2 pt-6">
-          <button onClick={() => run(() => api.restoreItems(ids))} className={btn}>
-            復元
-          </button>
-          <button
-            onClick={() => deleteSelection(ids)}
-            className="h-8 rounded-md border border-danger/50 text-danger hover:bg-danger/10"
-          >
-            完全に削除
-          </button>
-        </div>
-      )}
     </div>
   );
 }
