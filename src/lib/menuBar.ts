@@ -3,8 +3,10 @@
  * menus at the top of the screen on macOS, the window's menu on Windows.
  *
  * Keys: ⌘ / Ctrl combos are the items' accelerators. Single keys (F, P, B,
- * 0-5, Space…) are not, since they must still type into text fields; they are
- * only shown (Windows: right-aligned after a tab, macOS: after the name).
+ * 0-5, Space…) must still type into text fields, so the page handles them;
+ * the menu only shows them. macOS: as accelerators at the right like the
+ * others, which the app keeps the menu from taking (src-tauri/src/menu_keys.rs).
+ * Windows: right-aligned after a tab in the name.
  * On macOS, copy / paste / select all in text fields go through the Edit
  * menu, so those are the standard items (copying items uses the page's
  * `copy` event, see `installCopyHandler`).
@@ -56,6 +58,8 @@ function accelerator(key: string): string {
     "[": "BracketLeft",
     "]": "BracketRight",
     "/": "Slash",
+    // The shortcut list: ⇧/ on US and JIS keyboards alike.
+    "?": "Shift+Slash",
     ",": "Comma",
     Esc: "Escape",
   };
@@ -65,10 +69,9 @@ function accelerator(key: string): string {
     .join("+");
 }
 
-/** The label with a key that is shown but not an accelerator. */
+/** Windows: the label with a key that is shown but not an accelerator, right-aligned after a tab. */
 function withKey(text: string, key: string | undefined): string {
-  if (!key) return text;
-  return isMac ? `${text}（${comboText(key)}）` : `${text}\t${comboText(key)}`;
+  return key ? `${text}\t${comboText(key)}` : text;
 }
 
 let entries: Entry[] = [];
@@ -99,8 +102,12 @@ async function live(
   // The first ⌘ combo becomes the accelerator (サイドバー: ⌘⌥1, not Tab);
   // with none, the first key is only shown.
   const combo = opts.keys?.find((k) => !pageOnly(k));
-  const accel = combo ? accelerator(combo) : undefined;
-  const label = (x: S) => (accel ? text(x) : withKey(text(x), opts.keys?.[0]));
+  // macOS: a key the page handles (F, Space, ⇧D, ⌥1…) is still the item's
+  // accelerator so it shows at the right; menu_keys.rs keeps the menu from
+  // taking keys without ⌘. Not ⌘C: the text fields' copy needs it.
+  const shown = isMac && !combo ? opts.keys?.find((k) => !k.includes("Mod+")) : undefined;
+  const accel = combo ? accelerator(combo) : shown ? accelerator(shown) : undefined;
+  const label = (x: S) => (accel || isMac ? text(x) : withKey(text(x), opts.keys?.[0]));
   // Without a library open, only what is about the app or libraries works.
   const own = opts.enabled ?? (() => true);
   const enabled = (x: S) => (x.library !== null || (opts.id !== undefined && APP_WIDE.has(opts.id))) && own(x);
