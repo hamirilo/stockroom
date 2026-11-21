@@ -199,6 +199,10 @@ function VideoCodecRows({ item }: { item: Item }) {
   );
 }
 
+/** 追加日。秒までは要らないので分まで（2026/10/18 17:31）。 */
+const addedLabel = (t: number) =>
+  new Date(t).toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+
 /**
  * 小さな見出し（タグ・フォルダ・メモ・紐づけ・ファイル情報）。折りたたまず、いつも中身を出す
  * （docs/UI.md「詳細パネル（情報タブ）の並び」）。
@@ -738,15 +742,27 @@ export function Inspector() {
       <Heading title="ファイル情報" />
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-1 text-xs">
         {single ? (
+          // 1 行に 1 つ。名前は Finder に合わせ、容量は「サイズ」、縦横のピクセル数は「大きさ」。
+          // ファイルについて（種類・形式・サイズ）→ 中身について（大きさ・再生時間・映像…）→ 追加日。
           <>
-            <dt className="text-dim">{single.kind === "image" || single.kind === "video" ? "サイズ" : "種類"}</dt>
-            <dd className="tabular-nums">{sizeLabel(single)}</dd>
+            {single.kind !== "image" && single.kind !== "video" && (
+              <>
+                <dt className="text-dim">種類</dt>
+                <dd>{sizeLabel(single)}</dd>
+              </>
+            )}
             {single.kind !== "bookmark" && (
               <>
                 <dt className="text-dim">形式</dt>
-                <dd>
-                  {single.ext.toUpperCase()} · {formatBytes(single.size)}
-                </dd>
+                <dd>{single.ext.toUpperCase()}</dd>
+                <dt className="text-dim">サイズ</dt>
+                <dd className="tabular-nums">{formatBytes(single.size)}</dd>
+              </>
+            )}
+            {(single.kind === "image" || single.kind === "video") && (
+              <>
+                <dt className="text-dim">大きさ</dt>
+                <dd className="tabular-nums">{single.width ? `${single.width} × ${single.height}` : "不明"}</dd>
               </>
             )}
             {single.kind === "video" && single.durationMs != null && (
@@ -757,13 +773,13 @@ export function Inspector() {
             )}
             {single.kind === "video" && <VideoCodecRows item={single} />}
             <dt className="text-dim">追加日</dt>
-            <dd>{new Date(single.importedAt).toLocaleString("ja-JP")}</dd>
+            <dd className="tabular-nums">{addedLabel(single.importedAt)}</dd>
           </>
         ) : (
           <>
             <dt className="text-dim">種類</dt>
             <dd>{byKind.join(" · ")}</dd>
-            <dt className="text-dim">合計</dt>
+            <dt className="text-dim">合計サイズ</dt>
             <dd className="tabular-nums">{totalSize}</dd>
             <dt className="text-dim">追加日</dt>
             <dd className="tabular-nums">{dateRange}</dd>

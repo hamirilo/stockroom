@@ -606,37 +606,26 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
     return;
   }
   const byId = new Map(s.rawItems.map((i) => [i.id, i]));
-  const ratings = new Set(ids.map((id) => byId.get(id)?.rating ?? 0));
   const rotate = applicable(["item.rotateCcw", "item.rotateCw", "item.flipH", "item.flipV"]);
   const turned = isEnabled(command("item.resetOrientation"), s);
   const folder = currentFolderId();
   // macOS lists the apps that can open them; Windows's own "プログラムから開く" does that.
   const canOpenWith = isEnabled(command("item.openWith"), s);
   const openWith = isMac ? appsMenu(ids, null, !canOpenWith) : commandItem("item.openWith");
+  // 開く／印・シェルフと向き（選択バーと同じ並び）／整理／持ち出し／削除（docs/MENUS.md §3）
   useMenu.getState().show(e, [
     ...header,
     commandItem("item.show", { onClick: () => s.openViewer(index) }),
     commandItem("item.open"),
     openWith,
     commandItem("item.openForEdit"),
-    commandItem("item.reveal", { onClick: () => s.run(() => api.revealItem(item.id)) }),
     { separator: true },
-    {
-      icons: ["item.favorite", "item.pin", "item.tray"].map(commandIcon),
-      rating: { current: ratings.size === 1 ? [...ratings][0] : null, onPick: (n) => setRating(ids, n) },
-    },
+    { icons: ["item.favorite", "item.pin", "item.tray"].map(commandIcon) },
     // Only images turn; "元の向きに戻す" once one has been turned.
     ...(rotate.length ? [{ icons: [...rotate, ...(turned ? ["item.resetOrientation"] : [])].map(commandIcon) }] : []),
     { separator: true },
-    commandItem("item.copy"),
-    {
-      label: "書き出し",
-      submenu: [
-        commandItem("list.export", { onClick: () => exportSelection(ids) }),
-        commandItem("list.sheet", { onClick: () => openSheet(ids) }),
-        commandItem("list.transfer", { onClick: () => s.setTransfer({ ids, noun: itemsNoun(ids.flatMap((id) => byId.get(id) ?? [])), count: ids.length }) }),
-      ],
-    },
+    // The same as the menu bar's 項目 → 評価, with ✓ on the rating they all have.
+    { label: "評価", submenu: [0, 1, 2, 3, 4, 5].map((n) => commandItem(`item.rate${n}`, { check: true })) },
     {
       label: "フォルダ",
       submenu: [
@@ -647,7 +636,14 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
       ],
     },
     { label: "タグ", submenu: [commandItem("item.copyTags"), commandItem("item.pasteTags")] },
-    // A video, or a video and an image (docs/VIDEO.md).
+    // With links off the rows stay, greyed, and say why (docs/UI.md).
+    {
+      label: "紐づけ",
+      submenu: s.librarySettings.links
+        ? [commandItem("item.link"), commandItem("item.unlink"), commandItem("item.makeParent"), commandItem("item.adopt")]
+        : [{ label: "親子関係が無効です（設定で有効にできます）", onClick: () => {}, disabled: true }],
+    },
+    // A video, or a video and an image (docs/VIDEO.md). Last in its group, so the rows above stay put.
     ...(ids.some((id) => byId.get(id)?.kind === "video")
       ? [
           {
@@ -663,13 +659,17 @@ export function showItemMenu(e: React.MouseEvent | { clientX: number; clientY: n
           },
         ]
       : []),
-    // With links off the rows stay, greyed, and say why (docs/UI.md).
+    { separator: true },
+    commandItem("item.copy"),
     {
-      label: "紐づけ",
-      submenu: s.librarySettings.links
-        ? [commandItem("item.link"), commandItem("item.unlink"), commandItem("item.makeParent"), commandItem("item.adopt")]
-        : [{ label: "親子関係が無効です（設定で有効にできます）", onClick: () => {}, disabled: true }],
+      label: "書き出し",
+      submenu: [
+        commandItem("list.export", { onClick: () => exportSelection(ids) }),
+        commandItem("list.sheet", { onClick: () => openSheet(ids) }),
+        commandItem("list.transfer", { onClick: () => s.setTransfer({ ids, noun: itemsNoun(ids.flatMap((id) => byId.get(id) ?? [])), count: ids.length }) }),
+      ],
     },
+    commandItem("item.reveal", { onClick: () => s.run(() => api.revealItem(item.id)) }),
     { separator: true },
     commandItem("item.trash", { danger: true }),
   ]);
