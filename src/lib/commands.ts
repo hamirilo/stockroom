@@ -81,6 +81,8 @@ export interface Command {
   /** The label for the current state ("お気に入りに追加" / "お気に入りから外す"). */
   label?: (s: S) => string;
   icon?: LucideIcon;
+  /** The name under its icon in the right-click menu, when `title` is too long for it. */
+  short?: string;
   keys?: string[];
   /** Kinds it applies to (all when absent): rotating is for images only. */
   kinds?: ItemKind[];
@@ -464,6 +466,7 @@ const ALL_COMMANDS: Command[] = [
   {
     id: "item.rotateCcw",
     title: "左に回転",
+    short: "左回転",
     icon: RotateLeft,
     keys: ["Mod+Shift+L"],
     kinds: ["image"],
@@ -473,6 +476,7 @@ const ALL_COMMANDS: Command[] = [
   {
     id: "item.rotateCw",
     title: "右に回転",
+    short: "右回転",
     icon: RotateRight,
     keys: ["Mod+Shift+R"],
     kinds: ["image"],
@@ -498,6 +502,7 @@ const ALL_COMMANDS: Command[] = [
   {
     id: "item.resetOrientation",
     title: "元の向きに戻す",
+    short: "元の向き",
     icon: Undo2,
     kinds: ["image"],
     enabled: (s) => live(s) && !allHave(s, (i) => i.rotation === 0 && !i.flipped),

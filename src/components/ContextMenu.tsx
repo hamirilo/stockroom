@@ -1,4 +1,4 @@
-import { ChevronRight, Star } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { create } from "zustand";
 import { COLORS } from "../lib/colors";
@@ -6,7 +6,9 @@ import { COLORS } from "../lib/colors";
 /** A button in an icon row: on = drawn filled (e.g. already a favourite). */
 export interface IconButton {
   icon: React.ReactNode;
-  /** Name and key, shown on hover ("お気に入り（F）"). */
+  /** The fixed name under the icon ("お気に入り"), readable without hovering. */
+  label: string;
+  /** Name for the current state and key, shown on hover ("お気に入りから外す（F）"). */
   title: string;
   active?: boolean;
   onClick: () => void;
@@ -28,11 +30,8 @@ export type MenuItem =
   | ({ separator: true } & Never<"label" | "colors" | "header" | "icons" | "submenu">)
   /** A quiet line on top ("3 件を選択中"). */
   | ({ header: string } & Never<"label" | "separator" | "colors" | "icons" | "submenu">)
-  /** A row of icon buttons, optionally with star ratings after them. */
-  | ({
-      icons: IconButton[];
-      rating?: { current: number | null; onPick: (n: number) => void };
-    } & Never<"label" | "separator" | "colors" | "header" | "submenu">)
+  /** A row of icon buttons, each named under its icon. */
+  | ({ icons: IconButton[] } & Never<"label" | "separator" | "colors" | "header" | "submenu">)
   /** A row of colour swatches; picking `null` clears the colour. */
   | ({ colors: { current: string | null; onPick: (key: string | null) => void } } & Never<
       "label" | "separator" | "header" | "icons" | "submenu"
@@ -173,7 +172,7 @@ function Panel({
             );
           if (it.icons)
             return (
-              <div key={i} className="flex items-center gap-0.5 px-1 py-0.5" onPointerEnter={() => hover(i, null, false)}>
+              <div key={i} className="flex items-start px-0.5 py-0.5" onPointerEnter={() => hover(i, null, false)}>
                 {it.icons.map((b, j) => (
                   <button
                     key={j}
@@ -181,14 +180,14 @@ function Panel({
                     aria-label={b.title}
                     aria-pressed={b.active}
                     onClick={() => run(b.onClick)}
-                    className={`flex h-7 w-7 items-center justify-center rounded hover:bg-accent-fill hover:text-white ${
+                    className={`flex w-13 flex-col items-center gap-0.5 rounded px-0.5 pt-1.5 pb-1 hover:bg-accent-fill hover:text-white ${
                       b.active ? "text-accent" : "text-fg/80"
                     }`}
                   >
                     {b.icon}
+                    <span className="text-[10px] leading-tight whitespace-nowrap">{b.label}</span>
                   </button>
                 ))}
-                {it.rating && <RatingPicker {...it.rating} run={run} />}
               </div>
             );
           if (it.submenu)
@@ -231,34 +230,5 @@ function Panel({
         />
       )}
     </>
-  );
-}
-
-/** ★1〜★5 to click (the current rating filled); clicking the current one clears it. */
-function RatingPicker({
-  current,
-  onPick,
-  run,
-}: {
-  current: number | null;
-  onPick: (n: number) => void;
-  run: (fn: () => void) => void;
-}) {
-  const [over, setOver] = useState<number | null>(null);
-  const shown = over ?? current ?? 0;
-  return (
-    <div className="ml-auto flex items-center pr-1.5 pl-2" onPointerLeave={() => setOver(null)}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          title={n === current ? "評価を消す（0）" : `★${n}（${n}）`}
-          onPointerEnter={() => setOver(n)}
-          onClick={() => run(() => onPick(n === current ? 0 : n))}
-          className="p-0.5 text-amber-500 dark:text-amber-400"
-        >
-          <Star size={14} fill={n <= shown ? "currentColor" : "none"} strokeWidth={1.75} />
-        </button>
-      ))}
-    </div>
   );
 }
