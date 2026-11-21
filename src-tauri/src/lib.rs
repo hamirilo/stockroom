@@ -11,6 +11,8 @@ pub mod library;
 pub mod limits;
 pub mod loopback;
 pub mod mcp;
+#[cfg(target_os = "macos")]
+pub mod menu_keys;
 pub mod open_external;
 pub mod orient;
 pub mod proxy;
@@ -120,6 +122,9 @@ pub fn run() {
                 log::info!("{m}");
             }
             main_window(app.handle())?;
+            // Single keys (F, Space, 0-5…) shown in the menu bar but left to the page (menu_keys.rs).
+            #[cfg(target_os = "macos")]
+            menu_keys::install();
             log::info!(
                 "{} {} ({} {})",
                 app.package_info().name,
