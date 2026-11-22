@@ -2,6 +2,11 @@
 
 **状態**：受け口は対応済み（2026-10-18。`webimport.rs` の `Peer`）。相手側の計画は Feedability の `docs/STOCKROOM.md` と ADR-0004（採用）。
 
+**2026-11-22：記事（`.md`）とリンク（`POST /bookmark`）は Stockroom では受けなくなった**（テキストとブックマークを外した。[FILE_APP.md](FILE_APP.md)）。
+`.md` は対応していない形式として断り（422）、`/bookmark` は 404 を返す。接続の許可（`/pair`）と `/import` は残るので、画像は今どおり送れる。
+ファイル管理のアプリで受けるかは、そのアプリを検討するときに決める。Feedability 側の文書（`docs/STOCKROOM.md`）も合わせて直す必要がある。
+以下は受けていたときの決定。
+
 困っていること：Feedability（同じ作りのフィードリーダー）で読んだ記事のうち、取っておきたいものを stockroom に入れる手段が無い。
 フィードの記事は流れていくもので、Feedability は古い記事を消すし、元のページも書き換わったり消えたりする。
 stockroom はストック、Feedability はフローと役割を分け、**取っておきたいものだけを stockroom へ送る**。
@@ -12,12 +17,12 @@ stockroom はストック、Feedability はフローと役割を分け、**取�
 |---|---|
 | 受け口 | **今のブラウザ拡張の受付（`webimport.rs`、127.0.0.1:41620）を使う**。待ち受けポートは増やさない |
 | 足すもの | 拡張以外のアプリも `/pair` で接続の許可を求められるようにする。それ以外の API（`/info` `/folders` `/tags` `/import`）は変えない |
-| 届く形 | ファイル。Feedability の記事は Markdown（`.md`）1 件で、`page` に記事の URL が入る。新しい種類は足さない（テキストとして入る。docs/TEXT.md） |
+| 届く形 | ファイル。Feedability の記事は Markdown（`.md`）1 件で、`page` に記事の URL が入る。新しい種類は足さない（テキストとして入っていた。今は受けない） |
 | 入る場所 | ライブラリのフォルダとタグ（拡張と同じ） |
 | データ | 相手のアプリは stockroom の `library.db` やライブラリのフォルダを直接触らない。書き込むのは stockroom だけ（MCP と同じ） |
 | 初期状態 | 受付が今どおりオフなら、相手のアプリには「stockroom で受付をオンにしてください」と返る |
 
-URL（ブックマーク。docs/BOOKMARKS.md）の種類ができたので、「リンクだけ送る」は `POST /bookmark`（`{ url, title, description, folder, tags }`）で受ける。アプリは Web に取りに行かないので、タイトルや説明は送る側が付ける。
+URL（ブックマーク）の種類があったときは、「リンクだけ送る」を `POST /bookmark`（`{ url, title, description, folder, tags }`）で受けていた（今は外した）。
 
 ## 接続の許可（`/pair`）を拡張以外にも開く
 
@@ -39,7 +44,7 @@ URL（ブックマーク。docs/BOOKMARKS.md）の種類ができたので、「
 守る範囲は今と同じで、**Web ページから使われないこと**。同じ PC で動くほかのプログラムは、もともと `library.db` を直接読めるので守る対象にしていない。
 ただし許可なしには書き込ませない（トークンが無ければ 401）。
 
-## Feedability から届く Markdown
+## Feedability から届いていた Markdown（今は受けない）
 
 ファイル名は `<記事のタイトル>.md`。`import::run` が同名を連番にする。中身：
 
@@ -58,8 +63,8 @@ URL（ブックマーク。docs/BOOKMARKS.md）の種類ができたので、「
 
 - `POST /import?name=<タイトル>.md&page=<記事の URL>&folder=&tag=` で送る。`page` は詳細パネルの「取り込み元」になり、MCP の `find_items` にも出る
 - 本文の画像は Markdown の画像にせず `[画像](URL)` のリンクにする（stockroom の画面は外の画像を読まない）。画像も残したいときは、別に画像として送る（下の「あとで」）
-- 表示は今の Markdown の安全化（`features/texts/markdown.ts`）を通るので、届いた Markdown を信用しなくてよい
-- 本文の検索に入る（docs/TEXT.md）
+- 表示は Markdown の安全化（`features/texts/markdown.ts`。今は消した）を通るので、届いた Markdown を信用しなくてよかった
+- 本文の検索に入っていた
 - 同じ記事を 2 回送ると、中身が同じなら重複として数え、タグだけ足す（今の `/import` と同じ）。記事が更新されて中身が違えば別の項目になる
 
 ## 実装のとき触るところ
@@ -79,5 +84,4 @@ URL（ブックマーク。docs/BOOKMARKS.md）の種類ができたので、「
 ## あとで
 
 - 記事の画像を画像として送る（`page` は記事の URL。Feedability は画像をすでに Rust で取っている）
-- Feedability に「リンクだけ送る」を足す（受け口の `POST /bookmark` はできている）
 - 送り先のフォルダを送るたびに選ぶ（最初は Feedability の設定で 1 つ決める）

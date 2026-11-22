@@ -462,7 +462,6 @@ fn content_type(ext: &str) -> &'static str {
         "heic" | "heif" => "image/heic",
         "tif" | "tiff" => "image/tiff",
         "ico" => "image/x-icon",
-        "pdf" => "application/pdf",
         _ => "application/octet-stream",
     }
 }
@@ -530,7 +529,6 @@ mod tests {
             thumb: format!("{id}.jpg"),
             phash: None,
             preview: None,
-            body: None,
             duration_ms: None,
         };
         db::insert_item(&tx, &it, 1).unwrap();

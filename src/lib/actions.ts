@@ -1,7 +1,6 @@
 // User-level actions shared by several components (dialogs + API + refresh).
 import { listen } from "@tauri-apps/api/event";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, EMPTY_FILTER, kindLabel, kindOfExt, type DuplicateEffect, type Item, type ItemKind, type LibraryInfo, type LinkPlacement, type OrientOp, type VideoThumbSource, type View } from "./api";
 import { itemsNoun, kindsNoun } from "./kinds";
 import {
@@ -958,12 +957,6 @@ async function confirmOpenMany(count: number, title: string, what: string): Prom
   return ask(`${count} 件を${what}。よろしいですか？`, { title, okLabel: "開く", cancelLabel: "キャンセル" });
 }
 
-/** The selection less bookmarks: they have no file to hand to another app. */
-function withoutBookmarks(ids: string[]): string[] {
-  const kinds = new Map(st().rawItems.map((i) => [i.id, i.kind]));
-  return ids.filter((id) => kinds.get(id) !== "bookmark");
-}
-
 /**
  * Opens items to look at, in their default app. The stored file goes as is,
  * read-only so the app can't save over it (docs/OPEN_EXTERNAL.md).
@@ -971,16 +964,7 @@ function withoutBookmarks(ids: string[]): string[] {
 export async function openSelection(ids: string[]) {
   if (!ids.length) return;
   if (!(await confirmOpenMany(ids.length, "既定のアプリで開く", "既定のアプリで開きます"))) return;
-  // A bookmark opens its page in the browser; the rest in their default app.
-  const pages = new Map(st().items.filter((i) => i.kind === "bookmark" && i.sourceUrl).map((i) => [i.id, i.sourceUrl!]));
-  const files = ids.filter((id) => !pages.has(id));
-  await st().run(async () => {
-    for (const id of ids) {
-      const url = pages.get(id);
-      if (url) await openUrl(url);
-    }
-    if (files.length) await api.openItems(files);
-  });
+  await st().run(() => api.openItems(ids));
 }
 
 /**
@@ -990,7 +974,7 @@ export async function openSelection(ids: string[]) {
  * folder, on Windows the system's "プログラムから開く" for each file.
  */
 export async function openSelectionWith(ids: string[], app: string | null = null) {
-  const files = withoutBookmarks(ids);
+  const files = ids;
   if (!files.length) return;
   if (!(await confirmOpenMany(files.length, "アプリを選んで開く", "選んだアプリで開きます"))) return;
   if (isMac && !app) {
@@ -1011,7 +995,7 @@ export async function openSelectionWith(ids: string[], app: string | null = null
  * The copies are the user's; bring an edited one back by dropping it in.
  */
 export async function openSelectionForEdit(ids: string[]) {
-  const files = withoutBookmarks(ids);
+  const files = ids;
   if (!files.length) return;
   if (!(await confirmOpenMany(files.length, "編集用に書き出して開く", "書き出して開きます"))) return;
   try {

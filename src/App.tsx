@@ -14,8 +14,6 @@ import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { SelectionBar } from "./components/SelectionBar";
 import { ImageCompare } from "./components/ImageCompare";
-import { pasteBookmark, pastedUrl } from "./features/bookmarks/actions";
-import { pasteText } from "./features/texts/actions";
 import { ActionHud } from "./components/ActionHud";
 import { Toolbar } from "./components/Toolbar";
 import { Viewer } from "./components/Viewer";
@@ -180,17 +178,6 @@ export default function App() {
       if (files.length) {
         e.preventDefault();
         importClipboardFiles(files);
-        return;
-      }
-      // A URL alone becomes a bookmark (docs/BOOKMARKS.md); other words a new text (docs/TEXT.md).
-      const text = e.clipboardData?.getData("text/plain") ?? "";
-      const url = pastedUrl(text);
-      if (url) {
-        e.preventDefault();
-        void pasteBookmark(url);
-      } else if (text.trim()) {
-        e.preventDefault();
-        void pasteText(text);
       }
     };
     window.addEventListener("paste", onPaste);

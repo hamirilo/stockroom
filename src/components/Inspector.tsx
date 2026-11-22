@@ -526,7 +526,7 @@ export function Inspector() {
   const facts = single
     ? [
         sizeLabel(single),
-        single.kind !== "bookmark" && `${single.ext.toUpperCase()} · ${formatBytes(single.size)}`,
+        `${single.ext.toUpperCase()} · ${formatBytes(single.size)}`,
         single.kind === "video" && single.durationMs != null && durationLabel(single.durationMs),
       ].filter(Boolean)
     : [];
@@ -609,7 +609,7 @@ export function Inspector() {
           <div className="px-1 text-xs text-dim tabular-nums">{facts.join(" · ")}</div>
           {single.sourceUrl && (
             <div className="mt-1 flex min-w-0 gap-2 px-1 text-xs">
-              <span className="shrink-0 text-dim">{single.kind === "bookmark" ? "URL" : "元のページ"}</span>
+              <span className="shrink-0 text-dim">元のページ</span>
               <button
                 className="min-w-0 truncate text-left text-accent hover:underline"
                 title={single.sourceUrl}
@@ -743,28 +743,14 @@ export function Inspector() {
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-1 text-xs">
         {single ? (
           // 1 行に 1 つ。名前は Finder に合わせ、容量は「サイズ」、縦横のピクセル数は「大きさ」。
-          // ファイルについて（種類・形式・サイズ）→ 中身について（大きさ・再生時間・映像…）→ 追加日。
+          // ファイルについて（形式・サイズ）→ 中身について（大きさ・再生時間・映像…）→ 追加日。
           <>
-            {single.kind !== "image" && single.kind !== "video" && (
-              <>
-                <dt className="text-dim">種類</dt>
-                <dd>{sizeLabel(single)}</dd>
-              </>
-            )}
-            {single.kind !== "bookmark" && (
-              <>
-                <dt className="text-dim">形式</dt>
-                <dd>{single.ext.toUpperCase()}</dd>
-                <dt className="text-dim">サイズ</dt>
-                <dd className="tabular-nums">{formatBytes(single.size)}</dd>
-              </>
-            )}
-            {(single.kind === "image" || single.kind === "video") && (
-              <>
-                <dt className="text-dim">大きさ</dt>
-                <dd className="tabular-nums">{single.width ? `${single.width} × ${single.height}` : "不明"}</dd>
-              </>
-            )}
+            <dt className="text-dim">形式</dt>
+            <dd>{single.ext.toUpperCase()}</dd>
+            <dt className="text-dim">サイズ</dt>
+            <dd className="tabular-nums">{formatBytes(single.size)}</dd>
+            <dt className="text-dim">大きさ</dt>
+            <dd className="tabular-nums">{single.width ? `${single.width} × ${single.height}` : "不明"}</dd>
             {single.kind === "video" && single.durationMs != null && (
               <>
                 <dt className="text-dim">再生時間</dt>

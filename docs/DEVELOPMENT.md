@@ -27,18 +27,17 @@ src/                    React UI
   lib/layouts.ts        5 種類のレイアウト計算（位置を求めて仮想スクロール）
   lib/rule.ts           絞り込み条件の表示用ヘルパ
   components/           Sidebar / Toolbar / Grid / Inspector / Viewer ほか（共通の UI）
-  features/files/       ファイル（PDF・オフィス文書）のビューア
+  features/videos/      動画のビューアとサムネイルの指定
   dev/mockBackend.ts    ブラウザ開発用モック
 src-tauri/src/
   db.rs                 スキーマ・クエリ（＋テスト）
   import.rs             コピー・ハッシュ・サムネイル生成（rayon で並列）
   formats.rs            形式ごとのデコード（TIFF・SVG は Rust、HEIC・AVIF は OS）
-  files/                ファイル：サムネイル（Quick Look / Windows.Data.Pdf / 中のプレビュー / 種類のカード）
+  videos/               動画：ヘッダからの長さ・縦横、OS からのコマ（Quick Look）と種類のカード、自分で決めたサムネイル
   search.rs             検索構文のパーサ
   similar.rs            似ている画像の検出（dHash）
   orient.rs             回転・反転（向きの合成とサムネイルへの適用）
   library.rs            ライブラリの作成・オープン・項目のファイルの場所・ファイル削除
-  bookmarks/            ブックマーク：URL のそろえ方・カードのサムネイル・登録（docs/BOOKMARKS.md）
   webimport.rs          ブラウザ拡張の受付サーバー（127.0.0.1、接続キー必須、「アプリと接続」の確認）
   mcp/                  Claude からの整理：MCP サーバー（127.0.0.1、トークン必須）、ツール、`--mcp` の stdio 中継
   changes.rs            Claude がした変更の記録と取り消し

@@ -1,6 +1,6 @@
 //! Commands invoked from the frontend. All return `Result<_, String>` so
 //! errors surface as rejected promises in JS. Commands of one kind only are
-//! in its module (files/commands.rs, texts/commands.rs, ...).
+//! in its module (videos/, open_external.rs, ...).
 
 use crate::changes;
 use crate::db::{self, Counts, Folder, Item, ItemQuery, SelectionInfo, Tag};
@@ -284,6 +284,12 @@ pub fn close_library(app: &AppHandle) {
 
 fn activate(app: &AppHandle, state: &AppState, mut lib: Library) -> CmdResult<LibraryInfo> {
     lib.take_lock(this_app(app))?;
+    // Files, texts and bookmarks were taken out of the app (docs/FILE_APP.md).
+    match lib.remove_leftovers() {
+        Ok(0) => {}
+        Ok(n) => log::info!("removed {n} items of the kinds taken out (files, texts, bookmarks)"),
+        Err(e) => log::warn!("removing the kinds taken out: {e}"),
+    }
     app.asset_protocol_scope()
         .allow_directory(&lib.root, true)
         .map_err(err)?;
@@ -511,8 +517,8 @@ pub struct ItemView {
     display_path: String,
     /// A video's thumbnail is one the user set (docs/VIDEO.md).
     own_thumb: bool,
-    /// サムネイル画像の幅 ÷ 高さ。`width` / `height` を持たない項目（ファイル・ブックマーク・
-    /// テキスト）のセルを、サムネイル自体の比率にするために使う（docs/UI.md）。
+    /// サムネイル画像の幅 ÷ 高さ。`width` / `height` を読めなかった項目（ヘッダを読めない動画など）の
+    /// セルを、サムネイル自体の比率にするために使う（docs/UI.md）。
     thumb_aspect: Option<f64>,
 }
 

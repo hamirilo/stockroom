@@ -32,7 +32,7 @@
 | 編集するときに渡すもの | コピー。表示名をファイル名にして書き出し、それを既定のアプリで開く。コピーには Stockroom が付けた読み取り専用を残さない |
 | コピーの置き場所 | 既定は **書類/Stockroom**（macOS は `~/Documents/Stockroom`、Windows はドキュメントの中の `Stockroom`）。初めて書き出すときに作る。設定で変えられる。同じ名前があれば連番を付ける（書き出しと同じ） |
 | コピーのその後 | 書き出した時点で利用者のファイル。Stockroom は覚えず、消さない。編集したものを取り込み直すときは、ウィンドウへドロップする |
-| 対象の種類 | ブックマーク以外のすべて（画像・ファイル・テキスト・動画）。ブックマークは今のままブラウザで開く |
+| 対象の種類 | すべて（画像・動画） |
 | 回転・反転した画像 | 書き出しと同じく、元の向きのまま渡す（[FEATURES.md](FEATURES.md)） |
 
 ## 防げないこと
@@ -59,11 +59,11 @@
 - `src-tauri/src/open_external.rs`：`open_items`（既定のアプリ）、`open_items_with`（アプリを選んで）、`open_for_edit`（編集用に書き出して）、
   `default_edit_folder`（設定画面に出す既定の書き出し先）。画面からは `src/lib/actions.ts` の `openSelection` / `openSelectionWith` / `openSelectionForEdit`
 - 入口はコマンド表 `src/lib/commands.ts` の `item.open` / `item.openWith` / `item.openForEdit`。メニューバーの「ファイル」と一覧の右クリックで「既定のアプリで開く」の下に並べる（[MENUS.md](MENUS.md)）。
-  ブックマークだけを選んでいるときは、下の 2 つは無効表示。詳細パネルの下のボタンは増やさない（位置を変えない、[UI.md](UI.md)）
+  詳細パネルの下のボタンは増やさない（位置を変えない、[UI.md](UI.md)）
 - 11 件以上を開くときは、3 つとも同じ確認を出す（それぞれがウィンドウを開くため）
 - 読み取り専用：`library.rs` の `protect` / `unprotect`。macOS は書き込みの権限を外す（戻すときは持ち主だけ書ける）、Windows は読み取り専用の属性。ファイルだけで、フォルダには付けない。
   付けられなくても（属性の無いファイルシステム）開くのは止めず、ログに残す
-- **Stockroom 自身の書き込みの前に外す**：テキストの保存（`texts/commands.rs`。Windows は読み取り専用のファイルへ差し替えられない）、項目のフォルダを消すとき（`library::remove_item_dir`。ゴミ箱を空にする・完全に削除・取り込みに失敗したときの片付け）
+- **Stockroom 自身の書き込みの前に外す**：項目のフォルダを消すとき（`library::remove_item_dir`。ゴミ箱を空にする・完全に削除・取り込みに失敗したときの片付け）
 - **コピーに属性が移る**：Rust の `fs::copy` は権限・属性も写すので、写した先で外す。書き出し・ライブラリ全体の書き出し（`export::copy_out`）、編集用の書き出し（同じ関数）、別のライブラリへのコピー（`transfer.rs` の `copy_dir`）
 - 開けるアプリの一覧（macOS）：`open_external.rs` の `apps_for_items`。Launch Services に `NSWorkspace` の `URLsForApplicationsToOpenURL`（macOS 12 以降。それより前は既定のアプリだけ）と
   `URLForApplicationToOpenURL` で聞き、名前は `NSFileManager` の `displayNameAtPath`（「プレビュー」のように利用者の言語で）。拡張子ごとに 1 つのファイルで聞く。

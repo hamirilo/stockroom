@@ -127,7 +127,7 @@ pub fn reset(lib: &Library, id: &str) -> Result<(), String> {
         Some(t) => t,
         None => {
             let path = library::file_path(&lib.root, &item);
-            write_thumb(&crate::files::thumbnail(&path, &item.ext, THUMB_MAX), &dir, id)?
+            write_thumb(&super::frame::thumbnail(&path, &item.ext, THUMB_MAX), &dir, id)?
         }
     };
     db::set_thumb(&lib.conn, id, &thumb).map_err(|e| e.to_string())?;

@@ -39,7 +39,7 @@ fn where_schema() -> Value {
         "type": "object",
         "description": "絞り込みの条件。すべて省略するとライブラリ全体（ゴミ箱を除く）。複数指定するとすべてを満たすもの",
         "properties": {
-            "kind": { "type": "string", "enum": ["image", "file", "text", "video", "bookmark"], "description": "種類" },
+            "kind": { "type": "string", "enum": ["image", "video"], "description": "種類" },
             "folder": { "type": "string", "description": "フォルダのパス（例: 写真/旅行）" },
             "include_subfolders": { "type": "boolean", "description": "folder のサブフォルダの中身も含める" },
             "tags": { "type": "array", "items": { "type": "string" }, "description": "このタグのどれかが付いているもの" },
@@ -47,7 +47,7 @@ fn where_schema() -> Value {
             "untagged": { "type": "boolean", "description": "タグが 1 つも無いものだけ" },
             "unfiled": { "type": "boolean", "description": "どのフォルダにも入っていないものだけ" },
             "name_contains": { "type": "string", "description": "表示名にこの文字を含むもの（大文字・小文字は区別しない）" },
-            "search": { "type": "string", "description": "アプリの検索欄と同じ（表示名・メモ・タグ名・テキストの本文が対象。空白区切りで AND、OR、-除外、\"語句\"）" },
+            "search": { "type": "string", "description": "アプリの検索欄と同じ（表示名・メモ・タグ名が対象。空白区切りで AND、OR、-除外、\"語句\"）" },
             "ext": { "type": "array", "items": { "type": "string" }, "description": "拡張子（例: [\"png\", \"jpg\"]）" }
         },
         "additionalProperties": false
@@ -111,7 +111,7 @@ pub fn list() -> Value {
         {
             "name": "view_images",
             "title": "画像を見る",
-            "description": format!("アイテムの縮小画像を返す（1 回 {MAX_VIEW} 件まで）。PDF などはサムネイル。1 枚ごとに使用量がかかるので、必要な分だけにすること"),
+            "description": format!("アイテムの縮小画像を返す（1 回 {MAX_VIEW} 件まで）。動画はサムネイル。1 枚ごとに使用量がかかるので、必要な分だけにすること"),
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -495,10 +495,7 @@ fn cell(s: &str, max: usize) -> String {
 fn kind_label(kind: Kind) -> &'static str {
     match kind {
         Kind::Image => "画像",
-        Kind::File => "ファイル",
-        Kind::Text => "テキスト",
         Kind::Video => "動画",
-        Kind::Bookmark => "ブックマーク",
     }
 }
 

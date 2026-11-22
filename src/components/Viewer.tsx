@@ -20,10 +20,7 @@ import { colorHex } from "../lib/colors";
 import { folderPaths } from "../lib/grouping";
 import { dragRegion } from "../lib/titleBar";
 import { useStore } from "../store";
-import { FileView } from "../features/files/FileView";
 import { VideoView } from "../features/videos/VideoView";
-import { BookmarkView } from "../features/bookmarks/BookmarkView";
-import { TextView } from "../features/texts/TextView";
 import { FlagButtons } from "./Inspector";
 import { RatingStars } from "./RatingStars";
 
@@ -65,7 +62,7 @@ export function Viewer() {
   const suppressClick = useRef(false);
 
   const open = item !== undefined;
-  // Files, texts, videos and bookmarks get their own body instead of the zoomable image.
+  // Videos get their own body instead of the zoomable image.
   const isImage = item?.kind === "image";
   useEffect(() => setZoom("fit"), [item?.id]);
   useEffect(() => {
@@ -270,8 +267,8 @@ export function Viewer() {
           <span className="text-xs text-ink/40 tabular-nums">
             {sizeLabel(item)}
           </span>
-          {(item.kind === "file" || item.kind === "text" || item.kind === "video" || item.kind === "bookmark") && (
-            <button className={tool} title={item.kind === "bookmark" ? "ブラウザで開く" : "既定のアプリで開く"} onClick={() => openSelection([item.id])}>
+          {item.kind === "video" && (
+            <button className={tool} title="既定のアプリで開く" onClick={() => openSelection([item.id])}>
               <ExternalLink size={15} />
             </button>
           )}
@@ -330,14 +327,8 @@ export function Viewer() {
       )}
       <div className="flex min-h-0 flex-1">
         <div className="relative min-h-0 min-w-0 flex-1">
-          {item.kind === "file" ? (
-            <FileView item={item} />
-          ) : item.kind === "text" ? (
-            <TextView key={item.id} item={item} />
-          ) : item.kind === "video" ? (
+          {item.kind === "video" ? (
             <VideoView item={item} />
-          ) : item.kind === "bookmark" ? (
-            <BookmarkView item={item} />
           ) : (
             <div
               ref={boxRef}

@@ -45,8 +45,8 @@ export function shortcutSections(): ShortcutSection[] {
       rows: [
         cmd("view.sidebar", { label: "サイドバーの表示・非表示" }),
         {
-          label: "種類で絞る（画像・ファイル・テキスト・動画・ブックマーク）/ 絞らない",
-          keys: ["Alt+1", "Alt+2", "Alt+3", "Alt+4", "Alt+5", "Alt+0"],
+          label: "種類で絞る（画像・動画）/ 絞らない",
+          keys: ["Alt+1", "Alt+2", "Alt+0"],
         },
         cmd("view.inspector", { label: "情報を表示（表示中なら詳細パネルを閉じる）" }),
         cmd("view.shelf", { label: "シェルフを表示（表示中なら詳細パネルを閉じる）" }),

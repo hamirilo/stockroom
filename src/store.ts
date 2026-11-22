@@ -23,7 +23,6 @@ import {
   type View,
 } from "./lib/api";
 import { buildHas, OFF_SETTINGS } from "./lib/limits";
-import { filesApi, onFileThumbs } from "./features/files/api";
 import { listHasPixels, queryKinds, inScope, ruleKinds, usedKinds, type KindState } from "./lib/kinds";
 import {
   DEFAULT_LIBRARY_SETTINGS,
@@ -938,12 +937,7 @@ export const useStore = create<State>((set, get) => ({
       // What was done in the other library can't be taken back here.
       undoStack: [],
     });
-    if (library) {
-      get().refresh();
-      // Windows: office documents' thumbnails made by Office (when installed).
-      watchFileThumbs();
-      filesApi.prepareThumbs().catch(() => {});
-    }
+    if (library) get().refresh();
   },
   setKinds: (kinds) => {
     const s = get();
@@ -1472,19 +1466,8 @@ export const useStore = create<State>((set, get) => ({
     if (since !== undefined) notifyIfAway(since, title, detail);
     if (s.failed.length) warn("import failures", s.failed);
     notifyUnusedKinds(s.kinds ?? {});
-    if (s.kinds?.file) filesApi.prepareThumbs().catch(() => {});
   },
 }));
-
-let watchingFileThumbs = false;
-/** Shows office documents' thumbnails as they are replaced in the background. */
-function watchFileThumbs() {
-  if (watchingFileThumbs) return;
-  watchingFileThumbs = true;
-  onFileThumbs(() => useStore.getState().refresh()).catch(() => {
-    watchingFileThumbs = false;
-  });
-}
 
 /**
  * After an import: tells about items of kinds the library isn't used for

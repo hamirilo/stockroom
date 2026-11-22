@@ -34,7 +34,6 @@ STOCKROOM_KINDS=image bun run dev   # ブラウザで UI だけ（モック）
 
 - 取り込み：挙げていない種類のファイルは、対応していない形式と同じように飛ばす（`limits::accepts`、`import.rs` の `ext_of`）。`supported_exts` も挙げた種類の形式だけを返す
 - ライブラリの「使う種類」は、挙げた種類の中からしか選べない（`librarySettings.ts`）。1 種類だけなら、設定の「種類」のページを出さない
-- テキストやブックマークを挙げていなければ、それを作るコマンドを断る。新規テキストのコマンドを外し、貼り付けても作らない
 
 ### `STOCKROOM_NO_CONNECT`
 

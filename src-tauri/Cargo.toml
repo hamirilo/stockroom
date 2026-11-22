@@ -45,10 +45,6 @@ tauri-plugin-process = "2"
 tiny_http = "0.12"
 # Images handed to Claude (mcp/tools.rs).
 base64 = "0.22"
-# Texts: reading and writing Shift_JIS (CSV from Excel and in-house systems), texts/mod.rs.
-encoding_rs = "0.8"
-# Files: the preview inside iWork / Office files (files/mod.rs). Reading only.
-zip = { version = "4", default-features = false, features = ["deflate-flate2"] }
 # The window opens at the size and place it had when last closed.
 tauri-plugin-window-state = "2"
 # A second launch brings up the running app's window instead (lib.rs).
@@ -78,7 +74,7 @@ strip = true
 [dev-dependencies]
 
 [target."cfg(windows)".dependencies]
-windows = { version = "0.62", features = ["Win32_Graphics_Imaging", "Win32_System_Com", "Win32_Foundation", "Win32_Networking_WinHttp", "Data_Pdf", "Storage_Streams", "Win32_UI_Shell"] }
+windows = { version = "0.62", features = ["Win32_Graphics_Imaging", "Win32_System_Com", "Win32_Foundation", "Win32_Networking_WinHttp", "Win32_UI_Shell"] }
 
 # System proxy lookup (PAC) for the updater, see proxy.rs.
 [target."cfg(target_os = \"macos\")".dependencies]

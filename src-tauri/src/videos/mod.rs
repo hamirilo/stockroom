@@ -3,7 +3,7 @@
 //! the rest is opened in the OS's default app.
 //!
 //! The thumbnail is one frame from the OS (Quick Look on macOS, which
-//! `files::thumbnail` runs), else a card with the file type. The length and
+//! `frame::thumbnail` runs), else a card with the file type. The length and
 //! the picture size are read from the file's own headers (`probe`), without
 //! decoding anything and without ffmpeg.
 //!
@@ -11,6 +11,7 @@
 //! from the disk (import.rs `process_video`). They take no part in the
 //! look-alike search.
 
+pub mod frame;
 pub mod thumb;
 
 use std::fs::File;

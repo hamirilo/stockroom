@@ -4,7 +4,6 @@
 //!   <name>.library/thumbs/<item id>.jpg|png
 //!   <name>.library/thumbs/<item id>_o<flip><turns>.jpg|png  (rotated, see orient.rs)
 //!   <name>.library/previews/<item id>.jpg  (display copy, HEIC / TIFF)
-//!   <name>.library/previews/<item id>.pdf|.qlpreview/  (documents, see files/preview.rs)
 //!   <name>.library/library.lock   while the app has it open (see `Holder`)
 //!
 //! A library folder may be synced by Dropbox / OneDrive / iCloud Drive. Two
@@ -156,6 +155,14 @@ impl Library {
         Ok(())
     }
 
+    /// Deletes for good the items of the kinds taken out of the app
+    /// (docs/FILE_APP.md), trashed or not: rows and files. Returns how many.
+    pub fn remove_leftovers(&self) -> Result<usize, String> {
+        let ids = db::leftover_ids(&self.conn).map_err(|e| e.to_string())?;
+        self.delete_items(&ids)?;
+        Ok(ids.len())
+    }
+
     /// The database half of `delete_items`; the files go with `remove_files`,
     /// which needn't hold the library (there may be thousands).
     pub fn delete_rows(&self, ids: &[String]) -> Result<Vec<Item>, String> {
@@ -265,7 +272,9 @@ pub fn remove_files(root: &Path, removed: &[Item]) {
         if let Some(p) = &item.preview {
             let _ = fs::remove_file(root.join("previews").join(p));
         }
-        crate::files::preview::remove(&root.join("previews"), &item.id);
+        // Documents, from when the library had files (docs/FILE_APP.md).
+        let _ = fs::remove_file(root.join("previews").join(format!("{}.pdf", item.id)));
+        let _ = fs::remove_dir_all(root.join("previews").join(format!("{}.qlpreview", item.id)));
     }
 }
 
@@ -279,6 +288,65 @@ fn write_lock(root: &Path, h: &Holder) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Files, texts and bookmarks (docs/FILE_APP.md) go for good, with their
+    /// files; images, videos and left-over fonts stay.
+    #[test]
+    fn removes_the_kinds_taken_out() {
+        let tmp = tempfile::tempdir().unwrap();
+        let lib = Library::create(&tmp.path().join("L.library")).unwrap();
+        let root = &lib.root;
+        let rows = [
+            ("img", "image", "a.png"),
+            ("vid", "video", "b.mp4"),
+            ("doc", "file", "c.pdf"),
+            ("memo", "text", "d.md"),
+            ("page", "bookmark", "e.url"),
+            ("font", "font", "f.ttf"),
+        ];
+        for (i, (id, kind, name)) in rows.iter().enumerate() {
+            store_file(root, id, name, b"x").unwrap();
+            fs::write(root.join("thumbs").join(format!("{id}.jpg")), b"t").unwrap();
+            lib.conn
+                .execute(
+                    "INSERT INTO items (id, name, file_name, ext, width, height, size, hash, thumb, imported_at, kind)
+                     VALUES (?1, ?2, ?2, 'x', 0, 0, 1, ?1, ?1 || '.jpg', ?3, ?4)",
+                    rusqlite::params![id, name, i as i64, kind],
+                )
+                .unwrap();
+        }
+        fs::write(root.join("previews/doc.pdf"), b"p").unwrap();
+        fs::create_dir_all(root.join("previews/doc.qlpreview")).unwrap();
+        lib.conn
+            .execute_batch(
+                "UPDATE items SET deleted_at = 1 WHERE id = 'memo';
+                 INSERT INTO tray (item_id, position) VALUES ('page', 1);",
+            )
+            .unwrap();
+        // Opened in another app before: read-only.
+        protect(&stored_file(root, "doc", "c.pdf")).unwrap();
+
+        assert_eq!(lib.remove_leftovers().unwrap(), 3);
+        let left: Vec<String> = lib
+            .conn
+            .prepare("SELECT id FROM items ORDER BY imported_at")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(left, ["img", "vid", "font"]);
+        for id in ["doc", "memo", "page"] {
+            assert!(!item_dir(root, id).exists(), "{id}");
+            assert!(!root.join("thumbs").join(format!("{id}.jpg")).exists(), "{id}");
+        }
+        assert!(!root.join("previews/doc.pdf").exists() && !root.join("previews/doc.qlpreview").exists());
+        assert!(item_dir(root, "img").exists() && item_dir(root, "font").exists());
+        let tray: i64 = lib.conn.query_row("SELECT COUNT(*) FROM tray", [], |r| r.get(0)).unwrap();
+        assert_eq!(tray, 0);
+        // Nothing left: nothing to do.
+        assert_eq!(lib.remove_leftovers().unwrap(), 0);
+    }
 
     #[test]
     fn protect_and_unprotect() {
