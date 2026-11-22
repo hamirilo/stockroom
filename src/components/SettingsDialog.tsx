@@ -5,10 +5,7 @@
 // tool (desktop-platform UI §9).
 import {
   Bot,
-  FileText,
-  NotebookText,
   Video,
-  Bookmark,
   FolderInput,
   FolderOpen,
   Image as ImageIcon,
@@ -42,10 +39,7 @@ export const SETTINGS_KEY = isMac ? "⌘," : "Ctrl+,";
 
 const KIND_ICON: Record<ItemKind, React.ReactNode> = {
   image: <ImageIcon size={14} />,
-  file: <FileText size={14} />,
-  text: <NotebookText size={14} />,
   video: <Video size={14} />,
-  bookmark: <Bookmark size={14} />,
 };
 
 type Page = { id: SettingsTab; label: string; icon: React.ReactNode };

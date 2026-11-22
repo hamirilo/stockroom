@@ -103,7 +103,7 @@ export function ruleKinds(f: Partial<Filter>): ItemKind[] {
 }
 
 /** What a kind chip's colour stands for: the role of the format, not the app that made it. */
-export type ChipTone = "pdf" | "doc" | "sheet" | "slides" | "text" | "video" | "web";
+export type ChipTone = "video";
 
 /**
  * The chip at the top left of a thumbnail that tells what an item is (docs/KINDS.md
@@ -111,21 +111,5 @@ export type ChipTone = "pdf" | "doc" | "sheet" | "slides" | "text" | "video" | "
  * thumbnail is the picture itself.
  */
 export function kindChip(item: { kind: ItemKind; ext: string }): { label: string; tone: ChipTone } | null {
-  const e = item.ext.toLowerCase();
-  const label = e.toUpperCase();
-  switch (item.kind) {
-    case "image":
-      return null;
-    case "video":
-      return { label, tone: "video" };
-    case "bookmark":
-      return { label: "URL", tone: "web" };
-    case "text":
-      return { label, tone: e === "csv" || e === "tsv" ? "sheet" : "text" };
-    case "file":
-      if (e === "pdf") return { label, tone: "pdf" };
-      if (["xls", "xlsx", "numbers"].includes(e)) return { label, tone: "sheet" };
-      if (["ppt", "pptx", "key"].includes(e)) return { label, tone: "slides" };
-      return { label, tone: "doc" };
-  }
+  return item.kind === "video" ? { label: item.ext.toUpperCase(), tone: "video" } : null;
 }

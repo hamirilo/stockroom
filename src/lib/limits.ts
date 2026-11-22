@@ -37,7 +37,6 @@ export const BUILD_NAME = env.STOCKROOM_NAME?.trim() || "Stockroom";
 export const OFF_COMMANDS: ReadonlySet<string> = new Set([
   ...(NO_UPDATE ? ["app.checkUpdate", "help.releaseNotes"] : []),
   ...(NO_CONNECT ? ["help.webImport", "help.claude"] : []),
-  ...(buildHas("text") ? [] : ["text.new"]),
 ]);
 
 /** Settings pages this build leaves out (src/components/SettingsDialog.tsx). */

@@ -8,16 +8,12 @@ import { buildHas, NO_CONNECT } from "../lib/limits";
 /** The file types of each kind (src-tauri/src/formats.rs `SUPPORTED_EXTS`). */
 const KIND_EXTS: [ItemKind, string[]][] = [
   ["image", ["jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "svg", "heic", "heif", "avif"]],
-  ["file", ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key"]],
-  ["text", ["md", "markdown", "txt", "csv", "tsv"]],
   ["video", ["mp4", "m4v", "mov", "webm"]],
 ];
 
 /** Commands a build with fewer features refuses (src-tauri/src/limits.rs). */
 const LEFT_OUT = new Set([
   ...(NO_CONNECT ? ["set_web_import", "reset_web_import_token", "install_extension", "set_mcp", "reset_mcp_token"] : []),
-  ...(buildHas("text") ? [] : ["create_text"]),
-  ...(buildHas("bookmark") ? [] : ["create_bookmark"]),
 ]);
 
 type MockItem = Omit<
@@ -44,8 +40,6 @@ type MockItem = Omit<
   sourceUrl?: string;
   /** Videos: the length in milliseconds. */
   durationMs?: number;
-  /** Texts: the file's content (src-tauri/src/texts). */
-  body?: string;
 };
 
 const items: MockItem[] = [];
@@ -109,30 +103,6 @@ function seed() {
       ...(i % 6 === 1 ? { sourceUrl: `https://www.example.com/gallery/${i}?ref=web` } : {}),
     });
   }
-  // Files: PDF and office documents, no pixel size (0 × 0).
-  const docFiles = ["企画書.pdf", "議事録 2026-10.docx", "売上集計.xlsx", "提案資料.pptx", "カタログ.pdf", "メモ.pages", "発表.key", "旧仕様書.doc"];
-  for (const [i, file] of docFiles.entries()) {
-    items.push({
-      id: id(),
-      kind: "file",
-      name: file,
-      fileName: file,
-      ext: file.split(".").pop()!,
-      width: 0,
-      height: 0,
-      size: 180_000 * (i + 2),
-      thumb: "",
-      note: "",
-      rating: i === 0 ? 4 : 0,
-      importedAt: Date.now() - 20_000 + i,
-      deletedAt: null,
-      favorite: i === 1,
-      pinnedAt: null,
-      rotation: 0,
-      flipped: false,
-      hue: (i * 67) % 360,
-    });
-  }
   // Videos (docs/VIDEO.md): they can't play here (no real file), so the viewer shows its fallback.
   for (const [i, [file, w, h, sec]] of ([
     ["店頭の様子.mp4", 1920, 1080, 187],
@@ -160,66 +130,6 @@ function seed() {
       rotation: 0,
       flipped: false,
       hue: (i * 83 + 200) % 360,
-    });
-  }
-  // Bookmarks (docs/BOOKMARKS.md): a URL with the page's title; the description is the memo.
-  for (const [i, [title, url, note]] of ([
-    ["Tauri 2.0 ドキュメント", "https://v2.tauri.app/", "クロスプラットフォームのデスクトップアプリを作るためのフレームワーク"],
-    ["食肉の相場情報", "https://www.example.com/market/beef", ""],
-    ["example.com", "https://example.com/", ""],
-  ] as const).entries()) {
-    items.push({
-      id: id(),
-      kind: "bookmark",
-      name: title,
-      fileName: `${title}.url`,
-      ext: "url",
-      width: 0,
-      height: 0,
-      size: 60,
-      thumb: "",
-      note,
-      rating: 0,
-      importedAt: Date.now() - 5_000 + i,
-      deletedAt: null,
-      favorite: false,
-      pinnedAt: null,
-      rotation: 0,
-      flipped: false,
-      hue: (i * 97 + 20) % 360,
-      sourceUrl: url,
-    });
-  }
-  // Texts: Markdown, plain text, CSV (docs/TEXT.md), 0 × 0 like files.
-  const texts: [string, string][] = [
-    [
-      "週次ミーティング.md",
-      "# 週次ミーティング\n\n2026-10-16（金）\n\n## 議題\n\n- 牛肉の在庫を確認する\n- [x] 価格表を更新\n- [ ] **新商品**の企画を出す\n\n> 次回までに数字をそろえる\n\n| 部位 | 在庫 | 前週比 |\n|---|--:|--:|\n| ロース | 120 | +8 |\n| バラ | 95 | -3 |\n\n```sql\nSELECT * FROM stock WHERE qty < 10;\n```\n\n詳しくは [社内ポータル](https://example.com) を参照。<script>alert(1)</script>\n",
-    ],
-    ["仕入れ一覧.csv", '品名,部位,数量,単価\n和牛,ロース,12,4800\n国産豚,バラ,30,980\n"鶏,もも",もも,45,620\n輸入牛,肩ロース,8,1980\n'],
-    ["電話メモ.txt", "10/15 14:20 ○○商事 田中様\n見積もりの件で折り返し希望\n03-xxxx-xxxx\n"],
-  ];
-  for (const [i, [file, body]] of texts.entries()) {
-    items.push({
-      id: id(),
-      kind: "text",
-      name: file,
-      fileName: file,
-      ext: file.split(".").pop()!,
-      width: 0,
-      height: 0,
-      size: new TextEncoder().encode(body).length,
-      thumb: "",
-      note: "",
-      rating: 0,
-      importedAt: Date.now() - 10_000 + i,
-      deletedAt: null,
-      favorite: false,
-      pinnedAt: null,
-      rotation: 0,
-      flipped: false,
-      hue: 0,
-      body,
     });
   }
   const animals = { id: id(), parentId: null, name: "動物", color: "orange" };
@@ -285,68 +195,11 @@ function similar(r: MockItem[], level: SimilarLevel): MockItem[] {
     );
 }
 
-/** File thumbnail: a page (PDF / Word / Pages), a slide or a sheet, roughly what Quick Look gives. */
-function fileSvg(it: MockItem) {
-  const wide = ["ppt", "pptx", "key"].includes(it.ext);
-  const [w, h] = wide ? [512, 288] : [362, 512];
-  const lines = Array.from({ length: wide ? 3 : 14 }, (_, k) => {
-    const y = (wide ? 150 : 110) + k * (wide ? 30 : 26);
-    return `<rect x="${wide ? 60 : 40}" y="${y}" width="${(wide ? 300 : 280) - ((k * 37) % 90)}" height="${wide ? 12 : 8}" rx="3" fill="#c4c4cc"/>`;
-  }).join("");
-  const head = `<rect x="${wide ? 60 : 40}" y="${wide ? 70 : 50}" width="${wide ? 320 : 200}" height="${wide ? 40 : 22}" rx="4" fill="hsl(${it.hue},55%,45%)"/>`;
-  const s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="#ffffff"/>${head}${lines}</svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`;
-}
-
 /** A video's thumbnail: a frame (a gradient here) with the play mark. */
 function videoSvg(it: MockItem) {
   const [w, h] = [it.width, it.height].map((v) => Math.round(v / 3));
   const s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${it.hue},45%,25%)"/><stop offset="1" stop-color="hsl(${(it.hue + 50) % 360},55%,50%)"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><path d="M${w / 2 - h / 12} ${h / 2 - h / 9} L${w / 2 + h / 8} ${h / 2} L${w / 2 - h / 12} ${h / 2 + h / 9} Z" fill="white" fill-opacity="0.85"/></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`;
-}
-
-/** A bookmark's card: the title and the host (bookmarks/mod.rs draws the real one). */
-function bookmarkSvg(it: MockItem) {
-  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const host = (it.sourceUrl ?? "").replace(/^https?:\/\/(www\.)?/, "").split("/")[0];
-  const s = `<svg xmlns="http://www.w3.org/2000/svg" width="384" height="384"><rect width="100%" height="100%" fill="#f6f7f9"/><circle cx="48" cy="48" r="20" fill="hsl(${it.hue},55%,50%)"/><text x="28" y="158" font-family="sans-serif" font-size="22" font-weight="600" fill="#1f2328">${esc(it.name.slice(0, 18))}</text><text x="28" y="356" font-family="sans-serif" font-size="16" fill="#6b7280">${esc(host)}</text></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`;
-}
-
-/** A text's thumbnail: its first lines on a page with the type (texts/mod.rs draws the real one). */
-function textSvg(it: MockItem) {
-  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const lines = (it.body ?? "").split("\n").slice(0, 16);
-  const rows = lines
-    .map((l, k) => `<text x="26" y="${48 + k * 26}" font-family="sans-serif" font-size="17" fill="#333">${esc(l.slice(0, 22))}</text>`)
-    .join("");
-  const label = it.ext === "csv" ? "CSV" : it.ext === "tsv" ? "TSV" : it.ext === "txt" ? "TXT" : "MD";
-  const color = label === "MD" ? "#2563eb" : label === "TXT" ? "#6b7280" : "#16a34a";
-  const s = `<svg xmlns="http://www.w3.org/2000/svg" width="384" height="512"><rect width="100%" height="100%" fill="#fff"/>${rows}<rect x="300" y="470" width="58" height="26" rx="5" fill="${color}"/><text x="329" y="488" font-family="sans-serif" font-size="14" font-weight="bold" fill="#fff" text-anchor="middle">${label}</text></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`;
-}
-
-/** A one-page PDF with the item's name, for the viewer's PDF frame. */
-function pdfData(it: MockItem) {
-  const text = `BT /F1 28 Tf 72 760 Td (${it.name.replace(/[^\x20-\x7e]/g, "?")}) Tj ET`;
-  const objs = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-  ];
-  let out = "%PDF-1.4\n";
-  const offsets: number[] = [];
-  objs.forEach((o, k) => {
-    offsets.push(out.length);
-    out += `${k + 1} 0 obj\n${o}\nendobj\n`;
-  });
-  const xref = out.length;
-  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
-  out += offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("");
-  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return `data:application/pdf;base64,${btoa(out)}`;
 }
 
 /** The "file" (unrotated), or with `oriented` the thumbnail showing the item's rotation / flip. */
@@ -365,7 +218,7 @@ function svg(it: MockItem, scale: number, oriented = false) {
 /** The mock image drawn to PNG data, as the real command hands it out. */
 async function sheetImage(it: MockItem, maxSide: number): Promise<ArrayBuffer> {
   const img = new Image();
-  img.src = it.kind === "file" ? fileSvg(it) : it.kind === "text" ? textSvg(it) : it.kind === "video" ? videoSvg(it) : it.kind === "bookmark" ? bookmarkSvg(it) : svg(it, 1, true);
+  img.src = it.kind === "video" ? videoSvg(it) : svg(it, 1, true);
   await img.decode();
   const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   const canvas = document.createElement("canvas");
@@ -377,31 +230,11 @@ async function sheetImage(it: MockItem, maxSide: number): Promise<ArrayBuffer> {
 }
 
 const view = (it: MockItem): Item => {
-  const filePath =
-    it.kind === "file"
-      ? it.ext === "pdf"
-        ? pdfData(it)
-        : fileSvg(it)
-      : it.kind === "text"
-        ? textSvg(it)
-        : it.kind === "video"
-          ? "data:video/mp4;base64,"
-          : it.kind === "bookmark"
-            ? bookmarkSvg(it)
-            : svg(it, 1);
+  const filePath = it.kind === "video" ? "data:video/mp4;base64," : svg(it, 1);
   const folderId = folders.find((f) => inFolder(it.id, f.id))?.id ?? null;
   const tagIds = tags.filter((t) => hasTag(it.id, t.id)).map((t) => t.id);
   const thumbPath =
-    it.customThumb ??
-    (it.kind === "file"
-      ? fileSvg(it)
-      : it.kind === "text"
-        ? textSvg(it)
-        : it.kind === "video"
-          ? videoSvg(it)
-          : it.kind === "bookmark"
-            ? bookmarkSvg(it)
-            : svg(it, 3, true));
+    it.customThumb ?? (it.kind === "video" ? videoSvg(it) : svg(it, 3, true));
   return {
     ...it,
     sourceUrl: it.sourceUrl ?? null,
@@ -416,8 +249,8 @@ const view = (it: MockItem): Item => {
     displayPath: filePath,
     thumbPath,
     ownThumb: !!it.customThumb,
-    // 実機はサムネイル画像から求める。モックのファイルのカードは 384×512。
-    thumbAspect: it.kind === "file" && !it.customThumb ? 384 / 512 : null,
+    // 実機は縦横を読めなかった動画だけ、サムネイル画像から求める。モックの動画は縦横を持つ。
+    thumbAspect: null,
   };
 };
 const inFolder = (i: string, f: string) => itemFolders.has(`${i}|${f}`);
@@ -450,7 +283,6 @@ function applyRule(r: MockItem[], rule: Rule): MockItem[] {
     const hit = (i: MockItem) =>
       i.name.toLowerCase().includes(w) ||
       i.note.toLowerCase().includes(w) ||
-      (i.body ?? "").toLowerCase().includes(w) ||
       tags.some((t) => hasTag(i.id, t.id) && t.name.toLowerCase().includes(w));
     r = r.filter((i) => hit(i) !== neg);
   }
@@ -868,10 +700,10 @@ function handle(cmd: string, a: any): unknown {
       return;
     case "open_items_with":
       console.info(`[mock] ${cmd}`, a.with);
-      return a.ids.filter((id: string) => items.find((i) => i.id === id)?.kind !== "bookmark").length;
+      return a.ids.length;
     case "open_for_edit": {
       const folder = appSettings.editFolder ?? "/Users/mock/Documents/Stockroom";
-      return { folder, count: a.ids.filter((id: string) => items.find((i) => i.id === id)?.kind !== "bookmark").length };
+      return { folder, count: a.ids.length };
     }
     case "apps_for_items":
       return [
@@ -890,84 +722,6 @@ function handle(cmd: string, a: any): unknown {
     case "set_pinned":
       items.filter((i) => a.ids.includes(i.id)).forEach((i) => (i.pinnedAt = a.on ? (i.pinnedAt ?? Date.now()) : null));
       return;
-    case "file_preview":
-      // No Quick Look / Office in the browser mock: the viewer shows the thumbnail.
-      return null;
-    case "prepare_file_thumbs":
-      return null;
-    case "read_text": {
-      const it = items.find((i) => i.id === a.id);
-      if (!it || it.kind !== "text") throw "テキストではありません";
-      return { text: it.body ?? "", encoding: "UTF-8", truncated: false, editable: true };
-    }
-    case "save_text": {
-      const it = items.find((i) => i.id === a.id)!;
-      it.body = a.text;
-      it.size = new TextEncoder().encode(a.text).length;
-      return { encoding: "UTF-8", encodingChanged: false };
-    }
-    case "create_bookmark": {
-      const m = /^https?:\/\/[^\s/]+[^\s#]*/i.exec(String(a.url).trim());
-      if (!m) throw "http:// か https:// で始まる URL を入れてください";
-      const url = m[0].replace(/\/+$/, "");
-      const found = items.find((i) => i.kind === "bookmark" && i.sourceUrl?.replace(/\/+$/, "") === url);
-      if (found) {
-        found.deletedAt = null;
-        return { id: found.id, duplicate: true };
-      }
-      const host = url.replace(/^https?:\/\/(www\.)?/i, "").split(/[/?]/)[0];
-      const it: MockItem = {
-        id: id(),
-        kind: "bookmark",
-        name: host,
-        fileName: `${host}.url`,
-        ext: "url",
-        width: 0,
-        height: 0,
-        size: url.length + 30,
-        thumb: "",
-        note: "",
-        rating: 0,
-        importedAt: Date.now(),
-        deletedAt: null,
-        favorite: false,
-        pinnedAt: null,
-        rotation: 0,
-        flipped: false,
-        hue: 200,
-        sourceUrl: url,
-      };
-      items.push(it);
-      if (a.folderId && folders.some((f) => f.id === a.folderId)) link(it.id, a.folderId);
-      return { id: it.id, duplicate: false };
-    }
-    case "create_text": {
-      const ext = String(a.name).split(".").pop()!.toLowerCase();
-      const it: MockItem = {
-        id: id(),
-        kind: "text",
-        name: a.name,
-        fileName: a.name,
-        ext,
-        width: 0,
-        height: 0,
-        size: new TextEncoder().encode(a.text).length,
-        thumb: "",
-        note: "",
-        rating: 0,
-        importedAt: Date.now(),
-        deletedAt: null,
-        favorite: false,
-        pinnedAt: null,
-        rotation: 0,
-        flipped: false,
-        hue: 0,
-        body: a.text,
-      };
-      items.push(it);
-      if (a.folderId && folders.some((f) => f.id === a.folderId)) link(it.id, a.folderId);
-      return it.id;
-    }
     case "orient_items": {
       let n = 0;
       for (const i of items.filter((i) => a.ids.includes(i.id) && i.kind === "image")) {

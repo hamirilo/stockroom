@@ -13,11 +13,6 @@ $("list").onclick = () => {
   chrome.runtime.sendMessage({ type: "list-images", tab });
   window.close();
 };
-$("bookmark").disabled = !/^https?:/.test(tab?.url ?? "");
-$("bookmark").onclick = () => {
-  chrome.runtime.sendMessage({ type: "bookmark", tab });
-  window.close();
-};
 $("capture-full").disabled = $("capture").disabled || !scriptable;
 $("capture-full").onclick = () => {
   chrome.runtime.sendMessage({ type: "capture-full", tab });

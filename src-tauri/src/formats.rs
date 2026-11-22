@@ -11,10 +11,6 @@ use std::io::Cursor;
 
 pub const SUPPORTED_EXTS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "svg", "heic", "heif", "avif",
-    // Files: PDF and office documents (see files/mod.rs `EXTS`).
-    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key",
-    // Texts (see texts/mod.rs `EXTS`).
-    "md", "markdown", "txt", "csv", "tsv",
     // Videos (see videos/mod.rs `EXTS`).
     "mp4", "m4v", "mov", "webm",
 ];

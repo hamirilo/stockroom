@@ -1,10 +1,8 @@
 pub mod appdirs;
-pub mod bookmarks;
 pub mod changes;
 pub mod commands;
 pub mod db;
 pub mod export;
-pub mod files;
 pub mod formats;
 pub mod import;
 pub mod library;
@@ -20,7 +18,6 @@ pub mod search;
 pub mod share;
 pub mod sheet;
 pub mod similar;
-pub mod texts;
 pub mod transfer;
 pub mod videos;
 pub mod webimport;
@@ -173,12 +170,6 @@ pub fn run() {
             orient_items,
             system_proxy,
             open_release_page,
-            files::commands::file_preview,
-            files::commands::prepare_file_thumbs,
-            texts::commands::read_text,
-            texts::commands::save_text,
-            texts::commands::create_text,
-            bookmarks::commands::create_bookmark,
             copy_items,
             export::export_items,
             export::export_library,

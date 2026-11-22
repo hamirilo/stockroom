@@ -1,13 +1,10 @@
 import {
-  Bookmark,
   Check,
   ChevronDown,
   ChevronRight,
   Copy,
-  FileText,
   Image as ImageIcon,
   ListFilter,
-  NotebookText,
   PanelLeftClose,
   Video,
   Folder as FolderIcon,
@@ -593,10 +590,7 @@ function SmartFolderList() {
 
 const KIND_ICON: Partial<Record<ItemKind, React.ReactNode>> = {
   image: <ImageIcon size={14} />,
-  file: <FileText size={14} />,
-  text: <NotebookText size={14} />,
   video: <Video size={14} />,
-  bookmark: <Bookmark size={14} />,
 };
 
 /**

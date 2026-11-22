@@ -24,10 +24,9 @@
 //!   GET  /folders  [{ id, name, parentId }] in sidebar order
 //!   GET  /tags     tag names
 //!   POST /import?name=&folder=&tag=&tag=&page=   body = the file
-//!   POST /bookmark   body = JSON { url, title, description, favicon, image, folder, tags }:
-//!                  keeps a page as a bookmark (docs/BOOKMARKS.md). `favicon` and
-//!                  `image` (the eyecatch) are `data:image/…;base64,…` the extension
-//!                  made from the page; all but `url` may be left out
+//!
+//! `POST /bookmark` (keeping a page as a bookmark) was taken out with the
+//! bookmarks (docs/FILE_APP.md): it answers 404 like any unknown path.
 
 use crate::db;
 use crate::formats;
@@ -44,8 +43,6 @@ use std::time::{Duration, Instant};
 
 pub const PORT: u16 = 41620;
 const MAX_BODY: u64 = 300 * 1024 * 1024;
-/// A bookmark's JSON: the address and text, and two small pictures.
-const MAX_BOOKMARK_BODY: u64 = 16 * 1024 * 1024;
 
 /// What the server needs from the app (a trait so tests can run without Tauri).
 pub trait Host: Send + Sync + 'static {
@@ -284,21 +281,7 @@ fn handle(head: &Head, body: &mut dyn Read, port: u16, shared: &Shared, host: &d
                 param("page").filter(|p| p.starts_with("http://") || p.starts_with("https://")),
             )
         }
-        ("POST", "/bookmark") => {
-            if head.length.is_some_and(|n| n > MAX_BOOKMARK_BODY) {
-                return error(413, "データが大きすぎます");
-            }
-            let _one = shared.importing.lock().unwrap_or_else(|e| e.into_inner());
-            let mut data = Vec::new();
-            if let Err(e) = body.take(MAX_BOOKMARK_BODY + 1).read_to_end(&mut data) {
-                return error(400, &e.to_string());
-            }
-            if data.len() as u64 > MAX_BOOKMARK_BODY {
-                return error(413, "データが大きすぎます");
-            }
-            bookmark_one(host, &data)
-        }
-        (_, "/info" | "/folders" | "/tags" | "/import" | "/bookmark") => error(405, "このメソッドは使えません"),
+        (_, "/info" | "/folders" | "/tags" | "/import") => error(405, "このメソッドは使えません"),
         _ => error(404, "見つかりません"),
     }
 }
@@ -343,41 +326,6 @@ fn import_one(
     }
     host.imported(&summary);
     (200, json!({ "imported": summary.imported, "duplicates": summary.duplicates, "id": summary.ids[0] }))
-}
-
-/// What the extension sends to keep a page as a bookmark.
-#[derive(serde::Deserialize, Default)]
-#[serde(default)]
-struct BookmarkRequest {
-    #[serde(flatten)]
-    page: crate::bookmarks::Input,
-    folder: Option<String>,
-    tags: Vec<String>,
-}
-
-fn bookmark_one(host: &dyn Host, data: &[u8]) -> (u16, Value) {
-    let Ok(req) = serde_json::from_slice::<BookmarkRequest>(data) else {
-        return error(400, "データを読めませんでした");
-    };
-    let tags: Vec<String> = req.tags.iter().map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect();
-    let folder = req.folder.filter(|f| !f.is_empty());
-    let added = match crate::bookmarks::add(host.library(), &req.page, folder.as_deref(), &tags) {
-        Ok(a) => a,
-        Err(e) if e == crate::bookmarks::NO_FOLDER => {
-            return error(400, "保存先のフォルダが見つかりません。拡張機能で選び直してください")
-        }
-        Err(e) if e == crate::bookmarks::NO_LIBRARY => return error(503, "アプリでライブラリが開かれていません"),
-        Err(e) => return error(422, &e),
-    };
-    let summary = ImportSummary {
-        imported: usize::from(!added.duplicate),
-        duplicates: usize::from(added.duplicate),
-        failed: vec![],
-        kinds: if added.duplicate { Default::default() } else { [(db::Kind::Bookmark, 1)].into() },
-        ids: vec![added.id.clone()],
-    };
-    host.imported(&summary);
-    (200, json!({ "imported": summary.imported, "duplicates": summary.duplicates, "id": added.id }))
 }
 
 /// `a=1&b=x%20y` -> [("a", "1"), ("b", "x y")]. `+` is a space (URLSearchParams).
@@ -525,44 +473,13 @@ mod tests {
     }
 
     #[test]
-    fn keeps_a_page_as_a_bookmark() {
-        let (_tmp, host, server) = setup();
+    fn no_longer_keeps_bookmarks() {
+        let (_tmp, _host, server) = setup();
         let p = server.port();
         let h = format!("127.0.0.1:{p}");
         let auth = format!("Bearer {TOKEN}");
         let hd = [("Host", h.as_str()), ("Authorization", auth.as_str())];
-        let folder = {
-            let g = host.lib.lock().unwrap();
-            db::create_folder(&g.as_ref().unwrap().conn, "あとで読む", None).unwrap()
-        };
-        let body = json!({
-            "url": "https://example.com/post?utm_campaign=x",
-            "title": "記事",
-            "description": "説明",
-            "folder": folder,
-            "tags": ["web", " "],
-        })
-        .to_string();
-        let (status, res) = call(p, "POST", "/bookmark", &hd, body.as_bytes());
-        assert_eq!((status, res["imported"].as_u64(), res["duplicates"].as_u64()), (200, Some(1), Some(0)), "{res}");
-        assert_eq!(host.imports.load(Ordering::Relaxed), 1);
-        {
-            let g = host.lib.lock().unwrap();
-            let it = db::get_items(&g.as_ref().unwrap().conn, &[res["id"].as_str().unwrap().to_string()]).unwrap().remove(0);
-            assert_eq!((it.kind, it.name.as_str()), (db::Kind::Bookmark, "記事"));
-            assert_eq!(it.folder_id.as_deref(), Some(folder.as_str()));
-            assert_eq!(it.source_url.as_deref(), Some("https://example.com/post"));
-            assert_eq!(it.tag_ids.len(), 1);
-        }
-        let (status, again) = call(p, "POST", "/bookmark", &hd, br#"{"url":"https://example.com/post"}"#);
-        assert_eq!((status, again["duplicates"].as_u64(), again["id"].clone()), (200, Some(1), res["id"].clone()));
-
-        assert_eq!(call(p, "POST", "/bookmark", &hd, b"not json").0, 400);
-        assert_eq!(call(p, "POST", "/bookmark", &hd, br#"{"url":"javascript:alert(1)"}"#).0, 422);
-        assert_eq!(call(p, "POST", "/bookmark", &hd, br#"{"url":"https://example.com/x","folder":"gone"}"#).0, 400);
-        assert_eq!(call(p, "GET", "/bookmark", &hd, b"").0, 405);
-        *host.lib.lock().unwrap() = None;
-        assert_eq!(call(p, "POST", "/bookmark", &hd, br#"{"url":"https://example.com/y"}"#).0, 503);
+        assert_eq!(call(p, "POST", "/bookmark", &hd, br#"{"url":"https://example.com/post"}"#).0, 404);
     }
 
     #[test]

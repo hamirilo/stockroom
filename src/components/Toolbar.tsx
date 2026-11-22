@@ -41,7 +41,7 @@ import { ViewPopover } from "./ViewMenu";
 import { Slider } from "./Slider";
 
 const SEARCH_HELP = [
-  "名前・メモ・タグ・テキストの本文を検索",
+  "名前・メモ・タグを検索",
   "  空白区切り … すべてを含む",
   "  -語 … 除外",
   "  A OR B / A || B … どちらか",

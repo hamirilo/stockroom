@@ -3,12 +3,10 @@
 //! afterwards in a single transaction.
 
 use crate::db::{self, NewItem};
-use crate::files;
 use crate::formats;
 use crate::library::{self, Library};
 use crate::orient::{self, OrientOp, Orientation};
 use crate::similar;
-use crate::texts;
 use crate::videos;
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, ImageFormat};
@@ -76,6 +74,16 @@ fn ext_of(name: &str) -> Option<String> {
     (SUPPORTED_EXTS.contains(&ext.as_str()) && crate::limits::accepts(&ext)).then_some(ext)
 }
 
+/// iWork documents saved as packages (folders that are one document): their
+/// insides (a preview picture among them) aren't imported.
+fn is_package(path: &Path) -> bool {
+    path.is_dir()
+        && path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "pages" | "numbers" | "key"))
+}
+
 /// Expands dropped paths. Directories are walked recursively and keep their
 /// structure as folders (the dropped directory itself becomes a folder);
 /// hidden and unsupported files are skipped.
@@ -87,7 +95,7 @@ pub fn collect_files(paths: &[PathBuf]) -> Vec<Source> {
             for e in WalkDir::new(p)
                 .into_iter()
                 // Hidden entries, and iWork packages (folders that are one document).
-                .filter_entry(|e| !e.file_name().to_string_lossy().starts_with('.') && !files::is_package(e.path()))
+                .filter_entry(|e| !e.file_name().to_string_lossy().starts_with('.') && !is_package(e.path()))
                 .filter_map(Result::ok)
             {
                 if e.file_type().is_file() && ext_of(&e.file_name().to_string_lossy()).is_some() {
@@ -289,12 +297,6 @@ fn process(
         return Ok(done);
     }
 
-    if files::is_file(&ext) {
-        return process_file(name, ext, data, hash, root);
-    }
-    if texts::is_text(&ext) {
-        return texts::new_item(root, name, ext, data, hash).map(Outcome::New);
-    }
     let decoded = formats::decode(&data, &ext)?;
     let img = decoded.image;
     let id = uuid::Uuid::new_v4().simple().to_string();
@@ -342,37 +344,6 @@ fn process(
         thumb,
         phash: Some(phash),
         preview,
-        body: None,
-        duration_ms: None,
-    }))
-}
-
-/// Files (PDF, office documents): stored as is, with a thumbnail from the OS
-/// or the file itself (files/mod.rs). 0 × 0 and no look-alikes.
-fn process_file(name: String, ext: String, data: Vec<u8>, hash: String, root: &Path) -> Result<Outcome, String> {
-    if ext == "pdf" && !files::looks_like_pdf(&data) {
-        return Err("PDF ではありません".into());
-    }
-    let id = uuid::Uuid::new_v4().simple().to_string();
-    let file_name = sanitize(&name);
-    let path = library::store_file(root, &id, &file_name, &data)?;
-    // Made from the stored copy: the OS needs a file with the right extension.
-    let thumb = files::thumbnail(&path, &ext, THUMB_MAX);
-    let thumb = write_thumb(&thumb, &root.join("thumbs"), &id).inspect_err(|_| library::remove_item_dir(root, &id))?;
-    Ok(Outcome::New(NewItem {
-        id,
-        kind: db::Kind::File,
-        name,
-        file_name,
-        ext,
-        width: 0,
-        height: 0,
-        size: data.len() as i64,
-        hash,
-        thumb,
-        phash: None,
-        preview: None,
-        body: None,
         duration_ms: None,
     }))
 }
@@ -423,7 +394,7 @@ fn process_video(
     };
     // Made from the stored copy: the OS needs a file with the right extension.
     let info = videos::probe(&path, &ext);
-    let thumb = files::thumbnail(&path, &ext, THUMB_MAX);
+    let thumb = videos::frame::thumbnail(&path, &ext, THUMB_MAX);
     let thumb = write_thumb(&thumb, &root.join("thumbs"), &id).inspect_err(|_| library::remove_item_dir(root, &id))?;
     Ok(Outcome::New(NewItem {
         id,
@@ -438,7 +409,6 @@ fn process_video(
         thumb,
         phash: None,
         preview: None,
-        body: None,
         duration_ms: info.duration_ms,
     }))
 }
@@ -607,21 +577,21 @@ mod tests {
     /// skipped, like an unsupported type. Without it there is nothing to check.
     #[test]
     fn a_build_with_fewer_kinds_skips_the_others() {
-        if crate::limits::has(db::Kind::Text) || !crate::limits::has(db::Kind::Image) {
+        if crate::limits::has(db::Kind::Video) || !crate::limits::has(db::Kind::Image) {
             return;
         }
         let (tmp, lib) = setup();
         let dir = tmp.path().join("src");
         fs::create_dir_all(&dir).unwrap();
         RgbImage::from_pixel(40, 30, Rgb([200, 10, 10])).save(dir.join("red.jpg")).unwrap();
-        fs::write(dir.join("memo.md"), "x").unwrap();
+        fs::write(dir.join("clip.mp4"), videos::tests::mp4(false)).unwrap();
         let files = collect_files(std::slice::from_ref(&dir));
         assert_eq!(files.len(), 1);
         let sum = run(&lib, files, None, |_, _| {}).unwrap();
         assert_eq!(sum.imported, 1);
 
         // Pasted or saved data with a name of another kind isn't taken either.
-        let pasted = vec![Source::Bytes { name: "memo.md".into(), data: b"# x".to_vec() }];
+        let pasted = vec![Source::Bytes { name: "clip.mp4".into(), data: videos::tests::mp4(false) }];
         let sum = run(&lib, pasted, None, |_, _| {}).unwrap();
         assert_eq!(sum.imported, 0);
         assert_eq!(sum.failed.len(), 1);
@@ -876,22 +846,6 @@ mod tests {
         assert!(!l.thumb_path(&c).exists() && !l.thumb_path(&z).exists());
     }
 
-    #[test]
-    fn a_pdf_must_be_one() {
-        // A build without the kind skips it (`a_build_with_fewer_kinds_skips_the_others`).
-        if !crate::limits::has(db::Kind::File) {
-            return;
-        }
-        let (_tmp, lib) = setup();
-        let sources = vec![
-            Source::Bytes { name: "real.pdf".into(), data: crate::files::tests::sample_pdf() },
-            Source::Bytes { name: "page.pdf".into(), data: b"<html><script>fetch('x')</script></html>".to_vec() },
-        ];
-        let sum = run(&lib, sources, None, |_, _| {}).unwrap();
-        assert_eq!(sum.imported, 1);
-        assert_eq!(sum.failed.len(), 1, "{:?}", sum.failed);
-    }
-
     /// Fonts have their own app (docs/FONT_APP.md): their files are skipped
     /// like any type that isn't supported.
     #[test]
@@ -913,82 +867,30 @@ mod tests {
         }
     }
 
+    /// Files, texts and bookmarks were taken out (docs/FILE_APP.md): they are
+    /// skipped like any type that isn't supported. iWork packages are still
+    /// left alone, so the preview inside one isn't taken for an image.
     #[test]
-    fn imports_files_with_thumbnails() {
-        // A build without the kind skips it (`a_build_with_fewer_kinds_skips_the_others`).
-        if !crate::limits::has(db::Kind::File) {
-            return;
-        }
-        use crate::files::tests::{jpeg, sample_pdf, sample_zip};
+    fn files_texts_and_bookmarks_are_skipped() {
         let (tmp, lib) = setup();
         let dir = tmp.path().join("docs");
         fs::create_dir_all(dir.join("Old.pages")).unwrap();
-        fs::write(dir.join("report.pdf"), sample_pdf()).unwrap();
-        fs::write(dir.join("Plan.pages"), sample_zip(&[("preview.jpg", &jpeg(300, 400))])).unwrap();
-        // Not a real spreadsheet (a damaged .docx would make Quick Look hang until the timeout).
-        fs::write(dir.join("memo.xls"), b"nothing here").unwrap();
-        // A package document: neither it nor its insides are imported.
-        fs::write(dir.join("Old.pages/preview.jpg"), jpeg(30, 40)).unwrap();
-        fs::write(dir.join("Old.pages/index.xml"), "x").unwrap();
+        fs::write(dir.join("report.pdf"), b"%PDF-1.4").unwrap();
+        fs::write(dir.join("memo.xlsx"), b"PK").unwrap();
+        fs::write(dir.join("memo.md"), "# x").unwrap();
+        fs::write(dir.join("stock.csv"), "a,b").unwrap();
+        fs::write(dir.join("page.url"), "[InternetShortcut]").unwrap();
+        RgbImage::from_pixel(30, 40, Rgb([1, 2, 3])).save(dir.join("Old.pages/preview.jpg")).unwrap();
+        RgbImage::from_pixel(8, 8, Rgb([1, 2, 3])).save(dir.join("square.png")).unwrap();
 
-        let files = collect_files(std::slice::from_ref(&dir));
-        assert_eq!(files.len(), 3);
-        let sum = run(&lib, files, None, |_, _| {}).unwrap();
-        assert!(sum.failed.is_empty(), "{:?}", sum.failed);
-        assert_eq!(sum.imported, 3);
-
-        let g = lib.lock().unwrap();
-        let l = g.as_ref().unwrap();
-        let items = db::query_items(&l.conn, &db::ItemQuery { sort: db::SortKey::Name, ..Default::default() }).unwrap();
-        for it in &items {
-            assert_eq!((it.kind, it.width, it.height), (db::Kind::File, 0, 0), "{}", it.name);
-            assert!(it.preview.is_none());
-            assert_eq!(fs::read(l.file_path(it)).unwrap(), fs::read(dir.join(&it.name)).unwrap(), "stored as is");
-            let t = image::open(l.thumb_path(it)).unwrap();
-            assert!(t.width().max(t.height()) <= THUMB_MAX);
+        let mut sources = collect_files(std::slice::from_ref(&dir));
+        assert_eq!(sources.len(), 1, "only the image");
+        sources.push(Source::Bytes { name: "pasted.txt".into(), data: b"x".to_vec() });
+        let sum = run(&lib, sources, None, |_, _| {}).unwrap();
+        assert_eq!((sum.imported, sum.failed.len()), (1, 1), "{:?}", sum.failed);
+        for ext in ["pdf", "docx", "xlsx", "pptx", "pages", "key", "md", "txt", "csv", "tsv", "url"] {
+            assert!(!SUPPORTED_EXTS.contains(&ext), "{ext}");
         }
-        let by = |n: &str| items.iter().find(|i| i.name == n).unwrap();
-        // The preview inside the Pages document (on macOS Quick Look may draw it instead).
-        let t = image::open(l.thumb_path(by("Plan.pages"))).unwrap();
-        assert!(t.height() > t.width(), "portrait like the preview");
-        // Nothing to show for the broken spreadsheet: the type card.
-        let t = image::open(l.thumb_path(by("memo.xls"))).unwrap();
-        assert_eq!((t.width(), t.height()), (files::CARD_W, files::CARD_H));
-        assert!(db::missing_phashes(&l.conn).unwrap().is_empty(), "no look-alikes for files");
-        assert_eq!(db::counts(&l.conn).unwrap().kinds, std::collections::BTreeMap::from([(db::Kind::File, 3)]));
-    }
-
-    #[test]
-    fn imports_texts_and_finds_them_by_their_body() {
-        // A build without the kind skips it (`a_build_with_fewer_kinds_skips_the_others`).
-        if !crate::limits::has(db::Kind::Text) {
-            return;
-        }
-        let (tmp, lib) = setup();
-        let dir = tmp.path().join("notes");
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("memo.md"), "# 会議\n- 牛肉の在庫を確認\n").unwrap();
-        let (sjis, _, _) = encoding_rs::SHIFT_JIS.encode("品名,数量\r\n豚肉,5\r\n");
-        fs::write(dir.join("stock.csv"), &sjis).unwrap();
-        fs::write(dir.join("fake.txt"), b"\x00\x01binary").unwrap();
-
-        let sum = run(&lib, collect_files(std::slice::from_ref(&dir)), None, |_, _| {}).unwrap();
-        assert_eq!((sum.imported, sum.failed.len()), (2, 1), "{:?}", sum.failed);
-        assert_eq!(sum.kinds, std::collections::BTreeMap::from([(db::Kind::Text, 2)]));
-
-        let g = lib.lock().unwrap();
-        let l = g.as_ref().unwrap();
-        let find = |search: &str| {
-            let q = db::ItemQuery { search: search.into(), sort: db::SortKey::Name, ..Default::default() };
-            db::query_items(&l.conn, &q).unwrap().into_iter().map(|i| i.name).collect::<Vec<_>>()
-        };
-        assert_eq!(find("在庫"), ["memo.md"], "found by its body");
-        assert_eq!(find("豚肉"), ["stock.csv"], "Shift_JIS read for the search");
-        let csv = db::query_items(&l.conn, &db::ItemQuery { search: "stock".into(), ..Default::default() }).unwrap();
-        let it = &csv[0];
-        assert_eq!((it.kind, it.width, it.height), (db::Kind::Text, 0, 0));
-        assert_eq!(fs::read(l.file_path(it)).unwrap(), sjis.to_vec(), "stored as is");
-        assert!(l.thumb_path(it).is_file());
     }
 
     #[test]

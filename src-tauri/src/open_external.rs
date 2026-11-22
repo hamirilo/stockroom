@@ -7,12 +7,8 @@
 //! - to edit: a copy written to the edit folder (書類/Stockroom unless set
 //!   otherwise) under the item's name, opened in the default app. The copy is
 //!   the user's from then on; the library doesn't track or remove it
-//!
-//! Bookmarks open their page in the browser (the frontend does that) and are
-//! skipped here except by `open_items`, which gets the ones with no page.
 
 use crate::commands::{err, get_app_settings, item_paths, AppState, CmdResult};
-use crate::db::Kind;
 use crate::library;
 use serde::Serialize;
 use std::fs;
@@ -48,7 +44,6 @@ pub fn open_items(state: State<AppState>, ids: Vec<String>) -> CmdResult<()> {
 pub async fn open_items_with(app: AppHandle, ids: Vec<String>, with: Option<String>) -> CmdResult<usize> {
     let paths: Vec<PathBuf> = item_paths(&app.state::<AppState>(), &ids)?
         .into_iter()
-        .filter(|(it, _)| it.kind != Kind::Bookmark)
         .map(|(_, p)| p)
         .collect();
     tauri::async_runtime::spawn_blocking(move || {
@@ -98,7 +93,7 @@ pub async fn apps_for_items(app: AppHandle, ids: Vec<String>) -> CmdResult<Vec<A
         let mut seen = std::collections::HashSet::new();
         let files: Vec<PathBuf> = items
             .into_iter()
-            .filter(|(it, _)| it.kind != Kind::Bookmark && seen.insert(it.ext.to_lowercase()))
+            .filter(|(it, _)| seen.insert(it.ext.to_lowercase()))
             .map(|(_, p)| p)
             .collect();
         #[cfg(target_os = "macos")]
@@ -192,7 +187,7 @@ pub async fn open_for_edit(app: AppHandle, ids: Vec<String>) -> CmdResult<EditCo
     let items = item_paths(&app.state::<AppState>(), &ids)?;
     let dir = edit_folder(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let copies = write_copies(&dir, items.iter().map(|(it, p)| (it.kind, it.name.as_str(), it.ext.as_str(), p.as_path())))?;
+        let copies = write_copies(&dir, items.iter().map(|(it, p)| (it.name.as_str(), it.ext.as_str(), p.as_path())))?;
         for copy in &copies {
             tauri_plugin_opener::open_path(copy, None::<&str>).map_err(err)?;
         }
@@ -202,14 +197,12 @@ pub async fn open_for_edit(app: AppHandle, ids: Vec<String>) -> CmdResult<EditCo
     .map_err(err)?
 }
 
-/// The copies `open_for_edit` opens, named as the items are (`name (2).pdf`
-/// when taken). Bookmarks have nothing to edit.
-/// Items as (kind, name, ext, stored file).
-fn write_copies<'a>(dir: &Path, items: impl Iterator<Item = (Kind, &'a str, &'a str, &'a Path)>) -> CmdResult<Vec<PathBuf>> {
+/// The copies `open_for_edit` opens, named as the items are (`name (2).png`
+/// when taken). Items as (name, ext, stored file).
+fn write_copies<'a>(dir: &Path, items: impl Iterator<Item = (&'a str, &'a str, &'a Path)>) -> CmdResult<Vec<PathBuf>> {
     fs::create_dir_all(dir).map_err(err)?;
     items
-        .filter(|(kind, ..)| *kind != Kind::Bookmark)
-        .map(|(_, name, ext, src)| crate::export::copy_out(src, dir, name, ext).map_err(err))
+        .map(|(name, ext, src)| crate::export::copy_out(src, dir, name, ext).map_err(err))
         .collect()
 }
 
@@ -341,29 +334,27 @@ mod tests {
     fn copies_for_editing_are_writable_and_named_as_the_items() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("A.library");
-        let pa = library::store_file(&root, "i1", "x.pdf", b"%PDF-a").unwrap();
-        let pb = library::store_file(&root, "i2", "y.pdf", b"%PDF-b").unwrap();
-        let pm = library::store_file(&root, "i3", "z.url", b"[InternetShortcut]").unwrap();
+        let pa = library::store_file(&root, "i1", "x.png", b"png-a").unwrap();
+        let pb = library::store_file(&root, "i2", "y.png", b"png-b").unwrap();
         // Opened read-only before: the copy isn't.
         library::protect(&pa).unwrap();
 
         let dir = tmp.path().join("書類").join(EDIT_FOLDER);
         let items = [
-            (Kind::File, "見積書", "pdf", pa.as_path()),
+            ("ロゴ", "png", pa.as_path()),
             // Renamed with its extension: the same name.
-            (Kind::File, "見積書.pdf", "pdf", pb.as_path()),
-            (Kind::Bookmark, "記事", "url", pm.as_path()),
+            ("ロゴ.png", "png", pb.as_path()),
         ];
         let copies = write_copies(&dir, items.into_iter()).unwrap();
 
         let names: Vec<_> = copies.iter().map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect();
-        assert_eq!(names, ["見積書.pdf", "見積書 (2).pdf"], "no bookmark; a taken name gets a number");
-        assert_eq!(fs::read(&copies[0]).unwrap(), b"%PDF-a");
+        assert_eq!(names, ["ロゴ.png", "ロゴ (2).png"], "a taken name gets a number");
+        assert_eq!(fs::read(&copies[0]).unwrap(), b"png-a");
         assert!(!fs::metadata(&copies[0]).unwrap().permissions().readonly());
         assert!(fs::metadata(&pa).unwrap().permissions().readonly(), "the stored file stays read-only");
 
         // Again: next to the earlier copies, never over them.
-        let again = write_copies(&dir, [(Kind::File, "見積書", "pdf", pa.as_path())].into_iter()).unwrap();
-        assert_eq!(again[0].file_name().unwrap(), "見積書 (3).pdf");
+        let again = write_copies(&dir, [("ロゴ", "png", pa.as_path())].into_iter()).unwrap();
+        assert_eq!(again[0].file_name().unwrap(), "ロゴ (3).png");
     }
 }

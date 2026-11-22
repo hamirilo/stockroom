@@ -76,44 +76,24 @@ export interface EditCopies {
 }
 
 /**
- * What a file is. Files (PDF, office documents) are 0 × 0 too, with a thumbnail from the OS or the file;
- * texts (Markdown, plain text, CSV) are 0 × 0, can be edited in the app and searched by their body (docs/TEXT.md);
- * videos have their picture size and a length (`durationMs`), a frame as the thumbnail and play in the viewer (docs/VIDEO.md);
- * bookmarks are a URL (`sourceUrl`) with the page's title as the name, 0 × 0, an eyecatch or a card as the thumbnail (docs/BOOKMARKS.md).
+ * What a file is. Videos have their picture size and a length (`durationMs`), a frame as the thumbnail
+ * and play in the viewer (docs/VIDEO.md). Files, texts and bookmarks were taken out (docs/FILE_APP.md).
  */
-export type ItemKind = "image" | "file" | "text" | "video" | "bookmark";
+export type ItemKind = "image" | "video";
 
 /** Kinds in the order the sidebar lists them. */
 export const KINDS: { kind: ItemKind; label: string }[] = [
   { kind: "image", label: "画像" },
-  { kind: "file", label: "ファイル" },
-  { kind: "text", label: "テキスト" },
   { kind: "video", label: "動画" },
-  { kind: "bookmark", label: "ブックマーク" },
 ];
 
 export const kindLabel = (k: ItemKind) => KINDS.find((x) => x.kind === k)?.label ?? k;
-
-/** File types imported as files (src-tauri/src/files/mod.rs `EXTS`). */
-export const FILE_EXTS = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key"];
-
-/** File types imported as texts (src-tauri/src/texts/mod.rs `EXTS`). */
-export const TEXT_EXTS = ["md", "markdown", "txt", "csv", "tsv"];
 
 /** File types imported as videos (src-tauri/src/videos/mod.rs `EXTS`). */
 export const VIDEO_EXTS = ["mp4", "m4v", "mov", "webm"];
 
 /** The kind a file type is imported as. */
-export const kindOfExt = (ext: string): ItemKind =>
-  ext === "url"
-    ? "bookmark"
-    : FILE_EXTS.includes(ext)
-      ? "file"
-      : TEXT_EXTS.includes(ext)
-        ? "text"
-        : VIDEO_EXTS.includes(ext)
-          ? "video"
-          : "image";
+export const kindOfExt = (ext: string): ItemKind => (VIDEO_EXTS.includes(ext) ? "video" : "image");
 
 /** "example.com/path" for showing a URL compactly. */
 export function urlLabel(url: string): string {
@@ -132,28 +112,6 @@ export function durationLabel(ms: number): string {
   const m = Math.floor((total % 3600) / 60);
   const s = String(total % 60).padStart(2, "0");
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
-}
-
-/** Name of a text's type. */
-export function textTypeLabel(ext: string): string {
-  const e = ext.toLowerCase();
-  if (e === "md" || e === "markdown") return "Markdown";
-  if (e === "csv") return "CSV";
-  if (e === "tsv") return "TSV";
-  return "テキスト";
-}
-
-/** Name of a file's type (src-tauri/src/files/mod.rs `type_name`). */
-export function fileTypeLabel(ext: string): string {
-  const e = ext.toLowerCase();
-  if (e === "pdf") return "PDF";
-  if (e === "doc" || e === "docx") return "Word";
-  if (e === "xls" || e === "xlsx") return "Excel";
-  if (e === "ppt" || e === "pptx") return "PowerPoint";
-  if (e === "pages") return "Pages";
-  if (e === "numbers") return "Numbers";
-  if (e === "key") return "Keynote";
-  return "ファイル";
 }
 
 export interface VideoCodecs {
@@ -211,7 +169,7 @@ export interface Item {
   displayPath: string;
   /** A video's thumbnail is one the user set, not the frame from the OS (docs/VIDEO.md). */
   ownThumb: boolean;
-  /** サムネイル画像の幅 ÷ 高さ。width / height が 0 の項目（ファイル・ブックマーク・テキスト）だけ。 */
+  /** サムネイル画像の幅 ÷ 高さ。width / height が 0 の項目（縦横を読めなかった動画）だけ。 */
   thumbAspect?: number | null;
   /** Similar view only: items with the same number look alike. Best copy first. */
   group?: number;
@@ -228,12 +186,9 @@ export function bitRateLabel(bytes: number, durationMs: number): string {
   return bps >= 1e6 ? `${+(bps / 1e6).toFixed(1)} Mbps` : `${Math.round(bps / 1e3)} kbps`;
 }
 
-/** "1200 × 800", or the kind for items without a pixel size. */
+/** "1200 × 800", or the kind for a video whose size couldn't be read. */
 export function sizeLabel(item: Pick<Item, "kind" | "width" | "height" | "ext">): string {
-  if (item.kind === "file") return fileTypeLabel(item.ext);
-  if (item.kind === "text") return textTypeLabel(item.ext);
   if (item.kind === "video" && !item.width) return "動画";
-  if (item.kind === "bookmark") return "ブックマーク";
   return `${item.width} × ${item.height}`;
 }
 

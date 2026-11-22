@@ -1,6 +1,6 @@
 // Service worker: right-click menu, Alt+right-click saves (from content.js)
 // and the screenshot / image list actions shared with the popup.
-import { bookmarkMessage, fileName, saveBookmark, saveImage, savedMessage, sendToApp } from "./shared.js";
+import { fileName, saveImage, savedMessage, sendToApp } from "./shared.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
@@ -10,7 +10,6 @@ chrome.runtime.onInstalled.addListener(() => {
       title: "このページの画像を一覧して保存…",
       contexts: ["page", "image", "link", "selection"],
     });
-    chrome.contextMenus.create({ id: "bookmark", title: "このページをブックマークに保存", contexts: ["page"] });
     chrome.contextMenus.create({
       id: "capture",
       title: "スクリーンショット（見えている範囲）を Stockroom に保存",
@@ -36,8 +35,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     saveWithFeedback(tab, () => capture(tab));
   } else if (info.menuItemId === "capture-full") {
     saveWithFeedback(tab, () => captureFull(tab));
-  } else if (info.menuItemId === "bookmark") {
-    saveWithFeedback(tab, () => saveBookmark(tab), bookmarkMessage);
   }
 });
 
@@ -53,8 +50,6 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     saveWithFeedback(msg.tab, () => capture(msg.tab));
   } else if (msg?.type === "capture-full" && msg.tab) {
     saveWithFeedback(msg.tab, () => captureFull(msg.tab));
-  } else if (msg?.type === "bookmark" && msg.tab) {
-    saveWithFeedback(msg.tab, () => saveBookmark(msg.tab), bookmarkMessage);
   } else if (msg?.type === "list-images" && msg.tab) {
     openImageList(msg.tab);
   }

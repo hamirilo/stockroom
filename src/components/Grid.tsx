@@ -3,17 +3,12 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  FileText,
-  Globe,
   Heart,
   ImagePlus,
   Layers,
   Link2,
-  NotebookText,
   Pin,
   Play,
-  Presentation,
-  Sheet,
   Star,
   Trash2,
 } from "lucide-react";
@@ -38,12 +33,9 @@ import { applicable, commandIcon, commandItem } from "../lib/menuItems";
 import {
   api,
   durationLabel,
-  fileTypeLabel,
   formatBytes,
   kindLabel,
   sizeLabel,
-  textTypeLabel,
-  urlLabel,
   type AppChoice,
   type Item,
   type ItemKind,
@@ -63,7 +55,7 @@ import {
   type Placement,
 } from "../lib/layouts";
 import { activeConditions, currentFolderId, listKinds, useStore, type ShowInfo } from "../store";
-import { comboText, isMac } from "../lib/shortcuts";
+import { isMac } from "../lib/shortcuts";
 import { ChangePulse } from "./ActionHud";
 import { useMenu, type MenuItem } from "./ContextMenu";
 import { startPointerDrag } from "./DragLayer";
@@ -231,23 +223,11 @@ type CellProps = {
 };
 
 const CHIP_TONE: Record<ChipTone, string> = {
-  pdf: "bg-red-600",
-  doc: "bg-blue-600",
-  sheet: "bg-green-700",
-  slides: "bg-orange-700",
-  text: "bg-slate-600",
   video: "bg-violet-600",
-  web: "bg-sky-700",
 };
 
-const CHIP_ICON: Record<ChipTone, typeof FileText> = {
-  pdf: FileText,
-  doc: FileText,
-  sheet: Sheet,
-  slides: Presentation,
-  text: NotebookText,
+const CHIP_ICON: Record<ChipTone, typeof Play> = {
   video: Play,
-  web: Globe,
 };
 
 /** Below this width the chip is the icon alone, so it leaves room for the pin and the heart. */
@@ -264,7 +244,7 @@ function TopLeftMarks({ item, width, flags }: { item: Item; width: number; flags
   const tray = flags && item.inTray;
   if (!chip && !pinned && !tray) return null;
   const Icon = chip && CHIP_ICON[chip.tone];
-  const typeName = item.kind === "file" ? fileTypeLabel(item.ext) : item.kind === "text" ? textTypeLabel(item.ext) : chip?.label;
+  const typeName = chip?.label;
   return (
     <span className="pointer-events-none absolute top-1.5 left-1.5 flex gap-1">
       {chip && Icon && (
@@ -417,11 +397,6 @@ const Cell = memo(function Cell({
         {item.kind === "video" && item.durationMs != null && (
           <span className="pointer-events-none absolute right-1.5 bottom-1.5 rounded bg-black/65 px-1.5 py-px text-[10px] text-white tabular-nums">
             {durationLabel(item.durationMs)}
-          </span>
-        )}
-        {item.kind === "bookmark" && item.sourceUrl && (
-          <span className="pointer-events-none absolute bottom-1.5 left-1.5 max-w-[80%] truncate rounded bg-black/65 px-1.5 py-px text-[10px] text-white">
-            {urlLabel(item.sourceUrl)}
           </span>
         )}
         <ChangePulse id={item.id} />
@@ -1269,17 +1244,11 @@ function Empty({
     <div className="mt-24 flex flex-col items-center gap-3 text-dim">
       <ImagePlus size={40} strokeWidth={1.25} />
       <p>
-        {only === "file"
-          ? "PDF・オフィス文書やフォルダをここにドラッグ&ドロップ"
-          : only === "text"
-            ? `Markdown・テキスト・CSV やフォルダをここにドラッグ&ドロップ、または ${comboText("Mod+N")} で新しく作る`
-            : only === "video"
-              ? "動画（MP4・MOV・WebM）やフォルダをここにドラッグ&ドロップ"
-              : only === "bookmark"
-                ? "ブラウザ拡張で保存するか、URL をクリップボードから貼り付け"
-                : only === "image"
-                  ? "画像やフォルダをここにドラッグ&ドロップ、またはクリップボードから貼り付け"
-                  : "ファイルやフォルダをここにドラッグ&ドロップ、またはクリップボードから貼り付け"}
+        {only === "video"
+          ? "動画（MP4・MOV・WebM）やフォルダをここにドラッグ&ドロップ"
+          : only === "image"
+            ? "画像やフォルダをここにドラッグ&ドロップ、またはクリップボードから貼り付け"
+            : "画像・動画やフォルダをここにドラッグ&ドロップ、またはクリップボードから貼り付け"}
       </p>
       <button
         onPointerDown={(e) => e.stopPropagation()}

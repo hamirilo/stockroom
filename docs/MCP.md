@@ -94,12 +94,12 @@ Claude Code / Claude Desktop では、書き込みのたびにユーザーの承
 
 **絞り込み `where`**（`find_items` と書き込みで共通。知らないキーはエラーにする）
 
-- `kind`：`image` / `file` / `text` / `video` / `bookmark`
+- `kind`：`image` / `video`
 - `folder`：フォルダのパス。`include_subfolders` でサブフォルダも含める
 - `tags`：タグ名のリスト。`tag_match_all` を付けるとすべて付いているもの
 - `untagged` / `unfiled`：タグなし／未分類だけ
 - `name_contains`：表示名にこの文字を含む（大文字・小文字は区別しない）。ファイル名からの整理はほぼこれで足りる
-- `search`：一覧の検索と同じ（`ItemQuery.search`。表示名・メモ・タグ名・テキストの本文が対象）
+- `search`：一覧の検索と同じ（`ItemQuery.search`。表示名・メモ・タグ名が対象）
 - `ext`：拡張子
 
 中身は `db::query_items` の `ItemQuery` に変換し、`View` に入りきらない条件（フォルダ指定とタグなしの組み合わせ、`name_contains`）は後から絞る。
@@ -235,7 +235,6 @@ CREATE TABLE IF NOT EXISTS changes (
 - `merge_tags`：表記ゆれ（「猫」「ねこ」「cat」）を 1 つにまとめる。付け替えたあとに古いタグを消すので、取り消しの記録に「消したタグ」も入れる
 - `rename_tag`、`set_tag_color`
 - `create_smart_folder`：言葉で頼まれた条件をルールに直して保存する
-- ファイル（PDF など）から中の文字を返す
 
 ## ファイル
 

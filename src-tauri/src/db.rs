@@ -204,8 +204,9 @@ pub fn migrate(conn: &Connection) -> DbResult<()> {
         add_column(c, "items", "flipped", "INTEGER NOT NULL DEFAULT 0")?;
         Ok(())
     })?;
-    // What the file is: 'image', 'file', ... (`Kind`; 'font' rows are left
-    // over and ignored, see `NOT_FONT`).
+    // What the file is: 'image' or 'video' (`Kind`; 'font' rows are left
+    // over and ignored, see `NOT_FONT`; 'file', 'text' and 'bookmark' rows are
+    // deleted when the library is opened, see `leftover_ids`).
     step(10, &|c| {
         add_column(c, "items", "kind", "TEXT NOT NULL DEFAULT 'image'")?;
         Ok(())
@@ -358,7 +359,8 @@ pub fn migrate(conn: &Connection) -> DbResult<()> {
         }
         Ok(())
     })?;
-    // Texts (texts/mod.rs): what the search box looks in besides the name.
+    // Texts (taken out, docs/FILE_APP.md): what the search box looked in
+    // besides the name. No longer written or read.
     step(22, &|c| {
         add_column(c, "items", "body", "TEXT")?;
         Ok(())
@@ -406,33 +408,21 @@ pub fn migrate(conn: &Connection) -> DbResult<()> {
 pub enum Kind {
     #[default]
     Image,
-    /// PDF and office documents (files/mod.rs).
-    File,
-    /// Markdown, plain text, CSV / TSV (texts/mod.rs).
-    Text,
     /// MP4 / MOV / WebM (videos/mod.rs).
     Video,
-    /// A URL, kept as an internet shortcut (bookmarks/mod.rs).
-    Bookmark,
 }
 
 impl Kind {
     pub(crate) fn as_str(self) -> &'static str {
         match self {
             Kind::Image => "image",
-            Kind::File => "file",
-            Kind::Text => "text",
             Kind::Video => "video",
-            Kind::Bookmark => "bookmark",
         }
     }
 
     fn parse(s: &str) -> Self {
         match s {
-            "file" => Kind::File,
-            "text" => Kind::Text,
             "video" => Kind::Video,
-            "bookmark" => Kind::Bookmark,
             _ => Kind::Image,
         }
     }
@@ -536,8 +526,6 @@ pub struct NewItem {
     /// Perceptual hash and average colour (see similar.rs).
     pub phash: Option<(u64, u32)>,
     pub preview: Option<String>,
-    /// Texts: what the search box looks in (texts/mod.rs `body`).
-    pub body: Option<String>,
     /// Videos: the length in milliseconds.
     pub duration_ms: Option<i64>,
 }
@@ -776,12 +764,11 @@ fn push_rule(rule: &Rule, wheres: &mut Vec<String>, args: &mut Vec<Box<dyn ToSql
     if let Some(expr) = search::parse(&rule.search) {
         let sql = search::to_sql(&expr, &mut |word| {
             let pat = escape_like(word);
-            for _ in 0..3 {
+            for _ in 0..2 {
                 args.push(Box::new(pat.clone()));
             }
             args.push(Box::new(pat));
-            "(items.name LIKE ? ESCAPE '\\' OR items.note LIKE ? ESCAPE '\\'
-               OR IFNULL(items.body, '') LIKE ? ESCAPE '\\' OR EXISTS (
+            "(items.name LIKE ? ESCAPE '\\' OR items.note LIKE ? ESCAPE '\\' OR EXISTS (
                SELECT 1 FROM item_tags it JOIN tags t ON t.id = it.tag_id
                WHERE it.item_id = items.id AND t.name LIKE ? ESCAPE '\\'))"
                 .into()
@@ -817,7 +804,6 @@ fn push_rule(rule: &Rule, wheres: &mut Vec<String>, args: &mut Vec<Box<dyn ToSql
         args.extend(exts.into_iter().map(|e| Box::new(e) as Box<dyn ToSql>));
     }
     // Shape and pixel size apply to what has one: images and videos (docs/KINDS.md).
-    // Files, texts and bookmarks are 0 × 0.
     let sized = !f.shapes.is_empty()
         || f.min_width.is_some()
         || f.max_width.is_some()
@@ -1196,8 +1182,8 @@ pub fn item_by_hash(conn: &Connection, hash: &str) -> DbResult<Option<String>> {
 pub fn insert_item(tx: &Transaction, it: &NewItem, imported_at: i64) -> DbResult<()> {
     tx.execute(
         "INSERT INTO items (id, name, file_name, ext, width, height, size, hash, thumb, imported_at, phash, pcolor, preview, kind,
-           body, duration_ms)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+           duration_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         params![
             it.id,
             it.name,
@@ -1213,18 +1199,8 @@ pub fn insert_item(tx: &Transaction, it: &NewItem, imported_at: i64) -> DbResult
             it.phash.map(|(_, c)| c),
             it.preview,
             it.kind.as_str(),
-            it.body,
             it.duration_ms
         ],
-    )?;
-    Ok(())
-}
-
-/// A text after it was edited (texts/commands.rs `save_text`).
-pub fn set_text(conn: &Connection, id: &str, hash: &str, size: i64, thumb: &str, body: &str) -> DbResult<()> {
-    conn.execute(
-        "UPDATE items SET hash = ?2, size = ?3, thumb = ?4, body = ?5 WHERE id = ?1 AND kind = 'text'",
-        params![id, hash, size, thumb, body],
     )?;
     Ok(())
 }
@@ -1347,25 +1323,10 @@ pub fn set_orientation(
     Ok(())
 }
 
-/// Replaces an item's thumbnail (files: once a better one could be made).
+/// Replaces an item's thumbnail (a video's own, videos/thumb.rs).
 pub fn set_thumb(conn: &Connection, id: &str, thumb: &str) -> DbResult<()> {
     conn.execute("UPDATE items SET thumb = ?2 WHERE id = ?1", params![id, thumb])?;
     Ok(())
-}
-
-/// Files of these types not in the trash: (id, ext, file name, thumbnail), newest first.
-/// Live files of these types that the user brought in themselves: not ones
-/// saved from the web (`source_url`), which the background thumbnail pass
-/// shouldn't hand to Office unasked (files/thumbs.rs).
-pub fn files_of_types(conn: &Connection, exts: &[&str]) -> DbResult<Vec<(String, String, String, String)>> {
-    let mut stmt = conn.prepare(&format!(
-        "SELECT id, ext, file_name, thumb FROM items
-         WHERE kind = 'file' AND deleted_at IS NULL AND source_url IS NULL AND ext IN ({})
-         ORDER BY imported_at DESC",
-        placeholders(exts.len())
-    ))?;
-    let rows = stmt.query_map(rusqlite::params_from_iter(exts), |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
-    rows.collect()
 }
 
 /// Records the page the items came from. Items that already have one keep it
@@ -1568,6 +1529,15 @@ pub fn delete_items(conn: &Connection, ids: &[String]) -> DbResult<Vec<Item>> {
     Ok(items)
 }
 
+/// Items of the kinds taken out of the app (docs/FILE_APP.md: files, texts
+/// and bookmarks), in the trash or not. `Library::remove_leftovers` deletes
+/// them for good when the library is opened.
+pub fn leftover_ids(conn: &Connection) -> DbResult<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT id FROM items WHERE kind IN ('file', 'text', 'bookmark')")?;
+    let rows = stmt.query_map([], |r| r.get(0))?;
+    rows.collect()
+}
+
 /// Ids of every item not in the trash (of `kind`, when given).
 pub fn live_ids(conn: &Connection, kind: Option<Kind>) -> DbResult<Vec<String>> {
     let (of_kind, arg) = kind_where(kind, 1, "items");
@@ -1757,7 +1727,7 @@ pub fn used_kinds(conn: &Connection) -> DbResult<Option<Vec<Kind>>> {
         .query_row("SELECT value FROM settings WHERE key = 'modes'", [], |r| r.get(0))
         .optional()?;
     let names: Vec<String> = value.and_then(|v| serde_json::from_str(&v).ok()).unwrap_or_default();
-    let kinds: Vec<Kind> = [Kind::Image, Kind::File, Kind::Text, Kind::Video, Kind::Bookmark]
+    let kinds: Vec<Kind> = [Kind::Image, Kind::Video]
         .into_iter()
         .filter(|k| names.iter().any(|n| n == k.as_str()))
         .collect();
@@ -2652,7 +2622,6 @@ mod tests {
                 thumb: format!("{id}.jpg"),
                 phash: None,
                 preview: None,
-                body: None,
                 duration_ms: None,
             },
             at,
@@ -3292,19 +3261,6 @@ mod tests {
     }
 
     #[test]
-    fn files_saved_from_the_web_are_not_handed_to_office() {
-        let conn = mem();
-        conn.execute_batch(
-            "INSERT INTO items (id, name, file_name, ext, width, height, size, hash, thumb, imported_at, kind, source_url)
-             VALUES ('own', 'a.docx', 'a.docx', 'docx', 0, 0, 1, 'h1', 't.jpg', 1, 'file', NULL),
-                    ('web', 'b.docx', 'b.docx', 'docx', 0, 0, 1, 'h2', 't.jpg', 2, 'file', 'https://example.com/')",
-        )
-        .unwrap();
-        let ids: Vec<String> = files_of_types(&conn, &["docx"]).unwrap().into_iter().map(|f| f.0).collect();
-        assert_eq!(ids, ["own"]);
-    }
-
-    #[test]
     fn id_lists_past_the_parameter_limit() {
         let mut conn = mem();
         // More than SQLite's 32766 parameters.
@@ -3602,22 +3558,19 @@ mod tests {
         assert_eq!(find(&conn, f(|f| { f.imported_after = Some(2_000); f.imported_before = Some(4_000) })), s(&["b", "c"]));
         assert_eq!(find(&conn, f(|f| f.max_size = Some(50_000))), s(&["b", "d"]));
         assert_eq!(find(&conn, f(|f| f.min_size = Some(1_000_000))), s(&["c"]));
-        // A video has a pixel size too; a file (0 × 0) doesn't.
+        // A video has a pixel size too.
         add(&mut conn, "v", "v.mp4", 5_000);
         conn.execute("UPDATE items SET kind = 'video', ext = 'mp4', width = 1920, height = 1080 WHERE id = 'v'", [])
             .unwrap();
-        add(&mut conn, "p", "p.pdf", 6_000);
-        conn.execute("UPDATE items SET kind = 'file', ext = 'pdf', width = 0, height = 0 WHERE id = 'p'", []).unwrap();
         let mut wide = find(&conn, f(|f| f.shapes = vec![Shape::Landscape]));
         wide.sort();
         assert_eq!(wide, s(&["a", "v"]));
-        assert_eq!(find(&conn, f(|f| f.max_width = Some(100))), s(&["d"]), "the file's 0 × 0 isn't a size");
-        conn.execute("DELETE FROM items WHERE id IN ('v', 'p')", []).unwrap();
-        conn.execute("UPDATE items SET kind = 'file', width = 0, height = 0 WHERE id = 'd'", []).unwrap();
-        assert_eq!(find(&conn, f(|f| f.kinds = vec![Kind::File])), s(&["d"]));
+        conn.execute("DELETE FROM items WHERE id = 'v'", []).unwrap();
+        conn.execute("UPDATE items SET kind = 'video' WHERE id = 'd'", []).unwrap();
+        assert_eq!(find(&conn, f(|f| f.kinds = vec![Kind::Video])), s(&["d"]));
         assert_eq!(find(&conn, f(|f| f.kinds = vec![Kind::Image])), s(&["a", "b", "c"]));
-        assert_eq!(find(&conn, f(|f| f.kinds = vec![Kind::Image, Kind::File])).len(), 4);
-        assert_eq!(counts(&conn).unwrap().kinds, BTreeMap::from([(Kind::Image, 3), (Kind::File, 1)]));
+        assert_eq!(find(&conn, f(|f| f.kinds = vec![Kind::Image, Kind::Video])).len(), 4);
+        assert_eq!(counts(&conn).unwrap().kinds, BTreeMap::from([(Kind::Image, 3), (Kind::Video, 1)]));
         assert_eq!(
             list_exts(&conn).unwrap(),
             vec![("png".to_string(), 2), ("jpg".to_string(), 1), ("tif".to_string(), 1)]
@@ -3653,8 +3606,8 @@ mod tests {
         let mut conn = mem();
         add(&mut conn, "a", "cat.png", 1);
         add(&mut conn, "b", "dog.png", 2);
-        add(&mut conn, "p", "doc.pdf", 3);
-        conn.execute("UPDATE items SET kind = 'file', ext = 'pdf' WHERE id = 'p'", []).unwrap();
+        add(&mut conn, "p", "clip.mp4", 3);
+        conn.execute("UPDATE items SET kind = 'video', ext = 'mp4' WHERE id = 'p'", []).unwrap();
         add_font(&mut conn, "f", 4);
         let folder = create_folder(&conn, "Mixed", None).unwrap();
         move_to_folder(&conn, &s(&["a", "p", "f"]), &folder).unwrap();
@@ -3664,20 +3617,20 @@ mod tests {
         create_smart_folder(&conn, "Any", &Rule::default()).unwrap();
 
         let stock = counts(&conn).unwrap();
-        assert_eq!(stock.by_kind.all, BTreeMap::from([(Kind::Image, 1), (Kind::File, 1)]));
-        assert_eq!(stock.by_kind.favorites, BTreeMap::from([(Kind::File, 1)]));
+        assert_eq!(stock.by_kind.all, BTreeMap::from([(Kind::Image, 1), (Kind::Video, 1)]));
+        assert_eq!(stock.by_kind.favorites, BTreeMap::from([(Kind::Video, 1)]));
         assert_eq!(stock.by_kind.trash, BTreeMap::from([(Kind::Image, 1)]));
         assert!(stock.by_kind.unfiled.is_empty());
         // The sums are the totals.
         assert_eq!(stock.by_kind.all.values().sum::<i64>(), stock.all);
 
         let f = &list_folders(&conn).unwrap()[0];
-        assert_eq!(f.by_kind, BTreeMap::from([(Kind::Image, 1), (Kind::File, 1)]), "the font stays out");
+        assert_eq!(f.by_kind, BTreeMap::from([(Kind::Image, 1), (Kind::Video, 1)]), "the font stays out");
         assert_eq!(f.by_kind.values().sum::<i64>(), f.count);
         let t = &list_tags(&conn).unwrap()[0];
-        assert_eq!(t.by_kind, BTreeMap::from([(Kind::Image, 1), (Kind::File, 1)]), "b is in the trash");
+        assert_eq!(t.by_kind, BTreeMap::from([(Kind::Image, 1), (Kind::Video, 1)]), "b is in the trash");
         let sf = &list_smart_folders(&conn).unwrap()[0];
-        assert_eq!((sf.count, sf.by_kind.get(&Kind::File)), (2, Some(&1)));
+        assert_eq!((sf.count, sf.by_kind.get(&Kind::Video)), (2, Some(&1)));
     }
 
     /// A row of the kind 'font', left from when fonts were a mode (`NOT_FONT`).

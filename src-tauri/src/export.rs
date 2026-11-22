@@ -312,7 +312,6 @@ mod tests {
             thumb: format!("{id}.jpg"),
             phash: None,
             preview: None,
-            body: None,
             duration_ms: None,
         };
         db::insert_item(&tx, &it, at).unwrap();
@@ -327,8 +326,8 @@ mod tests {
         let kyoto = db::create_folder(&lib.conn, "京都", Some(&trip)).unwrap();
         add(&mut lib, "a", "金閣寺.jpg", Kind::Image, 1);
         add(&mut lib, "b", "金閣寺.jpg", Kind::Image, 2);
-        add(&mut lib, "c", "請求書.pdf", Kind::File, 3);
-        add(&mut lib, "d", "Inter.ttf", Kind::File, 4);
+        add(&mut lib, "c", "散歩.mp4", Kind::Video, 3);
+        add(&mut lib, "d", "Inter.ttf", Kind::Image, 4);
         add(&mut lib, "e", "捨てた.png", Kind::Image, 5);
         let s = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
         db::move_to_folder(&lib.conn, &s(&["a", "b"]), &kyoto).unwrap();
@@ -349,7 +348,7 @@ mod tests {
             [
                 ("旅行/京都".to_string(), "金閣寺.jpg"),
                 ("旅行/京都".to_string(), "金閣寺.jpg"),
-                (String::new(), "請求書.pdf"), // unfiled: right in the export's folder
+                (String::new(), "散歩.mp4"), // unfiled: right in the export's folder
             ],
             "the trash and the font are left out"
         );
@@ -360,7 +359,7 @@ mod tests {
         let root = out.join("L");
         assert_eq!(fs::read(root.join("旅行/京都/金閣寺.jpg")).unwrap(), b"a");
         assert_eq!(fs::read(root.join("旅行/京都/金閣寺 (2).jpg")).unwrap(), b"b");
-        assert_eq!(fs::read(root.join("請求書.pdf")).unwrap(), b"c");
+        assert_eq!(fs::read(root.join("散歩.mp4")).unwrap(), b"c");
         assert!(!root.join("欧文").exists());
 
         // Again: a new folder, the first one untouched.

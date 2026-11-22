@@ -12,7 +12,7 @@
 //! build's release tags start with before `v<version>` (e.g. `corp-`).
 
 use crate::db::Kind;
-use crate::{files, formats, texts, videos};
+use crate::{formats, videos};
 
 const KINDS: Option<&str> = option_env!("STOCKROOM_KINDS");
 
@@ -57,10 +57,6 @@ pub fn has(kind: Kind) -> bool {
 fn kind_of_ext(ext: &str) -> Option<Kind> {
     if formats::is_image(ext) {
         Some(Kind::Image)
-    } else if files::is_file(ext) {
-        Some(Kind::File)
-    } else if texts::is_text(ext) {
-        Some(Kind::Text)
     } else if videos::is_video(ext) {
         Some(Kind::Video)
     } else {
@@ -97,13 +93,13 @@ mod tests {
 
     #[test]
     fn a_kind_list_names_the_kinds() {
-        assert!(listed(None, Kind::Bookmark));
-        assert!(listed(Some(""), Kind::Bookmark));
+        assert!(listed(None, Kind::Video));
+        assert!(listed(Some(""), Kind::Video));
         assert!(listed(Some("image, video"), Kind::Video));
         assert!(listed(Some("image"), Kind::Image));
-        assert!(!listed(Some("image"), Kind::Bookmark));
+        assert!(!listed(Some("image"), Kind::Video));
         assert!(!listed(Some("font"), Kind::Image), "an unknown kind (fonts have their own app)");
-        assert!(!listed(Some("image,video"), Kind::Text));
+        assert!(!listed(Some("image,text"), Kind::Video), "kinds taken out (docs/FILE_APP.md) are unknown too");
     }
 
     #[test]
@@ -114,6 +110,8 @@ mod tests {
         assert_eq!(kind_of_ext("heic"), Some(Kind::Image));
         assert_eq!(kind_of_ext("woff2"), None, "fonts have their own app (docs/FONT_APP.md)");
         assert_eq!(kind_of_ext("mov"), Some(Kind::Video));
+        assert_eq!(kind_of_ext("pdf"), None, "files, texts and bookmarks were taken out (docs/FILE_APP.md)");
+        assert_eq!(kind_of_ext("md"), None);
     }
 
     #[test]
