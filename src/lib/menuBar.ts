@@ -25,7 +25,7 @@ import { warn } from "./log";
 import { comboText, isMac } from "./shortcuts";
 import { rangeKinds } from "./kinds";
 import { GROUPS, LAYOUTS, SORTS } from "../components/ViewMenu";
-import { listWithin, usedKinds, useStore } from "../store";
+import { usedKinds, useStore } from "../store";
 
 type S = ReturnType<typeof useStore.getState>;
 type Item = MenuItem | CheckMenuItem | Submenu | PredefinedMenuItem;
@@ -306,16 +306,14 @@ async function build(libraries: LibraryEntry[]): Promise<Menu> {
     ),
     submenu("並び順", [
       // Kept in the menu and greyed out: what the list holds changes without a rebuild.
-      ...SORTS.filter((o) => !o.only || o.only.some((k) => usedKinds(s).includes(k))).map((o) =>
+      ...SORTS.map((o) =>
         live(
           () => o.label,
           () => st().setSort(o.key, st().desc),
           {
             checked: (x) => x.sort === o.key,
-            // Manual order is a folder's; pixel size, of images and videos alone.
-            enabled: (x) =>
-              (o.key !== "manual" || x.view.kind === "folder") &&
-              (!o.only || listWithin(x, o.only)),
+            // Manual order is a folder's.
+            enabled: (x) => o.key !== "manual" || x.view.kind === "folder",
           },
         ),
       ),

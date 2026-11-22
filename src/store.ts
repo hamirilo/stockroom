@@ -23,7 +23,7 @@ import {
   type View,
 } from "./lib/api";
 import { buildHas, OFF_SETTINGS } from "./lib/limits";
-import { listHasPixels, queryKinds, inScope, ruleKinds, usedKinds, type KindState } from "./lib/kinds";
+import { queryKinds, inScope, ruleKinds, usedKinds } from "./lib/kinds";
 import {
   DEFAULT_LIBRARY_SETTINGS,
   HIDDEN_KEY,
@@ -43,7 +43,7 @@ import { notifyIfAway } from "./lib/osNotify";
  * `listKinds`). Fonts moved to their own app (docs/FONT_APP.md).
  */
 // The kinds a list holds (lib/kinds.ts), used across the components.
-export { listHasPixels, listIs, listKinds, listNoun, listWithin, queryKinds, shownKinds, usedKinds } from "./lib/kinds";
+export { listIs, listKinds, listNoun, queryKinds, shownKinds, usedKinds } from "./lib/kinds";
 
 /** x/y = current pointer, sx/sy = where the drag started (for snap-back). */
 type DragPos = { x: number; y: number; sx: number; sy: number };
@@ -246,7 +246,7 @@ interface State {
   /** A browser extension asks to connect; `code` is also shown in the extension. */
   /** `extension`: the asking extension's id (chrome://extensions shows it). */
   /** An extension (its id) or another app (the name it gives itself) asks to connect. */
-  pairRequest: { id: string; code: string; extension: string | null; app: string | null } | null;
+  pairRequest: { id: string; code: string; extension: string } | null;
   /** Similar view: how alike images must be. */
   similarLevel: SimilarLevel;
   /** Similar view: copies the user chose to keep (at most one per group). */
@@ -507,19 +507,6 @@ const loadGroupBy = (): GroupBy => {
   // "year" was merged into "month" (年月).
   return GROUPS.find((g) => g === (saved === "year" ? "month" : saved)) ?? "none";
 };
-
-/** Conditions only images have (shape, pixel size), cleared when the list isn't of images alone. */
-/** What applies to kinds with a pixel size only (images, videos). */
-const PIXELS_ONLY: Partial<Filter> = { shapes: [], minWidth: null, maxWidth: null, minHeight: null, maxHeight: null };
-
-/**
- * Drops what no longer applies once the list holds other kinds: image-only
- * conditions and the pixel size sort.
- */
-function fitToKinds(s: KindState & { sort: SortKey }): Partial<State> {
-  if (listHasPixels(s)) return {};
-  return { filter: { ...s.filter, ...PIXELS_ONLY }, ...(s.sort === "dimensions" ? { sort: "importedAt" as SortKey } : {}) };
-}
 
 /** Number of active ad-hoc conditions: the filter row's and the search. */
 export function activeConditions(s: {
@@ -927,7 +914,6 @@ export const useStore = create<State>((set, get) => ({
       tagFilter: [],
       minRating: 0,
       filter: EMPTY_FILTER,
-      ...fitToKinds({ view: { kind: "all" }, filter: EMPTY_FILTER, smartFolders: [], librarySettings, sort: get().sort }),
       editingSmart: null,
       recentTags: library ? loadRecentTags(library.root) : [],
       selected: new Set(),
@@ -945,7 +931,7 @@ export const useStore = create<State>((set, get) => ({
     const picked = used.filter((k) => kinds.includes(k));
     // Every kind in use is the same list as none picked.
     const filter = { ...s.filter, kinds: picked.length === used.length ? [] : picked };
-    set({ filter, ...fitToKinds({ ...s, filter }) });
+    set({ filter });
     get().refresh();
   },
   setLinks: (links) => {
@@ -962,10 +948,9 @@ export const useStore = create<State>((set, get) => ({
     set({ librarySettings: { ...get().librarySettings, kinds: used } });
     // Every kind = nothing to remember (a kind added later is used too).
     saveLibrarySetting("modes", used.length === KINDS.length ? null : used);
-    // A kind dropped from the kind filter; what applied to it alone goes too.
+    // A kind dropped from the kind filter.
     const s = get();
-    const filter = { ...s.filter, kinds: s.filter.kinds.filter((k) => used.includes(k)) };
-    set({ filter, ...fitToKinds({ ...s, filter }) });
+    set({ filter: { ...s.filter, kinds: s.filter.kinds.filter((k) => used.includes(k)) } });
     get().refresh();
   },
   setSidebarHidden: (ids, scope = sidebarScope(get())) => {
@@ -1029,7 +1014,6 @@ export const useStore = create<State>((set, get) => ({
           editingSmart: null,
         }
       : {};
-    const next = { ...get(), ...reset, view };
     set({
       view,
       // Going somewhere in the sidebar leaves the comparison for the list.
@@ -1040,7 +1024,6 @@ export const useStore = create<State>((set, get) => ({
       focus: null,
       ...clear,
       ...reset,
-      ...fitToKinds(next),
     });
     get().refresh();
   },

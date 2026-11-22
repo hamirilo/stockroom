@@ -555,11 +555,10 @@ function menuText(rid: number, depth = 0): string[] {
   return [...head, ...kids];
 }
 // A connection request as webimport.rs sends it, to see the question in the
-// browser: `window.__MOCK_PAIR__("Feedability")` for an app, no argument for
-// an extension.
-(window as unknown as { __MOCK_PAIR__: (app?: string) => void }).__MOCK_PAIR__ = (app) =>
+// browser: `window.__MOCK_PAIR__()`.
+(window as unknown as { __MOCK_PAIR__: () => void }).__MOCK_PAIR__ = () =>
   void import("@tauri-apps/api/event").then(({ emit }) =>
-    emit("web-pair", { id: `mock${Date.now()}`, code: "4821", extension: app ? null : "abcdefghijklmnop", app: app ?? null }),
+    emit("web-pair", { id: `mock${Date.now()}`, code: "4821", extension: "abcdefghijklmnop" }),
   );
 
 (window as unknown as { __MOCK_MENU__: () => string }).__MOCK_MENU__ = () =>
