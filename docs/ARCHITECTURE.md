@@ -17,13 +17,13 @@ Stockroom は、集めた画像と動画を「見て探して使う」ための�
 - **ファイル・テキスト・ブックマークがあった版のデータ**（docs/FILE_APP.md）：ライブラリを開いたとき（`commands.rs` の `activate`）に、
   `items` の `kind` が `file` / `text` / `bookmark` の行を、ファイルごと消す（`Library::remove_leftovers`。ゴミ箱の中のものも）。
   `items.body`（テキストの本文）の列は残し、読まない
-- **種類の範囲**（docs/KINDS.md）：サイドバーの「種類で絞る」（`Sidebar.tsx` の `KindRange`、出す種類は `rangeKinds`）で
+- **種類の範囲**（docs/KINDS.md）：サイドバーの［画像｜動画］のセグメント（`Sidebar.tsx` の `KindRange`、出す種類は `rangeKinds`）で
   `filter.kinds` を選ぶ。絞り込みの条件ではなく範囲：表示（フォルダ・タグなど）を移っても残り、「すべて解除」でも外さず、`activeConditions` に数えない。
   サイドバーの件数は、`byKind`（固定の場所・フォルダ・タグ・スマートフォルダの種類ごとの件数）から選んだ種類の分を足す（`inScope`）
 - 一覧が持ちうる種類は `listKinds`（`lib/kinds.ts`、状態を受け取る純粋関数）の 1 か所で決める：使う種類を種類の絞り込みで狭め、
   開いているスマートフォルダの条件と重複の候補（画像だけ）でさらに狭める。問い合わせの `filter.kinds` は `queryKinds`（全種類なら空）
-- 縦横を持つもの（画像と動画、`PIXEL_KINDS`）だけの機能は、一覧がそれだけのとき（`listHasPixels`）に出す。「形式」で画像・動画の形式（JPEG など）だけを選んだときも同じ（`listKinds` が選んだ形式の種類で絞る）：「サイズ（px）」の絞り込みと並び替え。
-  DB でも縦横の条件は画像と動画だけに効く（`db.rs` の `PIXEL_KINDS`）。ほかの種類が混ざったら、これらの条件と並び順を外す（`fitToKinds`）。画像だけの機能（回転・重複の候補など）は今どおり `listIs(s, "image")`。重複の候補は、画像を使うライブラリに出し、
+- 「サイズ（px）」の絞り込みと並び替えは、画像も動画も縦横を持つのでいつでも使える。DB では縦横の条件は画像と動画だけに効く（`db.rs` の `PIXEL_KINDS`）。
+  画像だけの機能（回転・重複の候補など）は `listIs(s, "image")`（`listKinds` は「形式」で選んだ形式の種類でも狭める）。重複の候補は、画像を使うライブラリに出し、
   種類の絞り込みにかかわらず画像だけを問い合わせる。回転などの `kinds` 付きの操作は `appliesTo`（`commands.ts`）で、
   一覧がその種類だけなら使え、混ざっていれば選択がその種類だけのときに使える
 - ライブラリごとに「使う種類」（設定のキーは前からの `modes`）を選べる（docs/SETTINGS.md）。フォントがあった版の `"font"` は読むときに外す（`lib/librarySettings.ts`）

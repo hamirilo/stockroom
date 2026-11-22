@@ -1036,14 +1036,12 @@ export async function createSmartFolder() {
 
 /**
  * Picks the sidebar's range of kinds (docs/KINDS.md): one kind at a time, the
- * one picked again goes back to every kind; `add` (⌘-click) adds or takes
- * off one. Null = every kind.
+ * one picked again goes back to every kind. Null = every kind.
  */
-export function pickKind(kind: ItemKind | null, add = false) {
+export function pickKind(kind: ItemKind | null) {
   const s = st();
   const cur = s.filter.kinds;
   if (!kind) s.setKinds([]);
-  else if (add) s.setKinds(cur.includes(kind) ? cur.filter((k) => k !== kind) : [...cur, kind]);
   else s.setKinds(cur.length === 1 && cur[0] === kind ? [] : [kind]);
 }
 

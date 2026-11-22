@@ -14,9 +14,8 @@ import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { command } from "../lib/commands";
 import type { GroupBy } from "../lib/grouping";
-import type { ItemKind, SortKey } from "../lib/api";
-import { PIXEL_KINDS } from "../lib/kinds";
-import { listKinds, useStore, type Layout, type ShowInfo } from "../store";
+import type { SortKey } from "../lib/api";
+import { useStore, type Layout, type ShowInfo } from "../store";
 
 /** Every grouping, in the order offered. */
 export const GROUPS: { key: GroupBy; label: string; hint: string }[] = [
@@ -35,20 +34,20 @@ export const LAYOUTS: { key: Layout; label: string; icon: React.ReactNode; hint:
   { key: "list", label: "リスト", icon: <LayoutList size={15} />, hint: "1 行ずつ詳しく表示" },
 ];
 
-/** Sort keys; `only`: offered when the list holds those kinds alone (images and videos have a pixel size). */
-export const SORTS: { key: SortKey; label: string; only?: ItemKind[] }[] = [
+/** Sort keys. */
+export const SORTS: { key: SortKey; label: string }[] = [
   { key: "importedAt", label: "追加日" },
   { key: "name", label: "名前" },
   { key: "size", label: "ファイルサイズ" },
-  { key: "dimensions", label: "サイズ（px）", only: PIXEL_KINDS },
+  { key: "dimensions", label: "サイズ（px）" },
   { key: "rating", label: "評価" },
   { key: "manual", label: "手動（ドラッグで並べ替え）" },
 ];
 
-/** What a thumbnail can show; `only`: when the list can hold one of those kinds. */
-const INFO: { key: keyof ShowInfo; label: string; only?: ItemKind[] }[] = [
+/** What a thumbnail can show. */
+const INFO: { key: keyof ShowInfo; label: string }[] = [
   { key: "name", label: "名前" },
-  { key: "dims", label: "サイズ（px）", only: ["image", "video"] },
+  { key: "dims", label: "サイズ（px）" },
   { key: "rating", label: "評価" },
   { key: "meta", label: "形式・容量" },
 ];
@@ -160,8 +159,7 @@ function SortControl() {
   const desc = useStore((s) => s.desc);
   const setSort = useStore((s) => s.setSort);
   const canManual = useStore((s) => s.view.kind === "folder");
-  const kinds = useStore(useShallow(listKinds));
-  const sorts = SORTS.filter((s) => !s.only || (kinds.length > 0 && kinds.every((k) => s.only!.includes(k))));
+  const sorts = SORTS;
   const manual = sort === "manual";
   const label = manual ? "手動" : (SORTS.find((s) => s.key === sort)?.label ?? "");
   return (
@@ -227,7 +225,6 @@ export function ViewPopover() {
   const links = useStore((s) => s.librarySettings.links);
   const showInfo = useStore((s) => s.showInfo);
   const setShowInfo = useStore((s) => s.setShowInfo);
-  const kinds = useStore(useShallow(listKinds));
   const parents = useParents();
   const current = LAYOUTS.find((l) => l.key === layout) ?? LAYOUTS[0];
   return (
@@ -279,7 +276,7 @@ export function ViewPopover() {
       <div className={rule} />
       <div className={heading}>サムネイルの下に表示</div>
       <div className="grid grid-cols-2 px-1 pb-1">
-        {INFO.filter((i) => !i.only || i.only.some((k) => kinds.includes(k))).map((i) => (
+        {INFO.map((i) => (
           <label key={i.key} className="flex cursor-default items-center gap-2 rounded px-1 py-1.5 hover:bg-ink/8">
             <input
               type="checkbox"

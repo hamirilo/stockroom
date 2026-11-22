@@ -1,10 +1,8 @@
 import {
-  Check,
   ChevronDown,
   ChevronRight,
   Copy,
   Image as ImageIcon,
-  ListFilter,
   PanelLeftClose,
   Video,
   Folder as FolderIcon,
@@ -45,7 +43,6 @@ import {
 } from "../lib/actions";
 import { api, kindLabel, type Folder, type ItemKind, type KindCounts, type View } from "../lib/api";
 import { inScope, rangeKinds } from "../lib/kinds";
-import { isMac } from "../lib/shortcuts";
 import { APPEARANCES, parseAppearance } from "../lib/appearance";
 import {
   activeConditions,
@@ -654,116 +651,46 @@ function SidebarHide({ className }: { className: string }) {
   );
 }
 
+/**
+ * The range (docs/KINDS.md): ［画像｜動画］. Nothing pressed shows both; pressing
+ * the pressed one again lets go. The similar view is of images whatever is picked.
+ */
 function KindRange() {
   const kinds = useStore(useShallow(rangeKinds));
   const picked = useStore(useShallow((s) => s.filter.kinds));
-  // The similar view is of images whatever is picked: shown, greyed out.
   const similar = useStore((s) => s.view.kind === "similar");
   const counts = useStore(useShallow((s) => placeByKind(s)));
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("pointerdown", away);
-    window.addEventListener("keydown", esc);
-    return () => {
-      window.removeEventListener("pointerdown", away);
-      window.removeEventListener("keydown", esc);
-    };
-  }, [open]);
-  useEffect(() => {
-    if (similar) setOpen(false);
-  }, [similar]);
   if (!kinds.length) return null;
 
-  const on = picked.length > 0 && !similar;
-  const label = similar ? "画像だけ" : on ? picked.map(kindLabel).join("・") : "種類で絞る";
-  const icon = similar ? KIND_ICON.image : on && picked.length === 1 ? KIND_ICON[picked[0]] : <ListFilter size={14} />;
-  const add = isMac ? "⌘" : "Ctrl";
-  const pick = (k: ItemKind | null, e?: React.MouseEvent) => {
-    const adding = !!k && !!e && (e.metaKey || e.ctrlKey);
-    pickKind(k, adding);
-    if (!adding) setOpen(false);
-  };
-
   return (
-    <div ref={ref} className="relative mx-2 mb-2 shrink-0">
-      <button
-        disabled={similar}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title={similar ? "重複の候補は画像だけが対象です" : on ? `種類：${label}（${comboText("Alt+0")} で解除）` : "種類で絞る"}
-        onClick={() => setOpen((o) => !o)}
-        className={`flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-[13px] ${
-          on
-            ? "bg-tonal text-on-tonal enabled:hover:brightness-110"
-            : open
-              ? "bg-press"
-              : "bg-ink/6 text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
-        } disabled:off disabled:bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--color-off-edge)]`}
-      >
-        <span className={`shrink-0 ${on ? "" : "text-dim"}`}>{icon}</span>
-        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-        <ChevronDown size={13} className={`shrink-0 ${on ? "" : "text-dim"}`} />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          data-modal
-          className="absolute top-full right-0 left-0 z-40 mt-1 animate-slide-down rounded-lg border border-line bg-raised p-1 text-xs shadow-xl"
-        >
-          <KindOption on={!picked.length} onClick={() => pick(null)}>
-            種類で絞らない
-          </KindOption>
-          <div className="my-1 border-t border-line" />
-          {kinds.map((k) => (
-            <KindOption
-              key={k}
-              on={picked.includes(k)}
-              icon={KIND_ICON[k]}
-              count={counts ? (counts[k] ?? 0) : undefined}
-              onClick={(e) => pick(k, e)}
-            >
-              {kindLabel(k)}
-            </KindOption>
-          ))}
-          <div className="my-1 border-t border-line" />
-          <p className="px-2 py-1 text-dim">{add}＋クリックで重ねて選ぶ</p>
-        </div>
-      )}
+    <div role="group" aria-label="種類で絞る" className="mx-2 mb-2 flex h-7 shrink-0 items-stretch rounded-md track text-[13px]">
+      {kinds.map((k, i) => {
+        const on = similar ? k === "image" : picked.includes(k);
+        const key = comboText(`Alt+${i + 1}`);
+        return (
+          <button
+            key={k}
+            disabled={similar}
+            aria-pressed={on}
+            title={
+              similar
+                ? "重複の候補は画像だけが対象です"
+                : on
+                  ? `${kindLabel(k)}だけを表示中（もう一度押すか ${comboText("Alt+0")} で解除）`
+                  : `${kindLabel(k)}だけを表示（${key}）`
+            }
+            onClick={() => pickKind(k)}
+            className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded px-1.5 disabled:off ${
+              on ? "thumb font-medium" : "text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
+            }`}
+          >
+            <span className={`shrink-0 ${on ? "" : "text-dim"}`}>{KIND_ICON[k]}</span>
+            <span className="truncate">{kindLabel(k)}</span>
+            {counts && <span className={`shrink-0 tabular-nums ${on ? "text-fg/70" : "text-dim"}`}>{counts[k] ?? 0}</span>}
+          </button>
+        );
+      })}
     </div>
-  );
-}
-
-function KindOption({
-  on,
-  icon,
-  count,
-  onClick,
-  children,
-}: {
-  on: boolean;
-  icon?: React.ReactNode;
-  count?: number;
-  onClick: (e: React.MouseEvent) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      role="menuitemcheckbox"
-      aria-checked={on}
-      onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-ink/8 ${
-        on ? "text-fg" : count === 0 ? "text-dim/60" : "text-fg/85"
-      }`}
-    >
-      <span className="flex w-3.5 shrink-0 justify-center text-accent">{on && <Check size={13} strokeWidth={2.5} />}</span>
-      {icon && <span className="shrink-0 text-dim">{icon}</span>}
-      <span className="min-w-0 flex-1 truncate">{children}</span>
-      {count !== undefined && <span className="shrink-0 text-dim tabular-nums">{count}</span>}
-    </button>
   );
 }
 

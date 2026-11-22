@@ -58,10 +58,6 @@ export function WebImportSettings() {
           ページの画像やスクリーンショットをこのライブラリに保存できます。 保存した画像には元のページの URL
           が記録されます。
         </p>
-        {/* Other apps use this same receiver (docs/FROM_APPS.md): without this line nobody looks for them here. */}
-        <p className="mt-1.5 text-xs text-dim">
-          Feedability など、このパソコンのほかのアプリからの保存も、この受付で受け付けます（初めてのときに接続の確認が出ます）。
-        </p>
       </div>
 
       <div>
@@ -77,9 +73,9 @@ export function WebImportSettings() {
               ) : status.error ? (
                 <span className="text-danger">{status.error}</span>
               ) : status.running ? (
-                `受付中（127.0.0.1:${status.port}）。このパソコンの中の、接続を許可した拡張機能とアプリ（Feedability など）からだけ受け付けます。`
+                `受付中（127.0.0.1:${status.port}）。このパソコンの中の、接続を許可した拡張機能からだけ受け付けます。`
               ) : (
-                "オフ。アプリの起動中だけ受け付けます。ほかのアプリ（Feedability など）から保存するときもオンにします。"
+                "オフ。アプリの起動中だけ受け付けます。"
               )
             }
           />
@@ -181,7 +177,7 @@ export function WebImportSettings() {
   );
 }
 
-/** A browser extension or another app asks to connect (POST /pair): allow or refuse (docs/FROM_APPS.md). */
+/** A browser extension asks to connect (POST /pair): allow or refuse. */
 export function PairDialog() {
   const req = useStore((s) => s.pairRequest);
   useEffect(() => {
@@ -197,38 +193,24 @@ export function PairDialog() {
   function answer(allow: boolean) {
     useStore.getState().setPairRequest(null);
     api.answerWebPair(req!.id, allow).catch((e) => useStore.getState().toast(String(e), true));
-    if (allow) useStore.getState().toast(req!.app ? `「${req!.app}」と接続しました` : "拡張機能と接続しました");
+    if (allow) useStore.getState().toast("拡張機能と接続しました");
   }
 
   return (
     <div data-modal className="fixed inset-0 z-[60] flex animate-fade-in items-center justify-center bg-black/50">
       <div className="w-[400px] max-w-[92vw] animate-zoom-in rounded-xl border border-line bg-panel p-5 text-center shadow-2xl">
         <Link2 size={28} className="mx-auto text-accent" />
-        {req.app ? (
-          <>
-            {/* The name is what the app calls itself: the code is what tells it is the same request. */}
-            <div className="mt-2 text-base font-semibold">アプリ「{req.app}」が接続を求めています</div>
-            <p className="mt-1 text-xs text-dim">
-              そのアプリの画面に出ている番号と同じなら「許可する」を押してください。許可すると、そのアプリからこのライブラリに保存できるようになります。
-            </p>
-            <div className="my-4 font-mono text-4xl font-semibold tracking-[0.3em] tabular-nums">{req.code}</div>
-            <p className="-mt-2 mb-4 text-[11px] text-dim">名前は相手のアプリが名乗ったものです。番号が同じかどうかで確かめてください</p>
-          </>
-        ) : (
-          <>
-            <div className="mt-2 text-base font-semibold">ブラウザの拡張機能が接続を求めています</div>
-            <p className="mt-1 text-xs text-dim">
-              拡張機能の画面に出ている番号と同じなら「許可する」を押してください。許可すると、その拡張機能からこのライブラリに画像を保存できるようになります。
-            </p>
-            <div className="my-4 font-mono text-4xl font-semibold tracking-[0.3em] tabular-nums">{req.code}</div>
-            {/* Which one asks: chrome://extensions shows the same id under the extension. */}
-            <p className="-mt-2 mb-4 text-[11px] text-dim">
-              拡張機能の ID：<span className="font-mono select-all">{req.extension}</span>
-              <br />
-              心当たりがなければ「許可しない」を押してください（ID は chrome://extensions で確かめられます）
-            </p>
-          </>
-        )}
+        <div className="mt-2 text-base font-semibold">ブラウザの拡張機能が接続を求めています</div>
+        <p className="mt-1 text-xs text-dim">
+          拡張機能の画面に出ている番号と同じなら「許可する」を押してください。許可すると、その拡張機能からこのライブラリに画像を保存できるようになります。
+        </p>
+        <div className="my-4 font-mono text-4xl font-semibold tracking-[0.3em] tabular-nums">{req.code}</div>
+        {/* Which one asks: chrome://extensions shows the same id under the extension. */}
+        <p className="-mt-2 mb-4 text-[11px] text-dim">
+          拡張機能の ID：<span className="font-mono select-all">{req.extension}</span>
+          <br />
+          心当たりがなければ「許可しない」を押してください（ID は chrome://extensions で確かめられます）
+        </p>
         <div className="flex justify-center gap-2">
           <button onClick={() => answer(false)} className="h-9 rounded-md border border-edge bg-control px-4 hover:bg-ink/12">
             許可しない

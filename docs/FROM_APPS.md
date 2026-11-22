@@ -1,6 +1,12 @@
-# ほかのアプリから受け取る（Feedability ほか）
+# ほかのアプリから受け取る（Feedability ほか）— やめた
 
-**状態**：受け口は対応済み（2026-10-18。`webimport.rs` の `Peer`）。相手側の計画は Feedability の `docs/STOCKROOM.md` と ADR-0004（採用）。
+**状態**：**2026-11-22 にやめた**。ほかのアプリからの接続の許可（`X-Stockroom-Client`）を外し、受付は拡張機能だけにした。
+保存（POST）は拡張機能の `Origin`（`chrome-extension://…`）が付いたものだけを受け付けるので、前に接続したアプリ（Feedability）も、持っているトークンで保存できなくなった。
+フォルダ・タグの読み取り（GET）は、拡張機能が `Origin` を付けないので、今どおりトークンだけで受け付ける（`webimport.rs` の冒頭）。
+やめた理由：記事とリンクを外したので（下）、受け取るものが無くなった。Feedability の画像を送る機能はまだ無い。
+Feedability 側の文書（`docs/STOCKROOM.md`）と送る処理は、Feedability のリポジトリで直す必要がある。
+
+以下は、受け口を作ったとき（2026-10-18。相手側の計画は Feedability の `docs/STOCKROOM.md` と ADR-0004）と、記事・リンクをやめたときの記録。
 
 **2026-11-22：記事（`.md`）とリンク（`POST /bookmark`）は Stockroom では受けなくなった**（テキストとブックマークを外した。[FILE_APP.md](FILE_APP.md)）。
 `.md` は対応していない形式として断り（422）、`/bookmark` は 404 を返す。接続の許可（`/pair`）と `/import` は残るので、画像は今どおり送れる。
