@@ -1,4 +1,5 @@
 import {
+  Check,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -600,12 +601,6 @@ function useInScope(): (total: number, byKind: KindCounts) => number {
 }
 
 /**
- * The range of kinds (docs/KINDS.md): what is looked at, at the top of the
- * sidebar apart from the places so that the two go together ("this folder's
- * images"). One line, a menu: nothing picked is every kind (no 「すべて」 here,
- * that word is the place's). Click picks one, ⌘-click adds or takes off one.
- */
-/**
  * 外観（システム／ライト／ダーク）。アプリ全体の設定なので、ショートカット一覧・ライブラリと並べて
  * サイドバーの下端に置く（docs/UI.md「色」）。3 つ並べて、いまどれかを見せる。
  */
@@ -652,8 +647,10 @@ function SidebarHide({ className }: { className: string }) {
 }
 
 /**
- * The range (docs/KINDS.md): ［画像｜動画］. Nothing pressed shows both; pressing
- * the pressed one again lets go. The similar view is of images whatever is picked.
+ * 種類で絞る（docs/KINDS.md）：見出し「種類で絞る」と、丸い枠のチップ［画像］［動画］。
+ * 切り替え（セグメント）ではなく絞り込みに見せるため、選んだチップは ✓ と青い面にし、
+ * 見出しの右に「解除」を出す（場所はいつも空けておく）。件数はチップに入れない
+ * （数万件だと入らない）で、ツールチップに書く。重複の候補では無効表示で「画像」を選んだ見た目。
  */
 function KindRange() {
   const kinds = useStore(useShallow(rangeKinds));
@@ -661,35 +658,50 @@ function KindRange() {
   const similar = useStore((s) => s.view.kind === "similar");
   const counts = useStore(useShallow((s) => placeByKind(s)));
   if (!kinds.length) return null;
+  const narrowed = picked.length > 0 && !similar;
 
   return (
-    <div role="group" aria-label="種類で絞る" className="mx-2 mb-2 flex h-7 shrink-0 items-stretch rounded-md track text-[13px]">
-      {kinds.map((k, i) => {
-        const on = similar ? k === "image" : picked.includes(k);
-        const key = comboText(`Alt+${i + 1}`);
-        return (
-          <button
-            key={k}
-            disabled={similar}
-            aria-pressed={on}
-            title={
-              similar
-                ? "重複の候補は画像だけが対象です"
-                : on
-                  ? `${kindLabel(k)}だけを表示中（もう一度押すか ${comboText("Alt+0")} で解除）`
-                  : `${kindLabel(k)}だけを表示（${key}）`
-            }
-            onClick={() => pickKind(k)}
-            className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded px-1.5 disabled:off ${
-              on ? "thumb font-medium" : "text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
-            }`}
-          >
-            <span className={`shrink-0 ${on ? "" : "text-dim"}`}>{KIND_ICON[k]}</span>
-            <span className="truncate">{kindLabel(k)}</span>
-            {counts && <span className={`shrink-0 tabular-nums ${on ? "text-fg/70" : "text-dim"}`}>{counts[k] ?? 0}</span>}
-          </button>
-        );
-      })}
+    <div className="mx-2 mb-2 shrink-0">
+      <div className="mb-1 flex h-5 items-center pl-1 text-[11px] font-semibold text-dim">
+        種類で絞る
+        <button
+          title={`種類の条件を外す（${comboText("Alt+0")}）`}
+          onClick={() => pickKind(null)}
+          className={`ml-auto rounded px-1 font-normal text-accent hover:bg-hover ${narrowed ? "" : "invisible"}`}
+        >
+          解除
+        </button>
+      </div>
+      <div role="group" aria-label="種類で絞る" className="flex gap-1.5 text-[13px]">
+        {kinds.map((k, i) => {
+          const on = similar ? k === "image" : picked.includes(k);
+          const count = counts ? `${kindLabel(k)} ${counts[k] ?? 0} 件\n` : "";
+          return (
+            <button
+              key={k}
+              disabled={similar}
+              aria-pressed={on}
+              title={
+                similar
+                  ? "重複の候補は画像だけが対象です"
+                  : count +
+                    (on
+                      ? `${kindLabel(k)}だけを表示中（もう一度押すか ${comboText("Alt+0")} で解除）`
+                      : `${kindLabel(k)}だけを表示（${comboText(`Alt+${i + 1}`)}）`)
+              }
+              onClick={() => pickKind(k)}
+              className={`flex h-7 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border px-2 disabled:off disabled:bg-transparent ${
+                on
+                  ? "border-tonal-edge bg-tonal font-medium text-on-tonal"
+                  : "border-frame text-fg/85 enabled:hover:bg-hover enabled:hover:text-fg"
+              }`}
+            >
+              <span className={`shrink-0 ${on || similar ? "" : "text-dim"}`}>{on ? <Check size={14} /> : KIND_ICON[k]}</span>
+              <span className="truncate">{kindLabel(k)}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
