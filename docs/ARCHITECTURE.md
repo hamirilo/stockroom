@@ -17,7 +17,7 @@ Stockroom は、集めた画像と動画を「見て探して使う」ための�
 - **ファイル・テキスト・ブックマークがあった版のデータ**（docs/FILE_APP.md）：ライブラリを開いたとき（`commands.rs` の `activate`）に、
   `items` の `kind` が `file` / `text` / `bookmark` の行を、ファイルごと消す（`Library::remove_leftovers`。ゴミ箱の中のものも）。
   `items.body`（テキストの本文）の列は残し、読まない
-- **種類の範囲**（docs/KINDS.md）：サイドバーの［画像｜動画］のセグメント（`Sidebar.tsx` の `KindRange`、出す種類は `rangeKinds`）で
+- **種類の範囲**（docs/KINDS.md）：サイドバーの「種類で絞る」のチップ［画像］［動画］（`Sidebar.tsx` の `KindRange`、出す種類は `rangeKinds`）で
   `filter.kinds` を選ぶ。絞り込みの条件ではなく範囲：表示（フォルダ・タグなど）を移っても残り、「すべて解除」でも外さず、`activeConditions` に数えない。
   サイドバーの件数は、`byKind`（固定の場所・フォルダ・タグ・スマートフォルダの種類ごとの件数）から選んだ種類の分を足す（`inScope`）
 - 一覧が持ちうる種類は `listKinds`（`lib/kinds.ts`、状態を受け取る純粋関数）の 1 か所で決める：使う種類を種類の絞り込みで狭め、
